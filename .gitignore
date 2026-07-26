@@ -62,3 +62,4 @@ application-dev.yaml
 
 ### Generated ###
 generated/
+*.properties
