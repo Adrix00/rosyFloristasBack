@@ -18,7 +18,8 @@ on:
       - release/**
 
 jobs:
-  build:
+  verify:
+    name: Build, Test & Verify
 
     runs-on: ubuntu-latest
 
