@@ -1,0 +1,549 @@
+# Arquitectura Hexagonal + DDD - Responsabilidades de cada capa
+
+## Visión general
+
+```text
+                   Cliente (Web, App, API)
+
+                            │
+                            ▼
+
+                 INFRASTRUCTURE (Entrada)
+
+                  Controllers / REST API
+
+                            │
+                  Request DTO → Command
+                            │
+                            ▼
+
+                     APPLICATION
+
+                Use Cases (Input Ports)
+
+                            │
+              Orquesta el negocio
+                            │
+                            ▼
+
+                        DOMAIN
+
+         Entidades, Value Objects, Servicios
+
+                            │
+                     Output Ports
+                     (Interfaces)
+
+                            ▲
+                            │
+
+                INFRASTRUCTURE (Salida)
+
+      PostgreSQL, Kafka, S3, Redis, Email...
+
+                            │
+
+                     Frameworks
+```
+
+---
+
+# 1. Domain
+
+## Responsabilidad
+
+Representa exclusivamente el negocio.
+
+Debe responder únicamente a preguntas como:
+
+- ¿Qué es un pedido?
+- ¿Qué es un cliente?
+- ¿Qué reglas tiene un ramo?
+- ¿Cómo se calcula un descuento?
+- ¿Cuándo un pedido puede cancelarse?
+
+El dominio nunca debe conocer detalles técnicos.
+
+---
+
+## Contiene
+
+- Entidades
+- Value Objects
+- Domain Services
+- Domain Events
+- Domain Exceptions
+- Enums
+- Factories (cuando sean necesarias)
+
+---
+
+## Puede conocer
+
+- Otras entidades
+- Value Objects
+- Servicios de dominio
+- Eventos de dominio
+- Objetos propios del dominio
+
+---
+
+## NO puede conocer
+
+- Spring
+- Hibernate
+- JPA
+- PostgreSQL
+- Controllers
+- REST
+- HTTP
+- Kafka
+- Redis
+- AWS
+- DTOs
+- Requests
+- Responses
+
+---
+
+## Responsabilidad resumida
+
+> Contiene TODAS las reglas de negocio.
+
+---
+
+# 2. Application
+
+## Responsabilidad
+
+Coordina el flujo de la aplicación.
+
+No implementa reglas de negocio.
+
+Orquesta la ejecución del dominio.
+
+---
+
+## Contiene
+
+- Use Cases
+- Commands
+- Queries
+- Input Ports
+- Output Ports
+- Validators de aplicación
+- Publicación de eventos
+
+---
+
+## Puede conocer
+
+- Domain
+- Commands
+- Queries
+- Ports
+
+---
+
+## NO puede conocer
+
+- Controllers
+- Hibernate
+- PostgreSQL
+- Kafka
+- Redis
+- AWS
+- HTTP
+- Spring MVC
+
+---
+
+## Responsabilidad resumida
+
+> Decide QUÉ hacer.
+
+No decide CÓMO se implementa técnicamente.
+
+---
+
+# 3. Infrastructure
+
+## Responsabilidad
+
+Implementar todos los detalles tecnológicos.
+
+Aquí vive cualquier integración con frameworks o servicios externos.
+
+---
+
+## Contiene
+
+- Controllers
+- Persistence
+- JPA
+- Repositories
+- Adapters
+- Security
+- Configuración
+- Kafka
+- Elastic
+- Redis
+- S3
+- Email
+- Clientes REST
+- Mappers
+
+---
+
+## Puede conocer
+
+- Application
+- Domain
+- Spring
+- Hibernate
+- PostgreSQL
+- Kafka
+- Redis
+- AWS
+- Frameworks
+
+---
+
+## NO debe contener
+
+- Reglas de negocio
+
+---
+
+## Responsabilidad resumida
+
+> Implementa el "cómo".
+
+---
+
+# 4. Shared
+
+## Responsabilidad
+
+Contener código reutilizable entre capas.
+
+---
+
+## Contiene
+
+- Utilidades
+- Excepciones comunes
+- Constantes
+- Helpers
+- Clases base
+- Código transversal
+
+---
+
+## Debe evitar
+
+Convertirse en un "cajón desastre".
+
+Si una clase pertenece claramente al dominio o a la aplicación, debe permanecer allí.
+
+---
+
+# Controller
+
+## Responsabilidad
+
+- Recibir peticiones HTTP
+- Validar la entrada
+- Convertir Request → Command / Query
+- Invocar un Use Case
+- Convertir el resultado → Response
+
+---
+
+## NO hace
+
+- Lógica de negocio
+- SQL
+- Hibernate
+- Acceso a repositorios
+- Reglas de dominio
+
+---
+
+# Use Case
+
+## Responsabilidad
+
+- Coordinar el flujo del caso de uso
+- Validar reglas de aplicación
+- Invocar entidades del dominio
+- Utilizar Output Ports
+- Gestionar transacciones
+- Publicar eventos
+
+---
+
+## NO hace
+
+- SQL
+- HTTP
+- JSON
+- Persistencia
+- Frameworks
+
+---
+
+# Domain Entity
+
+## Responsabilidad
+
+- Implementar reglas de negocio
+- Mantener consistencia
+- Proteger invariantes
+- Representar conceptos del negocio
+
+---
+
+## NO hace
+
+- Guardarse en base de datos
+- Enviar emails
+- Consumir APIs
+- Conocer Spring
+- Conocer Hibernate
+
+---
+
+# Input Port
+
+## Responsabilidad
+
+Define las operaciones que puede ejecutar la aplicación.
+
+Ejemplo:
+
+```java
+public interface CreateProductUseCase {
+
+    void execute(CreateProductCommand command);
+
+}
+```
+
+---
+
+# Output Port
+
+## Responsabilidad
+
+Define las necesidades que tiene la aplicación respecto al exterior.
+
+Ejemplo:
+
+```java
+public interface SaveProductPort {
+
+    void save(Product product);
+
+}
+```
+
+No implementa nada.
+
+Solo define contratos.
+
+---
+
+# Adapter
+
+## Responsabilidad
+
+Implementar un Output Port utilizando una tecnología concreta.
+
+Ejemplo:
+
+```text
+SaveProductPort
+        │
+        ▼
+ProductJpaAdapter
+        │
+        ▼
+PostgreSQL
+```
+
+También existen adaptadores de entrada (Controllers).
+
+---
+
+# Mapper
+
+## Responsabilidad
+
+Transformar objetos entre capas.
+
+Ejemplos:
+
+```text
+Request DTO
+        │
+        ▼
+Command
+```
+
+```text
+ProductEntity
+        │
+        ▼
+Product
+```
+
+```text
+Product
+        │
+        ▼
+Response DTO
+```
+
+---
+
+## NO hace
+
+Nunca contiene reglas de negocio.
+
+---
+
+# DTO
+
+## Responsabilidad
+
+Transportar información entre capas.
+
+Tipos habituales:
+
+- Request DTO
+- Response DTO
+- Command
+- Query
+
+---
+
+## NO hace
+
+Nunca implementa lógica de negocio.
+
+---
+
+# Flujo completo de una petición
+
+```text
+HTTP Request
+        │
+        ▼
+Controller
+        │
+Request DTO
+        │
+        ▼
+Command
+        │
+        ▼
+Use Case
+        │
+        ▼
+Domain
+        │
+        ▼
+Output Port
+        │
+        ▼
+Adapter
+        │
+        ▼
+JPA Entity
+        │
+        ▼
+PostgreSQL
+```
+
+---
+
+# Regla de oro de las dependencias
+
+Las dependencias siempre apuntan hacia el centro de la arquitectura.
+
+```text
+Infrastructure
+        │
+        ▼
+Application
+        │
+        ▼
+Domain
+```
+
+Nunca al revés.
+
+---
+
+# Regla de oro de los datos
+
+Los datos sí atraviesan las capas.
+
+Lo que **no** atraviesan las capas son las implementaciones técnicas.
+
+Cada capa habla con los objetos adecuados:
+
+| Capa | Objetos que maneja |
+|-------|--------------------|
+| Controller | Request DTO / Response DTO |
+| Application | Commands / Queries / Entidades / Ports |
+| Domain | Entidades / Value Objects / Eventos |
+| Infrastructure | Entities JPA, APIs, Frameworks |
+
+---
+
+# Principios fundamentales
+
+## Domain
+
+> Contiene el conocimiento del negocio.
+
+---
+
+## Application
+
+> Coordina el negocio.
+
+---
+
+## Infrastructure
+
+> Implementa la tecnología.
+
+---
+
+## Shared
+
+> Reutiliza código transversal sin romper la arquitectura.
+
+---
+
+# La frase que resume toda la Arquitectura Hexagonal
+
+> **El dominio contiene el negocio, la aplicación coordina el negocio y la infraestructura implementa la tecnología.**
+
+---
+
+# Pregunta de decisión rápida
+
+Cuando vayas a crear una clase nueva, hazte esta pregunta:
+
+| Pregunta | Capa |
+|----------|------|
+| ¿Representa una regla de negocio? | Domain |
+| ¿Coordina un caso de uso? | Application |
+| ¿Depende de un framework o tecnología? | Infrastructure |
+| ¿Es código reutilizable transversal? | Shared |
+
+Si dudas entre dos capas, normalmente significa que la clase tiene más de una responsabilidad y conviene dividirla.
