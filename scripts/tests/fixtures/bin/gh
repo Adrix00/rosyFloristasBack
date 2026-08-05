@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Test double for the `gh` CLI used by the Bats suite (Maven runs for real in
+# tests; only GitHub is mocked, since there is no safe/offline real target for it).
+#
+# Every invocation is appended to $MOCK_GH_LOG (if set), one line per call, so
+# tests can assert on exactly what was invoked.
+#
+# `gh pr list ...` prints $MOCK_GH_EXISTING_PR if set (simulating an already
+# open sync PR), otherwise prints nothing, matching the real
+# `--jq '.[0].number // empty'` "no result" behaviour.
+# `gh pr create ...` and `gh workflow run ...` just succeed.
+
+set -euo pipefail
+
+if [[ -n "${MOCK_GH_LOG:-}" ]]; then
+    printf '%s\n' "$*" >> "${MOCK_GH_LOG}"
+fi
+
+if [[ "${1:-}" == "pr" && "${2:-}" == "list" ]]; then
+    if [[ -n "${MOCK_GH_EXISTING_PR:-}" ]]; then
+        echo "${MOCK_GH_EXISTING_PR}"
+    fi
+fi
+
+if [[ "${1:-}" == "pr" && "${2:-}" == "create" ]]; then
+    echo "https://example.invalid/pull/1"
+fi
+
+exit 0
