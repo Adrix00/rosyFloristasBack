@@ -166,3 +166,21 @@ Compilation must succeed without warnings whenever possible.
 Do not guess.
 
 Explain the alternatives and wait for confirmation.
+
+---
+
+## Build & Verification
+
+`mvn verify` runs the full validation chain and must pass before considering any change done:
+
+- Checkstyle (`validate` phase)
+- Tests, including ArchUnit rules (`test` phase)
+- SpotBugs (`verify` phase)
+
+Individual checks:
+
+- `mvn checkstyle:check` — style only
+- `mvn test` — unit/ArchUnit tests only
+- `mvn spotbugs:check` — static analysis only (requires prior compile)
+
+Never skip `mvn verify` before declaring a task complete.

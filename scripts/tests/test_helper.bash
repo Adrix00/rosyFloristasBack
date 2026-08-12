@@ -20,8 +20,8 @@ init_test_repo() {
     TEST_REMOTE="$(mktemp -d "${TMPDIR:-/tmp}/rosy-release-remote.XXXXXX")"
     export TEST_REPO TEST_REMOTE
 
-    git init --bare -q "${TEST_REMOTE}"
-    git init -q "${TEST_REPO}"
+    git init --bare -q -b main "${TEST_REMOTE}"
+    git init -q -b main "${TEST_REPO}"
 
     cp "${FIXTURES_DIR}/pom.xml.template" "${TEST_REPO}/pom.xml"
     cp "${PROJECT_ROOT}/mvnw" "${TEST_REPO}/mvnw"
