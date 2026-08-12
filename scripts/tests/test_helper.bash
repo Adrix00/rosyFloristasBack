@@ -130,7 +130,13 @@ push_tag_via_other_clone() {
     local other_clone
     other_clone="$(mktemp -d "${TMPDIR:-/tmp}/rosy-release-other.XXXXXX")"
     git clone -q "${TEST_REMOTE}" "${other_clone}"
-    (cd "${other_clone}" && git tag -a "${tag}" -m "Release ${tag}" && git push -q origin "${tag}")
+    (
+        cd "${other_clone}"
+        git config user.name "Other User"
+        git config user.email "other@example.invalid"
+        git tag -a "${tag}" -m "Release ${tag}"
+        git push -q origin "${tag}"
+    )
     rm -rf "${other_clone}"
 }
 
