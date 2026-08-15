@@ -63,3 +63,6 @@ application-dev.yaml
 ### Generated ###
 generated/
 *.properties
+
+### Graphify out ###
+graphify-out/
