@@ -8,17 +8,17 @@ Java 21 + Spring Boot
 
 This repository follows a strict DDD + Hexagonal Architecture.
 
-Before modifying the code, always read the architectural documentation located at:
+Before modifying the code, always read the relevant architectural documentation located at:
 
 docs/architecture/
 
 Mandatory documents:
 
-- 00-project-principles.md
-- ADR-001-use-case-first.md
-- ADR-002-jpa-and-jdbc.md
-- ADR-003-capability-based-ports.md
-- ADR-004-reference-module-category.md
+- docs/architecture/00-project-principles.md
+- docs/architecture/ADR/ADR-001-use-case-first.md
+- docs/architecture/ADR/ADR-002-jpa-and-jdbc.md
+- docs/architecture/ADR/ADR-003-capability-based-ports.md
+- docs/architecture/ADR/ADR-004-reference-module-category.md
 
 ---
 
@@ -85,6 +85,61 @@ Capability-Based Output Ports
 JPA + JDBC
 
 Modular Monolith
+
+---
+
+## Project Documentation
+
+The `docs/` directory is an Obsidian vault and contains project documentation that is not part of the Git repository.
+
+The documentation in `docs/` is the source of truth for:
+
+- Backend architecture
+- Database structure and design
+- API contracts
+- Backend features
+- Frontend-facing functionality
+- Domain decisions
+- Development specifications
+- Architectural decisions
+
+Before implementing or modifying functionality, consult the relevant documentation in `docs/`.
+
+### Documentation structure
+
+- `docs/architecture/` — architectural rules and conventions
+- `docs/architecture/ADR/` — Architecture Decision Records
+- `docs/database/` — database structure and design
+- `docs/domain/` — domain concepts and business rules
+- `docs/features/` — feature specifications and functional requirements
+- `docs/api/` — API contracts and endpoint definitions
+- `docs/releases/` — release and development notes
+
+### Documentation rules
+
+Documentation must be updated when a code change modifies or establishes:
+
+- Architecture
+- Database structure
+- API contracts
+- Domain behaviour
+- Business rules
+- Feature requirements
+- Important technical decisions
+
+Do not modify documentation for trivial implementation changes that do not affect the documented design.
+
+When a change contradicts existing documentation:
+
+STOP.
+
+Explain the conflict before modifying the code or documentation.
+
+When a new architectural decision is required, create or update the appropriate ADR before implementing the change.
+
+Documentation changes must reflect the final implemented behaviour, not planned behaviour that has not been implemented.
+
+Never invent requirements or architectural decisions that are not present in the documentation or explicitly requested by the user.
 
 ---
 
