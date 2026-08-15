@@ -66,3 +66,9 @@ generated/
 
 ### Graphify out ###
 graphify-out/
+
+### Private Obsidian documentation ###
+/docs/database/
+/docs/features/
+/docs/api/
+/docs/.obsidian/
