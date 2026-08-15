@@ -1,0 +1,72 @@
+version: 2
+
+updates:
+  - package-ecosystem: "maven"
+    directory: "/"
+
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "03:00"
+      timezone: "Europe/Madrid"
+
+    target-branch: "main"
+
+    open-pull-requests-limit: 3
+
+    labels:
+      - "dependencies"
+
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+    rebase-strategy: "auto"
+
+    groups:
+      spring:
+        patterns:
+          - "org.springframework*"
+          - "org.springframework.boot*"
+
+      testing:
+        patterns:
+          - "org.junit*"
+          - "org.mockito*"
+          - "org.assertj*"
+
+      quality:
+        patterns:
+          - "com.github.spotbugs*"
+          - "com.diffplug.spotless*"
+          - "org.apache.maven.plugins*"
+          - "org.jacoco*"
+          - "com.puppycrawl.tools*"
+
+      persistence:
+        patterns:
+          - "org.postgresql*"
+          - "org.flywaydb*"
+          - "org.hibernate*"
+          - "com.zaxxer*"
+
+      logging:
+        patterns:
+          - "ch.qos.logback*"
+          - "org.slf4j*"
+
+      security:
+        patterns:
+          - "org.springframework.security*"
+          - "org.bouncycastle*"
+
+      others:
+        patterns:
+          - "*"
+
+    ignore:
+      - dependency-name: "*"
+        versions:
+          - "*-M*"
+          - "*-RC*"
+          - "*-SNAPSHOT*"
