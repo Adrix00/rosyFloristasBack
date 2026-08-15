@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Version helpers: read the current Maven project version and compute the
-# next release/patch version, branch name and tag name from it.
+# Version helpers: compute the next release/patch version, branch name and tag
+# name from Git tags -- the system's source of truth for versioning.
 #
 # Can be sourced as a function library by other scripts, or invoked directly:
-#   scripts/version.sh current
+#   scripts/version.sh current                (legacy, see note below)
+#   scripts/version.sh last-tag-overall
 #   scripts/version.sh next-release <major|minor> <version>
 #   scripts/version.sh next-patch <version>
 #   scripts/version.sh branch-name <version>
 #   scripts/version.sh tag-name <version>
 #   scripts/version.sh last-tag-for-branch <release/X.Y.x>
+#   scripts/version.sh ensure-snapshot <version>
 #
 # Must be run from the repository root (relies on ./mvnw and the local git tags).
 
@@ -20,6 +22,10 @@ source "${SCRIPT_DIR}/utils.sh"
 
 readonly SEMVER_REGEX='^([0-9]+)\.([0-9]+)\.([0-9]+)(-SNAPSHOT)?$'
 
+# LEGACY: reads the version straight out of pom.xml via Maven. No production
+# script uses this to calculate versions anymore -- Git tags are the system's
+# source of truth (see version_last_tag_overall / version_last_tag_for_branch).
+# Kept for backwards compatibility and manual/debugging use.
 version_read_current() {
     ./mvnw -q -B help:evaluate -Dexpression=project.version -DforceStdout
 }
@@ -99,6 +105,27 @@ version_tag_name() {
     echo "v${core}"
 }
 
+# Normalizes an explicit, user-supplied version override to "X.Y.Z-SNAPSHOT",
+# accepting either "X.Y.Z" or "X.Y.Z-SNAPSHOT" as input.
+version_ensure_snapshot() {
+    local version="$1"
+    version_parse "${version}"
+    echo "${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}-SNAPSHOT"
+}
+
+# Finds the highest vX.Y.Z tag across the whole repository (the source of truth
+# for the next major/minor release). Falls back to v0.0.0 when no tag exists
+# yet (bootstrap case, e.g. before the very first release).
+version_last_tag_overall() {
+    local last
+    last="$(git tag -l 'v*' | sort -V | tail -n 1)"
+    if [[ -z "${last}" ]]; then
+        echo "v0.0.0"
+    else
+        echo "${last}"
+    fi
+}
+
 # Finds the highest existing vX.Y.* tag for a release/X.Y.x branch.
 # Requires tags to have been fetched locally (fetch-depth: 0 in CI).
 version_last_tag_for_branch() {
@@ -115,16 +142,18 @@ version_last_tag_for_branch() {
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     command="${1:-}"
-    [[ -n "${command}" ]] || fail "Usage: $0 {current|next-release <major|minor> <version>|next-patch <version>|branch-name <version>|tag-name <version>|last-tag-for-branch <release/X.Y.x>}"
+    [[ -n "${command}" ]] || fail "Usage: $0 {current|last-tag-overall|next-release <major|minor> <version>|next-patch <version>|branch-name <version>|tag-name <version>|last-tag-for-branch <release/X.Y.x>|ensure-snapshot <version>}"
     shift
 
     case "${command}" in
         current) version_read_current ;;
+        last-tag-overall) version_last_tag_overall ;;
         next-release) version_next_release "$1" "$2" ;;
         next-patch) version_next_patch "$1" ;;
         branch-name) version_release_branch_name "$1" ;;
         tag-name) version_tag_name "$1" ;;
         last-tag-for-branch) version_last_tag_for_branch "$1" ;;
+        ensure-snapshot) version_ensure_snapshot "$1" ;;
         *) fail "Unknown command: ${command}" ;;
     esac
 fi

@@ -40,3 +40,45 @@ jobs:
 
       - name: Build project
         run: ./mvnw clean verify
+
+  shellcheck:
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck
+        run: shellcheck scripts/*.sh scripts/tests/test_helper.bash scripts/tests/fixtures/bin/gh
+
+  test-scripts:
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Install Bats
+        run: sudo apt-get update && sudo apt-get install -y bats
+
+      - name: Make scripts executable
+        run: chmod +x mvnw scripts/*.sh scripts/tests/fixtures/bin/*
+
+      - name: Run Bats test suite
+        run: bats scripts/tests/

@@ -4,19 +4,28 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: "Version bump type for the new release line"
-        required: true
+        description: "Version bump type (ignored if 'version' is set)"
+        required: false
         type: choice
         options:
           - major
           - minor
+      version:
+        description: "Explicit version to release, e.g. 2.0.0 (overrides bump)"
+        required: false
+        type: string
 
 permissions:
   contents: write
 
+concurrency:
+  group: create-release
+  cancel-in-progress: false
+
 jobs:
   create-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,4 +44,4 @@ jobs:
         run: chmod +x mvnw scripts/*.sh
 
       - name: Create release branch and first tag
-        run: scripts/create-release.sh "${{ inputs.bump }}"
+        run: scripts/create-release.sh "${{ inputs.bump }}" --version "${{ inputs.version }}"

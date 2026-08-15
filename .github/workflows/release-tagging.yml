@@ -10,12 +10,17 @@ permissions:
   contents: write
   actions: write
 
+concurrency:
+  group: release-tagging-${{ github.event.pull_request.base.ref }}
+  cancel-in-progress: false
+
 jobs:
   tag-release:
     if: >
       github.event.pull_request.merged == true &&
       (startsWith(github.head_ref, 'bugfix/') || startsWith(github.head_ref, 'hotfix/'))
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout release branch
         uses: actions/checkout@v4

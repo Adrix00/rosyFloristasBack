@@ -3,7 +3,7 @@
 # release/X.Y.x branch, bumps the patch version, cuts the next tag and
 # triggers the Release Sync workflow.
 #
-# Usage: scripts/create-tag.sh
+# Usage: scripts/create-tag.sh [--dry-run]
 # Must be run from an already-checked-out release/X.Y.x branch.
 
 set -euo pipefail
@@ -15,10 +15,24 @@ source "${SCRIPT_DIR}/utils.sh"
 source "${SCRIPT_DIR}/version.sh"
 
 main() {
+    local dry_run=false
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --dry-run) dry_run=true; shift ;;
+            "") shift ;;
+            *) fail "Unknown argument: $1" ;;
+        esac
+    done
+    DRY_RUN="${dry_run}"
+
+    ensure_clean_worktree
+
     local release_branch
     release_branch="$(current_branch)"
     [[ "${release_branch}" =~ ^release/[0-9]+\.[0-9]+\.x$ ]] \
         || fail "create-tag.sh must run from a 'release/X.Y.x' branch, not '${release_branch}'."
+
+    sync_remote_refs
 
     local last_tag
     last_tag="$(version_last_tag_for_branch "${release_branch}")"
@@ -35,10 +49,10 @@ main() {
 
     configure_git_identity
 
-    ./mvnw -q -B versions:set -DnewVersion="${new_version}" -DgenerateBackupPoms=false
+    run_cmd ./mvnw -q -B versions:set -DnewVersion="${new_version}" -DgenerateBackupPoms=false
     commit_pom_version_bump "chore(release): bump version to ${new_version}"
 
-    push_branch_and_tag "${release_branch}" "${new_tag}"
+    push_branch_and_tag "${release_branch}" "${new_tag}" "Release ${new_tag}"
 
     trigger_release_sync "${release_branch}"
 
