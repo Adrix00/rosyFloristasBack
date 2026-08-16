@@ -4,6 +4,5 @@ import com.floristeriarosy.domain.model.category.valueobject.CategoryId;
 
 public interface CategoryExistencePort {
 
-    boolean existsById(CategoryId id);
-
+  boolean existsById(CategoryId id);
 }

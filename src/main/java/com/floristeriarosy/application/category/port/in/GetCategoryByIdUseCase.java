@@ -5,6 +5,5 @@ import com.floristeriarosy.domain.model.category.Category;
 
 public interface GetCategoryByIdUseCase {
 
-    Category execute(GetCategoryByIdQuery query);
-
+  Category execute(GetCategoryByIdQuery query);
 }

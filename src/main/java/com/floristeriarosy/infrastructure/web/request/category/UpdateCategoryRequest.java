@@ -1,5 +1,3 @@
 package com.floristeriarosy.infrastructure.web.request.category;
 
-public final class UpdateCategoryRequest {
-
-}
+public final class UpdateCategoryRequest {}

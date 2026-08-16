@@ -1,5 +1,3 @@
 package com.floristeriarosy.domain.model.category;
 
-public final class Category {
-
-}
+public final class Category {}

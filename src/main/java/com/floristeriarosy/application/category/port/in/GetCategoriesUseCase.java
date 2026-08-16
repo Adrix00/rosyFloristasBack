@@ -6,6 +6,5 @@ import java.util.List;
 
 public interface GetCategoriesUseCase {
 
-    List<Category> execute(GetCategoriesQuery query);
-
+  List<Category> execute(GetCategoriesQuery query);
 }

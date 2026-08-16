@@ -1,5 +1,3 @@
 package com.floristeriarosy.application.category.command;
 
-public final class CreateCategoryCommand {
-
-}
+public final class CreateCategoryCommand {}

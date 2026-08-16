@@ -8,9 +8,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class GetCategoryByIdService implements GetCategoryByIdUseCase {
 
-    @Override
-    public Category execute(GetCategoryByIdQuery query) {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
-
+  @Override
+  public Category execute(GetCategoryByIdQuery query) {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
 }

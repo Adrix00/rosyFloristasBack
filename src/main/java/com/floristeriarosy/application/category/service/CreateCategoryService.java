@@ -10,9 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class CreateCategoryService implements CreateCategoryUseCase {
 
-    @Override
-    public CategoryId execute(CreateCategoryCommand command) {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
-
+  @Override
+  public CategoryId execute(CreateCategoryCommand command) {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
 }

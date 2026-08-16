@@ -10,31 +10,31 @@ import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public class CategoryPersistenceAdapter implements CategoryReadPort, CategoryWritePort, CategoryExistencePort {
+public class CategoryPersistenceAdapter
+    implements CategoryReadPort, CategoryWritePort, CategoryExistencePort {
 
-    @Override
-    public Optional<Category> findById(CategoryId id) {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
+  @Override
+  public Optional<Category> findById(CategoryId id) {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
 
-    @Override
-    public List<Category> findAll() {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
+  @Override
+  public List<Category> findAll() {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
 
-    @Override
-    public Category save(Category category) {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
+  @Override
+  public Category save(Category category) {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
 
-    @Override
-    public void delete(CategoryId id) {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
+  @Override
+  public void delete(CategoryId id) {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
 
-    @Override
-    public boolean existsById(CategoryId id) {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
-
+  @Override
+  public boolean existsById(CategoryId id) {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
 }
