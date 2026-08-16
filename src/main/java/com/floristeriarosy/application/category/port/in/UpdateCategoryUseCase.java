@@ -4,6 +4,5 @@ import com.floristeriarosy.application.category.command.UpdateCategoryCommand;
 
 public interface UpdateCategoryUseCase {
 
-    void execute(UpdateCategoryCommand command);
-
+  void execute(UpdateCategoryCommand command);
 }

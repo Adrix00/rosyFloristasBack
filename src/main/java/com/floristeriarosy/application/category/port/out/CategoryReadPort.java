@@ -7,8 +7,7 @@ import java.util.Optional;
 
 public interface CategoryReadPort {
 
-    Optional<Category> findById(CategoryId id);
+  Optional<Category> findById(CategoryId id);
 
-    List<Category> findAll();
-
+  List<Category> findAll();
 }

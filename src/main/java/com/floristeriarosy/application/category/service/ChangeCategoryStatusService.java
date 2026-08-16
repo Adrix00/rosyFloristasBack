@@ -9,9 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class ChangeCategoryStatusService implements ChangeCategoryStatusUseCase {
 
-    @Override
-    public void execute(ChangeCategoryStatusCommand command) {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
-
+  @Override
+  public void execute(ChangeCategoryStatusCommand command) {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
 }

@@ -5,6 +5,5 @@ import com.floristeriarosy.domain.model.category.valueobject.CategoryId;
 
 public interface CreateCategoryUseCase {
 
-    CategoryId execute(CreateCategoryCommand command);
-
+  CategoryId execute(CreateCategoryCommand command);
 }

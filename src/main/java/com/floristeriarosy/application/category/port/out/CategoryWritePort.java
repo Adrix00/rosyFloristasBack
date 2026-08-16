@@ -5,8 +5,7 @@ import com.floristeriarosy.domain.model.category.valueobject.CategoryId;
 
 public interface CategoryWritePort {
 
-    Category save(Category category);
+  Category save(Category category);
 
-    void delete(CategoryId id);
-
+  void delete(CategoryId id);
 }

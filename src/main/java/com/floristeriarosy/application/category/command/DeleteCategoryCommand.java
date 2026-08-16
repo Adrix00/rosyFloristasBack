@@ -1,5 +1,3 @@
 package com.floristeriarosy.application.category.command;
 
-public final class DeleteCategoryCommand {
-
-}
+public final class DeleteCategoryCommand {}

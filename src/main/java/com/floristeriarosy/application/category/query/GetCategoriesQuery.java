@@ -1,5 +1,3 @@
 package com.floristeriarosy.application.category.query;
 
-public final class GetCategoriesQuery {
-
-}
+public final class GetCategoriesQuery {}

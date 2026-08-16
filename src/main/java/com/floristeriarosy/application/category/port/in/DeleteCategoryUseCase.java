@@ -4,6 +4,5 @@ import com.floristeriarosy.application.category.command.DeleteCategoryCommand;
 
 public interface DeleteCategoryUseCase {
 
-    void execute(DeleteCategoryCommand command);
-
+  void execute(DeleteCategoryCommand command);
 }

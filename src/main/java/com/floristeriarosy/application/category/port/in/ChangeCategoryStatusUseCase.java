@@ -4,6 +4,5 @@ import com.floristeriarosy.application.category.command.ChangeCategoryStatusComm
 
 public interface ChangeCategoryStatusUseCase {
 
-    void execute(ChangeCategoryStatusCommand command);
-
+  void execute(ChangeCategoryStatusCommand command);
 }

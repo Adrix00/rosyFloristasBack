@@ -9,9 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class DeleteCategoryService implements DeleteCategoryUseCase {
 
-    @Override
-    public void execute(DeleteCategoryCommand command) {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
-
+  @Override
+  public void execute(DeleteCategoryCommand command) {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
 }

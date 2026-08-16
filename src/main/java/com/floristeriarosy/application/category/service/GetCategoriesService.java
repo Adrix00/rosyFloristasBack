@@ -9,9 +9,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class GetCategoriesService implements GetCategoriesUseCase {
 
-    @Override
-    public List<Category> execute(GetCategoriesQuery query) {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
-
+  @Override
+  public List<Category> execute(GetCategoriesQuery query) {
+    throw new UnsupportedOperationException("Not implemented yet");
+  }
 }
