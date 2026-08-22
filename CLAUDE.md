@@ -26,11 +26,13 @@ Mandatory documents:
 - docs/architecture/ADR/ADR-009-optimistic-locking.md
 - docs/architecture/ADR/ADR-010-admin-audit-log.md
 - docs/architecture/ADR/ADR-011-idempotent-money-operations.md
+- docs/architecture/ADR/ADR-012-api-error-contract.md
 
 Read the ADR that governs the area being touched, not only the list above:
 authentication and sessions (ADR-008), concurrent writes (ADR-009), admin actions
 (ADR-010), checkout and payments (ADR-011), any personal data (ADR-005), product or
-customer deactivation (ADR-007), catalog search (ADR-006).
+customer deactivation (ADR-007), catalog search (ADR-006), any API error response
+(ADR-012).
 
 ---
 
