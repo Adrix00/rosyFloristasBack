@@ -19,6 +19,18 @@ Mandatory documents:
 - docs/architecture/ADR/ADR-002-jpa-and-jdbc.md
 - docs/architecture/ADR/ADR-003-capability-based-ports.md
 - docs/architecture/ADR/ADR-004-reference-module-category.md
+- docs/architecture/ADR/ADR-005-pii-protection-and-payment-tokenization.md
+- docs/architecture/ADR/ADR-006-postgres-search-instead-of-elasticsearch.md
+- docs/architecture/ADR/ADR-007-historical-integrity-and-data-lifecycle.md
+- docs/architecture/ADR/ADR-008-refresh-token-rotation.md
+- docs/architecture/ADR/ADR-009-optimistic-locking.md
+- docs/architecture/ADR/ADR-010-admin-audit-log.md
+- docs/architecture/ADR/ADR-011-idempotent-money-operations.md
+
+Read the ADR that governs the area being touched, not only the list above:
+authentication and sessions (ADR-008), concurrent writes (ADR-009), admin actions
+(ADR-010), checkout and payments (ADR-011), any personal data (ADR-005), product or
+customer deactivation (ADR-007), catalog search (ADR-006).
 
 ---
 
@@ -90,7 +102,7 @@ Modular Monolith
 
 ## Project Documentation
 
-The `docs/` directory is an Obsidian vault and contains project documentation that is not part of the Git repository.
+The `docs/` directory is an Obsidian vault. `docs/architecture/` and `docs/releases/` are versioned in Git; `docs/database/`, `docs/features/` and `docs/api/` are excluded by `.gitignore` and live only in the local vault. All of them are equally authoritative — being untracked does not make a document optional.
 
 The documentation in `docs/` is the source of truth for:
 

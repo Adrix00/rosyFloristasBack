@@ -72,3 +72,6 @@ graphify-out/
 /docs/features/
 /docs/api/
 /docs/.obsidian/
+
+### Cuaderno de trabajo local ###
+/.claude/daily-log.md
