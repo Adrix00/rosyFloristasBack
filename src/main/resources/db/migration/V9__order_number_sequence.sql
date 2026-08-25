@@ -1,0 +1,13 @@
+-- V9__order_number_sequence.sql
+-- orders.order_number es UNIQUE NOT NULL desde V1, pero nada lo generaba: la PK es UUID
+-- generado por la aplicacion (convencion del proyecto, ver docs/database/README.md), no
+-- hay columna autoincremental de la que derivar un numero legible.
+--
+-- Secuencia independiente, no ligada a ninguna tabla: atomica bajo concurrencia sin
+-- necesidad de SELECT-antes-de-INSERT ni reintentos por colision. No se reinicia nunca
+-- (ni a diario ni por canal): el numero de pedido lleva la fecha como prefijo puramente
+-- informativo, la unicidad la da el valor de la secuencia, no la fecha.
+--
+-- Formato compuesto en la aplicacion: {CHANNEL}-{YYYYMMDD}-{nextval con padding}.
+-- Ver docs/features/order.md, seccion 3.1.
+CREATE SEQUENCE order_number_seq;

@@ -345,7 +345,12 @@ Lista de `{ s3Key, altText }`. El orden de la lista es `position`.
 |---|---|---|
 | `managed` | Boolean | `@NotNull` |
 | `stock` | Integer | Obligatorio si `managed = true`; `@PositiveOrZero` |
+| `lowStockThreshold` | Integer | `@PositiveOrZero`, opcional; `NULL` desactiva la alerta de stock bajo |
 | `note` | String | `@Size(max = 500)`, opcional; alimenta el movimiento |
+
+`lowStockThreshold` solo tiene efecto si `managed = true` — sin gestión de inventario no hay `stock`
+que comparar contra un umbral. Alertas de stock bajo y de integridad: detalle completo en
+[`inventory.md`](inventory.md), sección 3.8.
 
 ---
 

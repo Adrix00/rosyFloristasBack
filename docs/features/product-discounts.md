@@ -327,7 +327,8 @@ Enum `DiscountErrorCode` en `domain/exception/discount/`
 
 ## 11. Alcance ajeno
 
-- **Reserva y devolución de unidades dentro de la transacción del pedido** — [`order.md`](order.md).
-  Aquí se define el puerto, allí quién lo llama y cuándo.
+- **Reserva y devolución de unidades dentro de la transacción del pedido** — [`order.md`](order.md),
+  Fase 1 del checkout (regla 3.2) para la reserva, regla 3.10 para la devolución al rechazar o
+  cancelar. Aquí se define el puerto (`DiscountReservationPort`), allí quién lo llama y cuándo.
 - **Precio vigente en las respuestas del catálogo** — `effectivePrice` y `onSale` en
   [`product.md`](product.md), sección 6.
