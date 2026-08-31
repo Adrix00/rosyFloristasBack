@@ -10,6 +10,7 @@ import com.floristeriarosy.domain.exception.category.CategoryAlreadyExistsExcept
 import com.floristeriarosy.domain.model.category.Category;
 import com.floristeriarosy.domain.model.category.valueobject.CategoryId;
 import com.floristeriarosy.domain.model.category.valueobject.CategorySlug;
+import com.floristeriarosy.shared.util.LogSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -48,8 +49,8 @@ public class CreateCategoryService implements CreateCategoryUseCase {
   public CategoryDto execute(CreateCategoryCommand command) {
     LOGGER.debug(
         "createCategory name={} description={} imageId={} position={}",
-        command.name(),
-        command.description(),
+        LogSanitizer.sanitize(command.name()),
+        LogSanitizer.sanitize(command.description()),
         command.imageId(),
         command.position());
 

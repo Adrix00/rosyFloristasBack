@@ -16,6 +16,7 @@ import com.floristeriarosy.infrastructure.web.request.category.UpdateCategoryReq
 import com.floristeriarosy.infrastructure.web.response.category.CategoryImpactResponse;
 import com.floristeriarosy.infrastructure.web.response.category.CategoryResponse;
 import com.floristeriarosy.infrastructure.web.response.category.CategorySummaryResponse;
+import com.floristeriarosy.shared.util.LogSanitizer;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -92,7 +93,7 @@ public class CategoryController {
   @PostMapping
   public ResponseEntity<CategoryResponse> create(
       @Valid @RequestBody CreateCategoryRequest request) {
-    LOGGER.debug("POST /categories name={}", request.name());
+    LOGGER.debug("POST /categories name={}", LogSanitizer.sanitize(request.name()));
     CategoryResponse response =
         mapper.toResponse(createCategoryUseCase.execute(mapper.toCommand(request)));
     LOGGER.debug("POST /categories -> 201 id={}", response.id());
@@ -140,10 +141,10 @@ public class CategoryController {
    */
   @GetMapping("/{idOrSlug}")
   public ResponseEntity<CategoryResponse> getOne(@PathVariable String idOrSlug) {
-    LOGGER.debug("GET /categories/{}", idOrSlug);
+    LOGGER.debug("GET /categories/{}", LogSanitizer.sanitize(idOrSlug));
     CategoryResponse response =
         mapper.toResponse(getCategoryUseCase.execute(mapper.toQuery(idOrSlug)));
-    LOGGER.debug("GET /categories/{} -> 200", idOrSlug);
+    LOGGER.debug("GET /categories/{} -> 200", LogSanitizer.sanitize(idOrSlug));
     return ResponseEntity.ok(response);
   }
 
@@ -172,7 +173,7 @@ public class CategoryController {
   @PutMapping("/{id}")
   public ResponseEntity<CategoryResponse> update(
       @PathVariable UUID id, @Valid @RequestBody UpdateCategoryRequest request) {
-    LOGGER.debug("PUT /categories/{} name={}", id, request.name());
+    LOGGER.debug("PUT /categories/{} name={}", id, LogSanitizer.sanitize(request.name()));
     CategoryResponse response =
         mapper.toResponse(updateCategoryUseCase.execute(mapper.toCommand(id, request)));
     LOGGER.debug("PUT /categories/{} -> 200", id);

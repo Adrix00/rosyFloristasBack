@@ -1,6 +1,7 @@
 package com.floristeriarosy.domain.model.category.valueobject;
 
 import com.floristeriarosy.domain.exception.category.CategorySlugReservedException;
+import com.floristeriarosy.shared.util.LogSanitizer;
 import java.text.Normalizer;
 import java.util.Locale;
 import java.util.Objects;
@@ -62,7 +63,7 @@ public final class CategorySlug {
    */
   public static CategorySlug generateFrom(String name) {
     Objects.requireNonNull(name, "name");
-    LOGGER.debug("generateFrom name={}", name);
+    LOGGER.debug("generateFrom name={}", LogSanitizer.sanitize(name));
 
     String normalized =
         Normalizer.normalize(name.trim().toLowerCase(Locale.ROOT), Normalizer.Form.NFD);
@@ -71,11 +72,11 @@ public final class CategorySlug {
     normalized = normalized.replaceAll("^-+|-+$", "");
     if (RESERVED.contains(normalized)) {
       throw new CategorySlugReservedException(
-          "'" + name + "' generates the reserved slug '" + normalized + "'");
+          "'" + LogSanitizer.sanitize(name) + "' generates the reserved slug '" + normalized + "'");
     }
     CategorySlug result = new CategorySlug(normalized);
 
-    LOGGER.debug("generateFrom name={} -> slug={}", name, result.value);
+    LOGGER.debug("generateFrom name={} -> slug={}", LogSanitizer.sanitize(name), result.value);
     return result;
   }
 

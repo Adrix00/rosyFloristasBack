@@ -9,6 +9,7 @@ import com.floristeriarosy.domain.exception.category.CategoryNotFoundException;
 import com.floristeriarosy.domain.model.category.Category;
 import com.floristeriarosy.domain.model.category.CategoryStatus;
 import com.floristeriarosy.domain.model.category.valueobject.CategoryId;
+import com.floristeriarosy.shared.util.LogSanitizer;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -40,13 +41,15 @@ public class GetCategoryService implements GetCategoryUseCase {
    */
   @Override
   public CategoryDto execute(GetCategoryQuery query) {
-    LOGGER.debug("getCategory idOrSlug={}", query.idOrSlug());
+    LOGGER.debug("getCategory idOrSlug={}", LogSanitizer.sanitize(query.idOrSlug()));
 
     Category category =
         lookUp(query.idOrSlug())
             .filter(found -> found.status() == CategoryStatus.ACTIVE)
             .orElseThrow(
-                () -> new CategoryNotFoundException("Category " + query.idOrSlug() + " not found"));
+                () ->
+                    new CategoryNotFoundException(
+                        "Category " + LogSanitizer.sanitize(query.idOrSlug()) + " not found"));
     CategoryDto result = CategoryDtoMapper.toDto(category);
 
     LOGGER.debug("getCategory -> id={} slug={}", result.id(), result.slug());

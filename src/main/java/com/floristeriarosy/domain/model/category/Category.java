@@ -2,6 +2,7 @@ package com.floristeriarosy.domain.model.category;
 
 import com.floristeriarosy.domain.model.category.valueobject.CategoryId;
 import com.floristeriarosy.domain.model.category.valueobject.CategorySlug;
+import com.floristeriarosy.shared.util.LogSanitizer;
 import java.time.Instant;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -62,7 +63,7 @@ public final class Category {
       String description,
       UUID imageId,
       int position) {
-    LOGGER.debug("create id={} name={} slug={}", id, name, slug);
+    LOGGER.debug("create id={} name={} slug={}", id, LogSanitizer.sanitize(name), slug);
     Category result =
         new Category(
             id, name, slug, description, CategoryStatus.ACTIVE, imageId, position, null, null);
@@ -110,7 +111,7 @@ public final class Category {
    */
   public void replace(
       String name, CategorySlug slug, String description, UUID imageId, int position) {
-    LOGGER.debug("replace id={} name={} slug={}", id, name, slug);
+    LOGGER.debug("replace id={} name={} slug={}", id, LogSanitizer.sanitize(name), slug);
     this.name = requireName(name);
     this.slug = slug;
     this.description = description;

@@ -11,6 +11,7 @@ import com.floristeriarosy.domain.exception.category.CategoryNotFoundException;
 import com.floristeriarosy.domain.model.category.Category;
 import com.floristeriarosy.domain.model.category.valueobject.CategoryId;
 import com.floristeriarosy.domain.model.category.valueobject.CategorySlug;
+import com.floristeriarosy.shared.util.LogSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -50,8 +51,8 @@ public class UpdateCategoryService implements UpdateCategoryUseCase {
     LOGGER.debug(
         "updateCategory id={} name={} description={} imageId={} position={}",
         command.id(),
-        command.name(),
-        command.description(),
+        LogSanitizer.sanitize(command.name()),
+        LogSanitizer.sanitize(command.description()),
         command.imageId(),
         command.position());
 
