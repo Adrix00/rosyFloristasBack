@@ -7,7 +7,7 @@ verifica el segundo factor del panel.
 
 No incluye el alta de la cuenta ni la recuperación de contraseña —eso es
 [`customer.md`](customer.md)— ni la gestión de administradores como entidad (alta, baja, cambio de
-rol, reseteo de TOTP), que vive en `admin.md`. Reglas transversales en
+rol, reseteo de contraseña y de TOTP), que vive en [`admin.md`](admin.md). Reglas transversales en
 [`00-security-validation-integrity.md`](00-security-validation-integrity.md).
 
 ---
@@ -32,8 +32,9 @@ El login de administrador tiene un paso más que el de cliente: TOTP obligatorio
 ## 2. Tablas implicadas
 
 `refresh_tokens`, `customers` (lectura de `password_hash`, `status`, `email_verified_at`),
-`admin_users` (lectura de `password_hash`, `active`, `totp_*`; escritura de `totp_*` solo durante el
-enrolamiento). Esquema en [`../database/README.md`](../database/README.md).
+`admin_users` (lectura de `password_hash`, `active`, `totp_*`, `password_change_required`; escritura
+de `totp_*` solo durante el enrolamiento). Esquema en
+[`../database/README.md`](../database/README.md).
 
 | Columna de `refresh_tokens` | Restricción |
 |---|---|
@@ -48,6 +49,7 @@ enrolamiento). Esquema en [`../database/README.md`](../database/README.md).
 | `totp_secret_encrypted` | AES-256-GCM; se escribe al empezar el enrolamiento (regla 3.4) |
 | `totp_enabled` | `false` solo en la ventana entre crear el admin y completar su enrolamiento |
 | `totp_last_used_step` | `V11`; último paso TOTP consumido, impide reutilizar un código |
+| `password_change_required` | `V12`; limita la sesión a cambiar la contraseña (regla 3.9) |
 
 ---
 
@@ -115,8 +117,8 @@ Se rechaza el primer paso, con respuesta uniforme, si el email no existe, la con
 
 ### 3.4 TOTP: obligatorio, enrolado en el primer acceso
 
-Un administrador recién creado (`admin.md`) tiene `totp_enabled = false`. Esa es la **única** ventana
-en la que un admin existe sin segundo factor, y no da acceso al panel:
+Un administrador recién creado ([`admin.md`](admin.md), regla 3.2) tiene `totp_enabled = false`. Esa
+es la **única** ventana en la que un admin existe sin segundo factor, y no da acceso al panel:
 
 1. `POST /auth/admin/login` con su contraseña devuelve `mfaToken` y `enrollmentRequired: true`.
 2. `POST /auth/admin/totp/enrollment` (con el `mfaToken`) genera el secreto, lo guarda cifrado en
@@ -189,10 +191,26 @@ No todo lo que revoca una sesión es un logout. Estas acciones, definidas en otr
 | Cambio de contraseña | [`customer.md`](customer.md), regla 3.5 | Si el cambio es por sospecha de robo, dejar viva la sesión del ladrón lo vacía de sentido |
 | Reseteo de contraseña | [`customer.md`](customer.md), regla 3.5 | Igual, y con más motivo: se llega ahí sin saber la contraseña anterior |
 | Baja de cliente | [`customer.md`](customer.md), regla 3.6 | El `CASCADE` de `customers` ya se lleva las filas |
-| Desactivar un administrador | `admin.md` | `active = false` debe echarle del panel ya, no cuando caduque su token |
+| Desactivar un administrador | [`admin.md`](admin.md) | `active = false` debe echarle del panel ya, no cuando caduque su token |
 
 El cambio de email **no** revoca: el sujeto sigue siendo el mismo y ya está autenticado
 ([`customer.md`](customer.md), regla 3.3).
+
+### 3.9 Sesión limitada por contraseña provisional
+
+Un administrador cuya contraseña la fijó otro —recién creado, o tras un reseteo del `OWNER`— tiene
+`password_change_required = true` (`V12`, [`admin.md`](admin.md), reglas 3.2 y 3.4). Se autentica con
+normalidad, TOTP incluido, y **sí recibe sus tokens**: el access token lleva entonces el claim
+`pwd_change_required`.
+
+Con ese claim, un filtro de seguridad rechaza con 403 `PASSWORD_CHANGE_REQUIRED` cualquier endpoint
+salvo dos: `POST /admin/me/password` y `POST /auth/logout`. Al cambiarla, la columna pasa a `false` y
+el siguiente refresco emite un access token sin el claim.
+
+Es una regla única en el filtro, no una comprobación repetida en cada caso de uso — el conocimiento de
+"esta sesión está a medias" vive en un solo sitio. La alternativa, no emitir los tokens hasta cambiar
+la contraseña, obligaría a una tercera fase de login con su propio token intermedio, para una
+situación que dura una petición.
 
 ---
 
@@ -244,7 +262,8 @@ quien solo está probando.
 
 ### `AuthResponse`
 
-`accessToken`, `expiresIn` (segundos), `subjectType` (`CUSTOMER`/`ADMIN`), `role` (solo administrador).
+`accessToken`, `expiresIn` (segundos), `subjectType` (`CUSTOMER`/`ADMIN`), `role` y
+`passwordChangeRequired` (solo administrador).
 
 Nunca el refresh token: va en la cookie, y devolverlo también en el cuerpo anularía el `HttpOnly` que
 justifica todo el diseño de la regla 3.1.
@@ -321,6 +340,7 @@ Enum `AuthErrorCode` en `domain/exception/auth/`
 | `INVALID_TOTP_CODE` | 401 | Código incorrecto, fuera de ventana, o ya usado (regla 3.4) |
 | `TOTP_ENROLLMENT_REQUIRED` | 409 | `POST /auth/admin/mfa` sobre un admin que aún no generó su secreto |
 | `TOTP_ALREADY_ENROLLED` | 409 | `POST /auth/admin/totp/enrollment` con `totp_enabled = true` |
+| `PASSWORD_CHANGE_REQUIRED` | 403 | Sesión con contraseña provisional, limitada a cambiarla (regla 3.9) |
 | `AUTH_VALIDATION_FAILED` | 422 | Bean Validation; con `errors[]` |
 
 `INVALID_CREDENTIALS` cubre a propósito cuatro causas distintas: distinguirlas convierte el endpoint
@@ -337,7 +357,7 @@ en un enumerador de cuentas (00-security, regla 7).
 | Dos pestañas llaman a `refresh` a la vez con la misma cookie | Una rota; la otra encuentra la fila ya revocada y **cae toda la familia** (regla 3.6). Es el precio de no poder distinguir un reintento de un robo; el frontend debe serializar sus refrescos |
 | `mfaToken` usado en un endpoint del panel | Rechazado como si fuera anónimo: no lleva el claim de sesión (regla 3.3) |
 | Admin repite el enrolamiento antes de confirmarlo | Se sobrescribe el secreto; el QR anterior deja de servir (regla 3.4) |
-| Admin intenta enrolar de nuevo ya con TOTP activo | 409 `TOTP_ALREADY_ENROLLED`; el reseteo lo hace el OWNER, en `admin.md` |
+| Admin intenta enrolar de nuevo ya con TOTP activo | 409 `TOTP_ALREADY_ENROLLED`; el reseteo lo hace el OWNER, en [`admin.md`](admin.md) |
 | Mismo código TOTP enviado dos veces seguidas | El segundo falla: `totp_last_used_step` ya lo consumió (regla 3.4) |
 | Sesión de admin que llega a las 12 h en pleno uso | Deja de renovarse: `expires_at` es un tope absoluto, no una ventana deslizante (ADR-008) |
 | Cliente cambia su contraseña desde el móvil | Todas sus familias caen, el ordenador incluido (regla 3.8) |
@@ -350,7 +370,8 @@ en un enumerador de cuentas (00-security, regla 7).
 
 - **Registro, verificación de email, cambio y reseteo de contraseña, baja** —
   [`customer.md`](customer.md).
-- **Alta, baja, cambio de rol y reseteo de TOTP de administradores** — `admin.md`, cuando se escriba.
+- **Alta, baja, cambio de rol, y reseteo de contraseña y de TOTP de administradores** —
+  [`admin.md`](admin.md).
 - **Fusión de carritos** — [`cart.md`](cart.md), `MergeCartUseCase`; este documento solo la dispara.
 - **Envío de correos** — `notification.md`, cuando se escriba. Este módulo no envía ninguno: no hay
   correo de "has iniciado sesión".
