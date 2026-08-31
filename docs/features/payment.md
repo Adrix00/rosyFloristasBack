@@ -101,6 +101,13 @@ Reembolsar tras la entrega **no** devuelve unidades de descuento reservadas
 ([`product-discounts.md`](product-discounts.md), ya cerrado) ni genera movimiento de stock — es
 dinero, no inventario.
 
+Exige cabecera `Idempotency-Key`, igual que `POST /checkout` y `POST /orders/counter`
+([ADR-011](../architecture/ADR/ADR-011-idempotent-money-operations.md),
+[`00-security-validation-integrity.md`](00-security-validation-integrity.md), sección 6): un timeout
+de red tras confirmar el reembolso no debe permitir reembolsarlo dos veces con un reintento. El
+`request_fingerprint` es el hash por defecto del cuerpo (`amount` + `reason`), sin excepción de
+carrito — este `POST` ya lleva en el cuerpo todo lo necesario para identificar la operación.
+
 ### 3.5 Tarjetas guardadas
 
 Añadir una tarjeta es un flujo de dos pasos frente a la pasarela (SetupIntent o equivalente): el
@@ -179,7 +186,8 @@ Prefijo `/api/v1`.
 | `POST` | `/orders/{id}/refund` | 200 — reembolso manual (regla 3.4) |
 
 `POST /orders/counter` vive en la superficie REST de `order.md` (regla 4 de ese documento); internamente
-invoca `OrderPaymentPort.charge()` como cualquier otro checkout — no se redeclara aquí.
+invoca `OrderPaymentPort.charge()` como cualquier otro checkout — no se redeclara aquí. Su exigencia de
+`Idempotency-Key` sí se redeclara, en [`order.md`](order.md), sección 4.
 
 ---
 
@@ -287,6 +295,7 @@ Enum `PaymentErrorCode` en `domain/exception/payment/`
 | Reintento de `POST /checkout` con la misma `Idempotency-Key`, carrito sin cambios | Se responde con el pedido ya creado (ADR-011); mismo fingerprint |
 | Reintento de `POST /checkout` con la misma `Idempotency-Key`, carrito modificado entretanto | 422 `IDEMPOTENCY_KEY_REUSED` (regla 3.8): fingerprint distinto |
 | Pasarela cae a mitad del cobro (timeout) sin `Idempotency-Key` aún resuelta | La fila de `idempotency_keys` queda `PENDING`; un reintento con la misma clave recibe 409 `OPERATION_IN_PROGRESS` (ADR-011), no repite el cobro |
+| Reintento de `POST /orders/{id}/refund` con la misma `Idempotency-Key` tras confirmarse | Se relee el reembolso ya aplicado; no se reembolsa una segunda vez (ADR-011) |
 
 ---
 

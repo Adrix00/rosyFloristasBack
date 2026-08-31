@@ -192,6 +192,8 @@ No todo lo que revoca una sesión es un logout. Estas acciones, definidas en otr
 | Reseteo de contraseña | [`customer.md`](customer.md), regla 3.5 | Igual, y con más motivo: se llega ahí sin saber la contraseña anterior |
 | Baja de cliente | [`customer.md`](customer.md), regla 3.6 | El `CASCADE` de `customers` ya se lleva las filas |
 | Desactivar un administrador | [`admin.md`](admin.md) | `active = false` debe echarle del panel ya, no cuando caduque su token |
+| Reseteo de contraseña por el `OWNER` | [`admin.md`](admin.md), regla 3.4 | Si el reseteo es por sospecha de intrusión, dejar viva la sesión del intruso lo vacía de sentido |
+| Reseteo de TOTP | [`admin.md`](admin.md), regla 3.5 | El motivo típico es un dispositivo perdido o robado; las sesiones abiertas en ese dispositivo son justo lo que hay que cerrar |
 
 El cambio de email **no** revoca: el sujeto sigue siendo el mismo y ya está autenticado
 ([`customer.md`](customer.md), regla 3.3).

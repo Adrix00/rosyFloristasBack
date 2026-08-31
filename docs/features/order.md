@@ -289,6 +289,14 @@ Cada transición es un verbo propio, no un `PATCH /status` genérico: `ship` sol
 `fulfillment = DELIVERY`, y un `PATCH` con un valor de estado arbitrario obligaría a repetir en el
 controlador toda la lógica del grafo de la regla 3.9 en vez de dejar que la ruta la exprese.
 
+`POST /orders/counter` exige también cabecera `Idempotency-Key`, igual que `POST /checkout`
+([ADR-011](../architecture/ADR/ADR-011-idempotent-money-operations.md),
+[`00-security-validation-integrity.md`](00-security-validation-integrity.md), sección 6): reserva
+stock y captura el pago en una sola transacción (Fases 1+3a fundidas, [`payment.md`](payment.md),
+regla 3.6), y un reintento de red no debe duplicar ni el pedido ni el cobro en efectivo. El
+`request_fingerprint` es el hash por defecto del cuerpo de la petición, sin la excepción de carrito
+que lleva `POST /checkout`: este `POST` sí recibe los productos directamente en el cuerpo.
+
 ---
 
 ## 5. Request DTOs
@@ -453,6 +461,7 @@ donde el estado HTTP describe con precisión lo que pasó.
 | Rechazar un pedido ya `ACCEPTED` | 409 `ORDER_INVALID_TRANSITION`: `REJECTED` solo existe desde `PENDING` |
 | Dirección de entrega a 10,5 km de la tienda | 422 `DELIVERY_OUT_OF_RANGE` |
 | Subtotal exactamente igual al `free_from_amount` del tramo | Envío gratis: la comparación es `>=`, no `>` |
+| Reintento de `POST /orders/counter` con la misma `Idempotency-Key` tras éxito | Se responde con el pedido ya creado, sin repetir la reserva de stock ni el cobro (ADR-011) |
 
 ---
 

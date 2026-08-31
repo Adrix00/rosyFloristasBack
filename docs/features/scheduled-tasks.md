@@ -18,7 +18,7 @@ Cuatro tareas, tres cerradas y una pendiente:
 | Alertas de stock bajo / reconciliación | `inventory_alerts` | Sí, diaria | Resolver/descartar, no disparar | [`inventory.md`](inventory.md), sección 3.8 — no se repite aquí |
 | Purga de PII de pedidos vencidos | `orders`, `order_deliveries` | Sí, condicionada | Sí, `ADMIN` | Esta sección |
 | Envío de notificaciones pendientes | `notifications` | Sí, cada pocos minutos | Reintentar una fallida | [`notification.md`](notification.md), reglas 3.5 y 3.6 — no se repite aquí |
-| Limpieza de filas caducadas | `refresh_tokens`, `verification_tokens`, `idempotency_keys`, `notifications` | Pendiente | No | Sección 3.3 |
+| Limpieza de filas caducadas | `refresh_tokens`, `verification_tokens`, `idempotency_keys`, `notifications`, `carts` | Pendiente | No | Sección 3.3 |
 
 ---
 
@@ -68,10 +68,12 @@ purgado, 409 `ORDER_ALREADY_PURGED`, no un no-op silencioso.
 ### 3.3 Limpieza de filas caducadas — pendiente
 
 `refresh_tokens` ([`auth.md`](auth.md)), `verification_tokens` ([`customer.md`](customer.md)),
-`idempotency_keys` ([ADR-011](../architecture/ADR/ADR-011-idempotent-money-operations.md)) y las filas
+`idempotency_keys` ([ADR-011](../architecture/ADR/ADR-011-idempotent-money-operations.md)), las filas
 `SENT` de `notifications` ([ADR-015](../architecture/ADR/ADR-015-transactional-outbox-for-notifications.md))
-acumulan filas que dejan de servir para nada. Ninguna se borra sola: las ADR que las introdujeron dicen
-explícitamente que la limpieza es una tarea programada, no una constraint.
+y los `carts` de invitado con `expires_at` vencido ([`cart.md`](cart.md), regla 3.7)
+acumulan filas que dejan de servir para nada. Ninguna se borra sola: las ADR que las introdujeron —y,
+para `carts`, el propio documento del módulo— dicen explícitamente que la limpieza es una tarea
+programada, no una constraint.
 
 **No está diseñada todavía.** Falta decidir frecuencia y ventana de gracia, y es la única tarea de
 este documento sin cerrar
@@ -80,7 +82,9 @@ No es urgente en el sentido funcional —nada se rompe si la tabla crece— pero
 crecimiento sin límite y sin nadie mirándolo.
 
 Un token caducado que sigue en la tabla no es un agujero de seguridad: la verificación comprueba
-`expires_at` y `revoked_at` en cada uso, no la mera existencia de la fila.
+`expires_at` y `revoked_at` en cada uso, no la mera existencia de la fila. Un carrito de invitado
+caducado tampoco es accesible: se trata como vacío hasta que la tarea lo borre
+([`cart.md`](cart.md), regla 3.7).
 
 ### 3.4 Relación con la baja de cliente
 
@@ -175,6 +179,8 @@ error, un error de `order` — [ADR-012](../architecture/ADR/ADR-012-api-error-c
   [ADR-013](../architecture/ADR/ADR-013-inventory-alerts.md).
 - **Envío de notificaciones** (otra más) — [`notification.md`](notification.md), reglas 3.5 a 3.7,
   [ADR-015](../architecture/ADR/ADR-015-transactional-outbox-for-notifications.md).
+- **Caducidad de un carrito de invitado y su tratamiento como carrito vacío mientras la tarea no ha
+  pasado** — [`cart.md`](cart.md), regla 3.7.
 - **Valor de `app.retention.orders-period`** — depende del requisito legal aplicable; pendiente en
   [`00-security-validation-integrity.md`](00-security-validation-integrity.md), sección 12.
 - **Esquema y snapshot cifrado del comprador** — [`order.md`](order.md).

@@ -199,8 +199,10 @@ bloquea filas.
 
 ## 6. Idempotencia
 
-`POST` de checkout y de pago exigen la cabecera `Idempotency-Key` (UUID generado por el cliente).
-Detalle en [ADR-011](../architecture/ADR/ADR-011-idempotent-money-operations.md).
+Los `POST` que mueven dinero exigen la cabecera `Idempotency-Key` (UUID generado por el cliente):
+`POST /checkout`, `POST /orders/counter` ([`order.md`](order.md), sección 4) y
+`POST /orders/{id}/refund` ([`payment.md`](payment.md), regla 3.4). Detalle en
+[ADR-011](../architecture/ADR/ADR-011-idempotent-money-operations.md).
 
 | Situación | Respuesta |
 |---|---|
@@ -229,7 +231,9 @@ cliente. `CF-Connecting-IP` solo se acepta si la petición llega efectivamente d
 Cloudflare; en caso contrario cualquiera podría falsificarla.
 
 Endpoints con límite obligatorio: login de cliente, login de administrador, verificación TOTP,
-solicitud de reseteo de contraseña, verificación de email, reenvío de verificación.
+solicitud de reseteo de contraseña, verificación de email, reenvío de verificación, renovación de
+sesión (`refresh`) — sin límite en este último, un refresh token robado permite renovar en bucle sin
+coste ([`auth.md`](auth.md), sección 4).
 
 **Respuesta uniforme.** El login responde igual con email inexistente que con contraseña incorrecta,
 y con el mismo tiempo de respuesta. Distinguirlos convierte el endpoint en un enumerador de cuentas.
