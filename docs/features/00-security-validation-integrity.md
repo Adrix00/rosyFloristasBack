@@ -299,8 +299,10 @@ Códigos citados en este documento, ya fijados por sus ADR: `SESSION_REVOKED`, `
 - Cabeceras: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`,
   `Content-Security-Policy`.
 - Tamaño máximo de cuerpo y de subida de fichero limitados.
-- Las imágenes de producto se suben validando tipo real (no solo extensión) y tamaño; la clave de S3
-  la genera el backend, nunca el cliente.
+- Las imágenes se suben **a través del backend**, que valida tamaño, tipo real (por los bytes de
+  cabecera, no por la extensión ni por el `Content-Type` declarado) y dimensiones antes de escribir
+  nada en S3. La clave la genera el backend y el cliente nunca la ve: asocia imágenes por el `id` de
+  la fila de `images`. Detalle en [`image.md`](image.md), reglas 3.1 a 3.3.
 
 ---
 

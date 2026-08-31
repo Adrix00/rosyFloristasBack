@@ -31,7 +31,7 @@ vez. Esto condiciona todo el comportamiento de desactivación y borrado descrito
 | `slug` | `VARCHAR(170) NOT NULL`, `uq_categories_slug` |
 | `description` | `TEXT`, opcional |
 | `status` | `chk_categories_status`: `ACTIVE` o `INACTIVE` |
-| `image_s3_key` | `VARCHAR(500)`, opcional |
+| `image_id` | `V13`; `REFERENCES images (id) ON DELETE RESTRICT`, opcional |
 | `position` | `INTEGER NOT NULL DEFAULT 0`, sin unicidad |
 
 `product_categories` tiene clave primaria `(product_id, category_id)` y `ON DELETE CASCADE` hacia
@@ -160,10 +160,14 @@ parcial dejaría posiciones a medias sin que nadie se entere.
 
 ### 3.6 Imagen
 
-`image_s3_key` guarda la clave del objeto en S3, nunca el binario. La subida es responsabilidad del
-módulo `image`: devuelve la clave, y el `POST`/`PUT` de categoría la recibe como un campo más. La
-clave la genera el backend en la subida; **una clave enviada por el cliente nunca se acepta tal
-cual**, se verifica que corresponda a un objeto subido por ese flujo.
+`image_id` (`V13`) referencia una fila de `images`, nunca guarda el binario ni la clave de S3. La
+subida es responsabilidad de [`image.md`](image.md), que devuelve el `id`; el `POST`/`PUT` de
+categoría lo recibe como un campo más. **El cliente nunca envía una clave de S3**: la clave ajena hace
+que solo pueda referenciar algo que la subida creó.
+
+El `RESTRICT` implica que una imagen usada por una categoría no se puede borrar mientras lo esté
+([`image.md`](image.md), regla 3.7). Quitarla de la categoría (`imageId` a `null`) la manda a la
+bandeja de no asociadas, desde donde se puede reutilizar o borrar.
 
 ---
 
@@ -207,7 +211,7 @@ Los `@Size` replican el límite de su columna.
 |---|---|---|
 | `name` | String | `@NotBlank`, `@Size(max = 150)` |
 | `description` | String | `@Size(max = 2000)`, opcional |
-| `imageS3Key` | String | `@Size(max = 500)`, opcional |
+| `imageId` | UUID | Opcional; debe existir en `images` ([`image.md`](image.md)) |
 | `position` | Integer | `@PositiveOrZero`, opcional (por defecto 0) |
 
 No lleva `slug` — se genera. No lleva `status` — nace `ACTIVE`.
@@ -239,8 +243,8 @@ La posición de cada categoría es su índice en la lista.
 
 `id`, `name`, `slug`, `description`, `status`, `imageUrl`, `position`, `createdAt`, `updatedAt`.
 
-`imageUrl` es la URL pública servida por el CDN, derivada de `image_s3_key`. La clave S3 en crudo no
-sale de la API.
+`imageUrl` es la URL pública servida por el CDN, construida por [`image.md`](image.md) (regla 3.5).
+La clave S3 en crudo no sale de la API.
 
 ### `CategorySummaryResponse`
 
@@ -319,7 +323,7 @@ Formato RFC 7807 ([ADR-012](../architecture/ADR/ADR-012-api-error-contract.md)).
 | `CATEGORY_ALREADY_EXISTS` | 409 | El slug generado ya está en uso | `CategoryAlreadyExistsException` |
 | `CATEGORY_VALIDATION_FAILED` | 422 | Falla Bean Validation; con `errors[]` | — |
 | `CATEGORY_POSITIONS_INCOMPLETE` | 422 | El reordenado no incluye todas las categorías | `CategoryPositionsIncompleteException` |
-| `CATEGORY_IMAGE_NOT_FOUND` | 422 | `imageS3Key` no corresponde a un objeto subido | `CategoryImageNotFoundException` |
+| `CATEGORY_IMAGE_NOT_FOUND` | 422 | `imageId` no existe en `images` | `CategoryImageNotFoundException` |
 | `CATEGORY_SLUG_RESERVED` | 422 | El nombre genera un slug reservado (`all`, `positions`) | `CategorySlugReservedException` |
 
 El nombre de la constraint nunca llega al cliente: `uq_categories_slug` se traduce a

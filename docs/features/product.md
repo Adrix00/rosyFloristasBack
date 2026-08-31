@@ -193,9 +193,10 @@ que envíe el cliente solo sirve para detectar una discrepancia y rechazar la pe
 
 ### 3.9 Imágenes
 
-`product_images` guarda claves de S3, nunca binarios. La subida es del módulo `image`, que devuelve
-la clave; el producto la recibe como un campo más y se verifica que corresponda a un objeto subido
-por ese flujo.
+`product_images` referencia una fila de `images` (`V13`), nunca guarda binarios ni claves de S3. La
+subida es del módulo [`image.md`](image.md), que devuelve el `id` de la imagen; el producto lo recibe
+como un campo más. El cliente nunca envía una clave de S3: la clave ajena hace que solo pueda
+referenciar algo que la subida creó.
 
 `position` ordena la galería. La imagen de posición más baja es la principal, la que se ve en el
 listado. No hay columna `is_main`: sería una segunda forma de decir lo mismo que `position = 0`, y
@@ -311,7 +312,7 @@ Un `GET` público de un producto no visible responde **404**, no 403.
 | `categoryIds` | List\<UUID\> | `@NotEmpty`, `@Size(max = 20)`, sin repetidos |
 | `isExtra` | Boolean | Por defecto `false` |
 | `attributes` | Map\<String, Object\> | Validado contra las definiciones (regla 3.5) |
-| `imageS3Keys` | List\<String\> | `@Size(max = 10)`, opcional; el orden es la galería |
+| `imageIds` | List\<UUID\> | `@Size(max = 10)`, opcional, sin repetidos; el orden es la galería |
 | `initialStock` | Integer | `@PositiveOrZero`, opcional; ausente significa sin gestión de inventario |
 
 Sin `slug` — se genera. Sin `status` — nace `ACTIVE`.
@@ -333,7 +334,8 @@ solo se queda sin categorías si se borra la última categoría desde su propio 
 
 ### `UpdateProductImagesRequest`
 
-Lista de `{ s3Key, altText }`. El orden de la lista es `position`.
+Lista de `{ imageId, altText }`. El orden de la lista es `position`. Cada `imageId` debe existir en
+`images` ([`image.md`](image.md)); la clave ajena de `V13` lo garantiza además en la base de datos.
 
 ### `UpdateProductExtrasRequest`
 
@@ -431,7 +433,7 @@ generada.
 | `ProductExistencePort` | `existsBySlug`, `existsById`, `hasCommercialHistory` |
 | `ProductSearchPort` | `search`, `autocomplete` |
 | `ProductCategoryPort` | `replaceCategories`, `findCategories` |
-| `ProductImagePort` | `replaceImages`, `findImages` |
+| `ProductImagePort` | `replaceImages`, `findImages` — asocia filas de `images`, no sube nada |
 | `ProductSuggestionPort` | `replaceSuggestions`, `findVisibleSuggestions` |
 | `AttributeDefinitionPort` | `findAll`, `findByKey`, `save`, `delete` |
 | `ProductInventoryPort` | `initializeStock`, `adjustStock`, `disableStockManagement` |
@@ -504,7 +506,7 @@ Definido en otro documento:
   [`product-discounts.md`](product-discounts.md).
 - **Movimientos de stock** — `INITIAL`, `PURCHASE`, `SALE`, `WASTE`, `ADJUSTMENT` y la reconciliación:
   [`inventory.md`](inventory.md).
-- **Subida de imágenes** — validación de tipo real, tamaño y generación de la clave S3:
-  `image.md`.
+- **Subida de imágenes, variantes y borrado del fichero** — [`image.md`](image.md). Borrar un
+  producto deja sus imágenes en la bandeja de no asociadas, nunca las borra de S3.
 - **Qué hace el checkout con un producto no visible** — [`order.md`](order.md), aplicando la
   excepción del carrito de la regla 3.3.
