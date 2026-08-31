@@ -1,3 +1,6 @@
 package com.floristeriarosy.application.category.command;
 
-public final class UpdateCategoryCommand {}
+import java.util.UUID;
+
+public record UpdateCategoryCommand(
+    UUID id, String name, String description, UUID imageId, int position) {}

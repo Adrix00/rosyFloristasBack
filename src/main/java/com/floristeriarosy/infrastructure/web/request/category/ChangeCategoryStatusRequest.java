@@ -1,3 +1,6 @@
 package com.floristeriarosy.infrastructure.web.request.category;
 
-public final class ChangeCategoryStatusRequest {}
+import com.floristeriarosy.domain.model.category.CategoryStatus;
+import jakarta.validation.constraints.NotNull;
+
+public record ChangeCategoryStatusRequest(@NotNull CategoryStatus status) {}

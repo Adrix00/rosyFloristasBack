@@ -5,4 +5,6 @@ import com.floristeriarosy.domain.model.category.valueobject.CategoryId;
 public interface CategoryExistencePort {
 
   boolean existsById(CategoryId id);
+
+  boolean existsBySlug(String slug);
 }

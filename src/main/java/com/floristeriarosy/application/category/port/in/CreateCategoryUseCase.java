@@ -1,9 +1,9 @@
 package com.floristeriarosy.application.category.port.in;
 
 import com.floristeriarosy.application.category.command.CreateCategoryCommand;
-import com.floristeriarosy.domain.model.category.valueobject.CategoryId;
+import com.floristeriarosy.application.category.dto.CategoryDto;
 
 public interface CreateCategoryUseCase {
 
-  CategoryId execute(CreateCategoryCommand command);
+  CategoryDto execute(CreateCategoryCommand command);
 }

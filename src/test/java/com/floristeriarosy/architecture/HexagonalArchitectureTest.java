@@ -1,11 +1,12 @@
 package com.floristeriarosy.architecture;
 
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.INTERFACES;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
-import com.tngtech.archunit.junit.ArchIgnore;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
@@ -70,19 +71,15 @@ class HexagonalArchitectureTest {
   /**
    * Los Services únicamente implementan Input Ports.
    *
-   * <p>TEMPORALMENTE IGNORADO.
-   *
-   * <p>Esta regla se activará cuando comiencen las implementaciones reales de los casos de uso.
-   *
    * <p>Cada Service deberá implementar exactamente un Input Port (UseCase) según ADR-001.
    */
-  @ArchIgnore @ArchTest
+  @ArchTest
   static final ArchRule services_should_implement_use_cases =
       classes()
           .that()
           .resideInAPackage("..application..service..")
           .should()
-          .implement("..application..port.in..");
+          .implement(INTERFACES.and(resideInAPackage("..application..port.in..")));
 
   /** Ningún Service debe depender de un Adapter. */
   @ArchTest
@@ -98,24 +95,14 @@ class HexagonalArchitectureTest {
   // Persistence Adapter
   // -------------------------------------------------------------------------
 
-  /**
-   * Los Adapters implementan Output Ports.
-   *
-   * <p>TEMPORALMENTE IGNORADO.
-   *
-   * <p>Esta regla se activará cuando los Persistence Adapter implementen los Output Ports reales
-   * definidos por Application.
-   *
-   * <p>Se mantiene ignorada únicamente para permitir que el proyecto permanezca compilando mientras
-   * existe únicamente el esqueleto arquitectónico.
-   */
-  @ArchIgnore @ArchTest
+  /** Los Adapters implementan Output Ports. */
+  @ArchTest
   static final ArchRule adapters_should_implement_output_ports =
       classes()
           .that()
           .resideInAPackage("..infrastructure.persistence.adapter..")
           .should()
-          .implement("..application..port.out..");
+          .implement(INTERFACES.and(resideInAPackage("..application..port.out..")));
 
   /** Los Adapters nunca deben acceder a Controllers. */
   @ArchTest

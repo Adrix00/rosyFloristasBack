@@ -1,3 +1,5 @@
 package com.floristeriarosy.application.category.command;
 
-public final class DeleteCategoryCommand {}
+import java.util.UUID;
+
+public record DeleteCategoryCommand(UUID id) {}

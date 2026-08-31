@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+  <!--
+    Constructor Injection is mandatory (CLAUDE.md): every Service, Persistence Adapter and JDBC
+    Repository stores its injected ports/templates in a final field. SpotBugs' Low threshold
+    treats that as EI_EXPOSE_REP2 regardless of the field being a stateless Spring-managed
+    singleton (an interface, a JdbcTemplate...). Real mutable-state leaks in DTOs/domain records
+    stay caught; this only covers the DI-holds-a-collaborator pattern.
+  -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2" />
+    <Or>
+      <Package name="~.*\.application\..*\.service" />
+      <Package name="~.*\.infrastructure\.persistence\.adapter\..*" />
+      <Package name="~.*\.infrastructure\.persistence\.jdbc\..*\.repository" />
+    </Or>
+  </Match>
+
+  <!-- Spring Security's HttpSecurity#build() and our own constraint-translation fallback are
+       framework/defensive idioms, not real bugs. -->
+  <Match>
+    <Bug pattern="THROWS_METHOD_THROWS_RUNTIMEEXCEPTION" />
+  </Match>
+  <Match>
+    <Bug pattern="THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION" />
+  </Match>
+</FindBugsFilter>

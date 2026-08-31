@@ -9,5 +9,11 @@ public interface CategoryReadPort {
 
   Optional<Category> findById(CategoryId id);
 
+  Optional<Category> findBySlug(String slug);
+
+  /** {@code ACTIVE} only, ordered by {@code position} then {@code name} (category.md, §4). */
+  List<Category> findAllActive();
+
+  /** All statuses, same order. Backs {@code GET /categories/all} (ADMIN). */
   List<Category> findAll();
 }
