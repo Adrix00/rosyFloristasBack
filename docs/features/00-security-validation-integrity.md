@@ -202,6 +202,10 @@ Detalle en [ADR-011](../architecture/ADR/ADR-011-idempotent-money-operations.md)
 El cliente debe **conservar** la clave durante toda la operación. Regenerarla en el reintento anula
 el mecanismo entero.
 
+El `request_fingerprint` es, por defecto, el hash del cuerpo de la petición. `POST /checkout` es la
+excepción: su cuerpo no lleva productos, así que el fingerprint incorpora también el contenido del
+carrito en ese instante — ver [`payment.md`](payment.md), regla 3.8.
+
 ---
 
 ## 7. Límite de peticiones

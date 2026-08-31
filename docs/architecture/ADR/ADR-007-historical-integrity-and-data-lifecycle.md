@@ -85,13 +85,30 @@ the legal requirement in force, not a number this codebase invents.
 
 `PurgeExpiredOrderPersonalDataService` (application-layer, outside this migration) sets to `NULL`
 both the encrypted buyer fields and their HMAC hashes on `orders`, and the encrypted fields of
-`order_deliveries`, for every order past its `retention_until`, and stamps
-`personal_data_purged_at`. Amounts, dates, channel and line items survive: accounting and metrics
-stay intact, the order stops being PII.
+`order_deliveries`, and stamps `personal_data_purged_at`. Amounts, dates, channel and line items
+survive: accounting and metrics stay intact, the order stops being PII.
 
-The process is idempotent by construction:
-`WHERE retention_until <= CURRENT_DATE AND personal_data_purged_at IS NULL` — an order already purged
-never matches again, and an order still open has `retention_until IS NULL` and never matches at all.
+**The scheduled run only touches orders of an archived customer.** An order past `retention_until`
+whose customer is still `ACTIVE` is left alone — the legal retention window bounds how long the data
+*may* be kept, not how long it automatically *will* be. A customer who keeps ordering has no reason to
+have last year's delivery address silently erased underneath them. The automatic path is therefore:
+
+```sql
+WHERE retention_until <= CURRENT_DATE
+  AND personal_data_purged_at IS NULL
+  AND customer_id IN (SELECT id FROM customers WHERE status = 'ARCHIVED')
+```
+
+Idempotent by construction: an order already purged never matches again (`personal_data_purged_at`),
+and an order still open never matches (`retention_until IS NULL`).
+
+Two categories never match the scheduled run, by that same `WHERE`: orders of an `ACTIVE` customer
+(protected until the customer deactivates), and guest orders (`customer_id IS NULL` — no customer row
+to be `ARCHIVED` in the first place). Both are reachable only through the **manual path**: an
+administrator purging one order's PII directly, on request, regardless of `retention_until` or the
+customer's status — the operator-facing override for a guest order, an active customer's explicit
+erasure request, or anything the scheduled run's conservative default does not cover. Full design in
+`docs/features/scheduled-tasks.md` and `docs/features/customer.md`.
 
 **Orders are never deleted** by any normal use case, and retention does not delete them either — it
 only removes their PII. The `ON DELETE CASCADE` on `order_items`, `order_deliveries` and

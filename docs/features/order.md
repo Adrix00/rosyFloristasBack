@@ -115,6 +115,12 @@ porque no hay llamada externa que esperar.
 de la Fase 2: un timeout de red no permite saber si la pasarela llegó a cobrar o no, y reintentar sin
 esta cabecera podría cobrar dos veces por el mismo pedido.
 
+Como este `POST` no lleva productos en el cuerpo (regla 5, se construye desde el carrito), el
+`request_fingerprint` de ADR-011 incluye también un hash del contenido del carrito en ese instante, no
+solo del cuerpo del `POST` — ver [`payment.md`](payment.md), regla 3.8. Un carrito modificado entre un
+intento y su reintento con la misma clave se trata como cuerpo distinto (422
+`IDEMPOTENCY_KEY_REUSED`), no como el mismo reintento.
+
 ### 3.4 Validación antes de la Fase 1
 
 Antes de reservar nada, se ejecuta `ValidateCartUseCase` ([`cart.md`](cart.md), regla 3.4): quita del
@@ -221,6 +227,12 @@ la compra; sin sesión, del formulario de checkout. En ambos casos se guarda com
 ni siquiera un cliente registrado hace que el pedido dependa de leer `customers` después
 ([ADR-007](../architecture/ADR/ADR-007-historical-integrity-and-data-lifecycle.md)).
 
+Sin sesión, la Fase 3a también fija `orders.customer_id` a través de
+`FindOrCreateGuestCustomerUseCase` ([`customer.md`](customer.md), regla 3.2): busca o crea una fila
+`GUEST` por el email del comprador, para que un futuro registro con ese mismo email herede este
+pedido como historial. El snapshot en `orders` no depende de esa fila para nada — es solo el enlace
+que permite reconstruir el historial más adelante.
+
 Un cliente registrado puede usar una dirección guardada (`customer_addresses`) o escribir una nueva
 en el propio checkout; un invitado solo puede escribir una nueva, porque no tiene direcciones
 guardadas.
@@ -230,10 +242,9 @@ guardadas.
 `retention_until` se calcula al cerrar el pedido (`status` terminal), con el periodo de
 `app.retention.orders-period`. Este documento no fija ningún número de días — lo determina el
 requisito legal aplicable
-([ADR-007](../architecture/ADR/ADR-007-historical-integrity-and-data-lifecycle.md)). La purga en sí
-la ejecuta `PurgeExpiredOrderPersonalDataService`, fuera de este módulo — cuándo y con qué frecuencia
-corre pertenece a `customer.md` cuando se escriba (es la misma pieza que gestiona la baja de
-cliente).
+([ADR-007](../architecture/ADR/ADR-007-historical-integrity-and-data-lifecycle.md)). La purga en sí,
+quién la dispara y bajo qué condición (el cliente debe estar dado de baja, no basta con que venza el
+plazo) vive en [`scheduled-tasks.md`](scheduled-tasks.md), fuera de este módulo.
 
 ---
 
@@ -267,7 +278,7 @@ de recurso).
 | `POST` | `/orders/{id}/ship` | `ADMIN` | 200 — solo `DELIVERY` |
 | `POST` | `/orders/{id}/complete` | `ADMIN` | 200 — entregado o recogido |
 | `POST` | `/orders/{id}/cancel` (admin) | `ADMIN` | 200 — desde `PENDING` o `ACCEPTED` |
-| `POST` | `/orders/counter` | `ADMIN` | 201 — venta de mostrador, `STORE`/`INTERFLORA` (regla 11, pendiente) |
+| `POST` | `/orders/counter` | `ADMIN` | 201 — venta de mostrador, `STORE`/`INTERFLORA`; mecánica de pago en [`payment.md`](payment.md), regla 3.6 |
 
 Cada transición es un verbo propio, no un `PATCH /status` genérico: `ship` solo tiene sentido si
 `fulfillment = DELIVERY`, y un `PATCH` con un valor de estado arbitrario obligaría a repetir en el
@@ -283,7 +294,8 @@ controlador toda la lógica del grafo de la regla 3.9 en vez de dejar que la rut
 |---|---|---|
 | `fulfillment` | Enum | `@NotNull`: `DELIVERY`, `PICKUP` o `NONE` |
 | `paymentMethod` | Enum | `@NotNull`: `CARD_ONLINE` (único disponible en `WEB`) |
-| `paymentMethodToken` | String | Requerido si `paymentMethod = CARD_ONLINE`; token de la pasarela, nunca datos de tarjeta |
+| `paymentMethodToken` | String | Tarjeta nueva; alternativa a `paymentMethodId` cuando `paymentMethod = CARD_ONLINE`, token de la pasarela, nunca datos de tarjeta |
+| `paymentMethodId` | UUID | Tarjeta guardada del cliente ([`payment.md`](payment.md), regla 3.5); alternativa a `paymentMethodToken`, solo con sesión |
 | `buyer` | `BuyerRequest` | `@NotNull` si no hay sesión; ignorado (se usa el perfil) si la hay |
 | `addressId` | UUID | Alternativa a `delivery`; dirección guardada de un cliente registrado |
 | `delivery` | `DeliveryRequest` | Obligatorio si `fulfillment = DELIVERY` y no se envía `addressId` |
@@ -292,6 +304,9 @@ controlador toda la lógica del grafo de la regla 3.9 en vez de dejar que la rut
 No lleva ni productos ni precios: el pedido se construye **desde el carrito del backend**, nunca de
 lo que envíe el cliente — mismo principio que el precio nunca se toma del cliente
 ([`00-security-validation-integrity.md`](00-security-validation-integrity.md)).
+
+Validación de negocio: si `paymentMethod = CARD_ONLINE`, exactamente uno de `paymentMethodToken` /
+`paymentMethodId` debe venir informado — ambos o ninguno es 422 `ORDER_VALIDATION_FAILED`.
 
 `BuyerRequest`: `firstName`, `lastName`, `email` (`@Email`), `phone` — todos `@NotBlank` cuando el
 bloque es obligatorio.
@@ -420,7 +435,7 @@ donde el estado HTTP describe con precisión lo que pasó.
 |---|---|
 | Dos pestañas confirman el mismo carrito a la vez | Cada `POST /checkout` lleva su propia `Idempotency-Key`; sin ella compartida, pueden generarse dos pedidos — es responsabilidad del frontend no duplicar la clave entre pestañas |
 | Reintento de `POST /checkout` con la misma clave tras éxito | Se responde con el pedido ya creado, sin repetir ninguna fase (ADR-011) |
-| Reintento con la misma clave tras un rechazo de pago | La Fase 3b ya liberó la reserva; el reintento vuelve a intentar desde la Fase 1 igual que una petición nueva, pero bajo el paraguas de la misma `idempotency_keys` row en `FAILED` — se trata como clave reutilizada con cuerpo distinto si el carrito cambió entretanto |
+| Reintento con la misma clave tras un rechazo de pago | La Fase 3b ya liberó la reserva; la fila de `idempotency_keys` quedó `FAILED`, así que el reintento vuelve a intentar desde la Fase 1. Si el carrito no cambió, mismo fingerprint, se ejecuta de nuevo; si cambió, 422 `IDEMPOTENCY_KEY_REUSED` (regla 3.3, `payment.md` 3.8) |
 | Producto sin gestión de inventario, sin stock físico real | Se vende igual: la regla 3.6 no comprueba nada para `stock IS NULL`, por diseño |
 | Carrito vaciado por otra pestaña justo antes del checkout | `ValidateCartUseCase` no tiene nada que validar; el checkout falla con carrito vacío antes de la Fase 1 |
 | Cliente cancela su pedido en `PREPARING` | 409 `ORDER_NOT_CANCELABLE`: pasado `ACCEPTED`, solo el admin puede |
@@ -438,18 +453,20 @@ donde el estado HTTP describe con precisión lo que pasó.
 - **Reserva y liberación de unidades de descuento** — [`product-discounts.md`](product-discounts.md).
 - **`SALE` y su reversión (`ADJUSTMENT`)** — [`inventory.md`](inventory.md).
 - **Validación y vaciado del carrito** — [`cart.md`](cart.md).
-- **Frecuencia de la purga de PII** — `customer.md`, cuando se escriba.
+- **Ejecución y condiciones de la purga de PII** — [`scheduled-tasks.md`](scheduled-tasks.md).
+- **Baja de cliente** — [`customer.md`](customer.md).
 
 ---
 
-## 12. Pendiente de decidir
+## 12. Decisiones cerradas por `payment.md`
 
-1. **Pago de pedidos `STORE` e `INTERFLORA`.** Se asume una vía distinta al checkout de tarjeta
-   (`POST /orders/counter`, sin Fase 2 externa, `CASH`/`DATAPHONE` capturados directamente por el
-   personal), reflejada como endpoint en la sección 4 pero sin diseñar en detalle: si `INTERFLORA`
-   de verdad se paga en efectivo o datáfono como una venta de mostrador, o si el acuerdo con la red
-   Interflora se liquida de otra forma que no encaja en `payments.method` tal como está definido hoy.
-2. **Reintento con `Idempotency-Key` reutilizada tras un carrito cambiado.** El caso borde de la
-   sección 10 lo señala pero no está cerrado del todo: qué cuenta exactamente como "cuerpo distinto"
-   cuando el cuerpo del `POST /checkout` no lleva productos (regla 5), solo referencias al carrito
-   que pudo cambiar entre el primer intento y el reintento.
+Los dos pendientes que dejó esta sección se resolvieron al escribir
+[`payment.md`](payment.md), que es el módulo que los gobierna:
+
+1. **Pago de `STORE`/`INTERFLORA`** — `POST /orders/counter` confirmado con Fases 1+3a fundidas, sin
+   pasarela externa; `INTERFLORA` añade su propio `method` (`V10`) con captura inmediata garantizada y
+   liquidación diferida fuera del backend (`payment.md`, reglas 3.6-3.7).
+2. **Fingerprint de `Idempotency-Key` en `POST /checkout`** — incluye el contenido del carrito, no solo
+   el cuerpo del `POST` (`payment.md`, regla 3.8; reflejado aquí en la regla 3.3).
+
+Sin pendientes abiertos en este documento.

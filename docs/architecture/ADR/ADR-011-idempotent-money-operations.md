@@ -42,7 +42,9 @@ through, and which one is it".
 **`request_fingerprint`** (SHA-256 of the request body) distinguishes a retry from a mistake. The same
 key with a different body is a client bug — a key reused across two genuinely different operations —
 and is rejected (HTTP 422) rather than being answered with the first operation's result, which would
-silently discard the second request.
+silently discard the second request. Checkout is the one exception: its body carries no line items —
+the order is built from the server-side cart — so its fingerprint also hashes the cart's contents at
+request time, not the body alone (`docs/features/payment.md`, section 3.8).
 
 **Expiry.** Rows carry `expires_at` and are removed by a cleanup task, not by the database. The
 retention window only needs to outlive plausible client retries, not the order itself.

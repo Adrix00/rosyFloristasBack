@@ -15,8 +15,9 @@ diferencia de un pedido ([`order.md`](order.md)). El precio se calcula **en vivo
 consulta, nunca se guarda — el carrito no es más que una lista de `(producto, cantidad)`.
 
 "Invitado" aquí significa **sin sesión iniciada** (`carts.customer_id IS NULL`), un concepto distinto
-del `type = 'GUEST'` de `customers`, que es sobre cómo se hizo el pedido, no sobre cómo se navegó.
-Un invitado que nunca se registra puede completar un pedido igualmente
+del `type = 'GUEST'` de `customers`, que es sobre cómo se hizo el pedido, no sobre cómo se navegó — se
+crea, si hace falta, al confirmar el pedido, no al usar el carrito ([`customer.md`](customer.md),
+regla 3.2). Un invitado que nunca se registra puede completar un pedido igualmente
 ([`order.md`](order.md)); el carrito no exige cuenta.
 
 ---
