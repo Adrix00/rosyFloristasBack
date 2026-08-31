@@ -10,11 +10,21 @@ import java.util.List;
  */
 public interface CategoryProductsPort {
 
+  /**
+   * @param id the category to count products for
+   * @return number of products associated with it, regardless of status
+   */
   long countByCategory(CategoryId id);
 
-  /** {@code ACTIVE} products for which this category is their only {@code ACTIVE} category. */
+  /**
+   * @param id the category being previewed for deactivation
+   * @return {@code ACTIVE} products for which {@code id} is their only {@code ACTIVE} category
+   */
   List<CategoryProductRef> findLosingVisibility(CategoryId id);
 
-  /** Products that would be left with zero categories if this one is deleted. */
+  /**
+   * @param id the category being previewed for deletion
+   * @return products that would be left with zero categories if {@code id} is deleted
+   */
   List<CategoryProductRef> findLeftWithoutCategory(CategoryId id);
 }

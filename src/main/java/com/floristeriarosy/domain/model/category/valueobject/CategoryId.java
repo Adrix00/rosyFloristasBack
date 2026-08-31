@@ -8,18 +8,32 @@ public final class CategoryId {
 
   private final UUID value;
 
+  /**
+   * @param value the identifier value
+   * @throws NullPointerException {@code value} is {@code null}
+   */
   private CategoryId(UUID value) {
     this.value = Objects.requireNonNull(value, "value");
   }
 
+  /**
+   * @return a new, random identifier for a category being created
+   */
   public static CategoryId newId() {
     return new CategoryId(UUID.randomUUID());
   }
 
+  /**
+   * @param value an existing identifier value, e.g. from a path variable or a persisted row
+   * @return the wrapped identifier
+   */
   public static CategoryId of(UUID value) {
     return new CategoryId(value);
   }
 
+  /**
+   * @return the raw UUID value
+   */
   public UUID value() {
     return value;
   }

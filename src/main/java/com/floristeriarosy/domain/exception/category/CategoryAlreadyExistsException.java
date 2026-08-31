@@ -7,6 +7,9 @@ import com.floristeriarosy.domain.exception.HasErrorCode;
 public final class CategoryAlreadyExistsException extends ConflictException
     implements HasErrorCode {
 
+  /**
+   * @param message a message for a person; never exposed raw to the API client
+   */
   public CategoryAlreadyExistsException(String message) {
     super(message);
   }

@@ -6,9 +6,14 @@ import com.floristeriarosy.domain.model.category.valueobject.CategorySlug;
 import com.floristeriarosy.infrastructure.persistence.entity.category.CategoryEntity;
 import org.springframework.stereotype.Component;
 
+/** Domain ↔ JPA entity conversions (ADR-002: Persistence Mapper). */
 @Component
 public class CategoryPersistenceMapper {
 
+  /**
+   * @param category the domain category to persist
+   * @return its JPA entity shape
+   */
   public CategoryEntity toEntity(Category category) {
     return new CategoryEntity(
         category.id().value(),
@@ -22,6 +27,10 @@ public class CategoryPersistenceMapper {
         category.updatedAt());
   }
 
+  /**
+   * @param entity the persisted JPA entity
+   * @return the rebuilt domain category ({@link Category#reconstitute})
+   */
   public Category toDomain(CategoryEntity entity) {
     return Category.reconstitute(
         CategoryId.of(entity.getId()),

@@ -25,28 +25,66 @@ public class GlobalExceptionHandler {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+  /**
+   * Maps any {@link NotFoundException} to 404.
+   *
+   * @param exception the domain exception that was thrown
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body
+   */
   @ExceptionHandler(NotFoundException.class)
   public ProblemDetail handleNotFound(NotFoundException exception, HttpServletRequest request) {
+    LOGGER.debug("404 on {}: {}", request.getRequestURI(), exception.getMessage());
     return problemDetail(HttpStatus.NOT_FOUND, exception, request);
   }
 
+  /**
+   * Maps any {@link ConflictException} to 409.
+   *
+   * @param exception the domain exception that was thrown
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body
+   */
   @ExceptionHandler(ConflictException.class)
   public ProblemDetail handleConflict(ConflictException exception, HttpServletRequest request) {
+    LOGGER.debug("409 on {}: {}", request.getRequestURI(), exception.getMessage());
     return problemDetail(HttpStatus.CONFLICT, exception, request);
   }
 
+  /**
+   * Maps any {@link UnprocessableException} to 422.
+   *
+   * @param exception the domain exception that was thrown
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body
+   */
   @ExceptionHandler(UnprocessableException.class)
   public ProblemDetail handleUnprocessable(
       UnprocessableException exception, HttpServletRequest request) {
-    return problemDetail(HttpStatus.UNPROCESSABLE_ENTITY, exception, request);
+    LOGGER.debug("422 on {}: {}", request.getRequestURI(), exception.getMessage());
+    return problemDetail(HttpStatus.UNPROCESSABLE_CONTENT, exception, request);
   }
 
+  /**
+   * Maps a Bean Validation failure on a {@code @RequestBody} to 422, with one {@code errors[]}
+   * entry per rejected field.
+   *
+   * @param exception the validation failure raised by Spring
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body, with {@code code} derived from the invalid DTO's package
+   */
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ProblemDetail handleValidation(
       MethodArgumentNotValidException exception, HttpServletRequest request) {
     String code = validationCodeFor(exception);
+    LOGGER.debug(
+        "422 on {}: code={} rejectedFields={}",
+        request.getRequestURI(),
+        code,
+        exception.getBindingResult().getFieldErrorCount());
+
     ProblemDetail problem =
-        ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, "Validation failed");
+        ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_CONTENT, "Validation failed");
     problem.setTitle("Validation failed");
     problem.setInstance(URI.create(request.getRequestURI()));
     problem.setProperty("code", code);
@@ -58,10 +96,17 @@ public class GlobalExceptionHandler {
     return problem;
   }
 
+  /**
+   * Catches anything not already mapped above and maps it to a generic 500. The exception is logged
+   * in full server-side; the client never sees a stack trace or an internal message
+   * (00-security-validation-integrity.md, section 9).
+   *
+   * @param exception the unmapped exception
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body, with {@code code=INTERNAL_ERROR}
+   */
   @ExceptionHandler(Exception.class)
   public ProblemDetail handleUnexpected(Exception exception, HttpServletRequest request) {
-    // Detalle solo en el log del servidor: la respuesta al cliente nunca lleva traza ni mensaje
-    // interno (00-security-validation-integrity.md, sección 9).
     LOGGER.error("Unexpected error handling {}", request.getRequestURI(), exception);
     ProblemDetail problem =
         ProblemDetail.forStatusAndDetail(
@@ -72,6 +117,15 @@ public class GlobalExceptionHandler {
     return problem;
   }
 
+  /**
+   * Builds the common RFC 7807 shape for a mapped domain exception, adding {@code code} when the
+   * exception exposes one.
+   *
+   * @param status the HTTP status to report
+   * @param exception the exception being mapped
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body
+   */
   private ProblemDetail problemDetail(
       HttpStatus status, RuntimeException exception, HttpServletRequest request) {
     ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, exception.getMessage());
@@ -83,9 +137,13 @@ public class GlobalExceptionHandler {
     return problem;
   }
 
-  // El DTO invalido vive en infrastructure.web.request.<modulo>: de ahi sale el prefijo del
-  // codigo (ADR-012, "<MODULO>_VALIDATION_FAILED") sin que cada modulo tenga que declarar su
-  // propio manejador aqui.
+  /**
+   * Derives {@code <MODULE>_VALIDATION_FAILED} from the invalid DTO's package ({@code
+   * infrastructure.web.request.<module>}), so a new module needs no new handler here (ADR-012).
+   *
+   * @param exception the validation failure
+   * @return the module-scoped validation error code
+   */
   private String validationCodeFor(MethodArgumentNotValidException exception) {
     String[] packageParts =
         exception.getParameter().getParameterType().getPackageName().split("\\.");
@@ -93,5 +151,6 @@ public class GlobalExceptionHandler {
     return module.toUpperCase(Locale.ROOT) + "_VALIDATION_FAILED";
   }
 
+  /** One rejected field of a {@link MethodArgumentNotValidException}. */
   private record FieldViolation(String field, String code) {}
 }

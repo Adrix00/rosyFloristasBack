@@ -7,6 +7,9 @@ import com.floristeriarosy.domain.exception.UnprocessableException;
 public final class CategoryImageNotFoundException extends UnprocessableException
     implements HasErrorCode {
 
+  /**
+   * @param message a message for a person; never exposed raw to the API client
+   */
   public CategoryImageNotFoundException(String message) {
     super(message);
   }

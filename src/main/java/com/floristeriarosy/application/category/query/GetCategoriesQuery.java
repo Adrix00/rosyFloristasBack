@@ -1,4 +1,7 @@
 package com.floristeriarosy.application.category.query;
 
-/** {@code includeInactive}: {@code GET /categories/all} (ADMIN) vs {@code GET /categories}. */
+/**
+ * @param includeInactive {@code true} for {@code GET /categories/all} (ADMIN), {@code false} for
+ *     {@code GET /categories} (public)
+ */
 public record GetCategoriesQuery(boolean includeInactive) {}

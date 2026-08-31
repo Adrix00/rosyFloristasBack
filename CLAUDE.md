@@ -90,6 +90,51 @@ Never skip steps.
 
 ---
 
+## Logging
+
+Every method with real logic (a decision, a branch, an I/O call, a state transition) logs its
+entry and its exit, via SLF4J (`LoggerFactory.getLogger(Xxx.class)`), at `DEBUG`:
+
+- Entry: every input parameter — `log.debug("createCategory name={} imageId={} position={}",
+  command.name(), command.imageId(), command.position())`.
+- Exit: the return value (or "void" / the outcome) — `log.debug("createCategory -> id={}",
+  category.id())`.
+
+**Never log a field encrypted or hashed under ADR-005**: email, phone, name, surnames, addresses,
+delivery recipient, card message, payment tokens, password hashes, session/verification tokens.
+Log the identifier (UUID) instead, never the value. Everything else — names, statuses, slugs,
+prices, quantities, non-PII business fields — logs freely, no redaction needed.
+
+Applies to: Services (one `execute()` per use case), Controllers (one per endpoint), Persistence
+Adapters and JDBC Repositories (DB I/O), domain methods that mutate or create state, and
+validators. Log a complex branch or a non-obvious decision inside a method body too, not only at
+entry/exit.
+
+**Does not apply to** — logging here is pure noise, not signal: Commands/Queries/DTOs/Requests/
+Responses (data carriers, no logic), Web/Persistence Mappers and RowMappers (pure 1:1 field
+mapping, called once per row or per request — can't fail independently of their input), and plain
+accessors. These still get Javadoc.
+
+A caught, expected domain exception (404/409/422) logs at `DEBUG` in the handler that catches it,
+never at the throw site (double-logs the same event otherwise). An unexpected exception logs at
+`ERROR` with the full exception before the generic response is built
+(`infrastructure/web/advice`).
+
+A security-relevant startup decision (e.g. a permissive placeholder `SecurityConfig`) logs once at
+`WARN` on startup — cheap, and it is the one signal an operator has that the posture is
+provisional.
+
+---
+
+## Javadoc
+
+Every method — interface and implementation, public and private — gets a Javadoc comment: what it
+does, `@param` per parameter, `@return` if non-void, `@throws` for a checked or a documented
+business exception. Records document their fields via `@param` on the record's own Javadoc instead
+of on the (generated) accessors.
+
+---
+
 ## Architecture
 
 DDD

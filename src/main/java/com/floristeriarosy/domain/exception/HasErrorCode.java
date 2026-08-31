@@ -6,5 +6,8 @@ package com.floristeriarosy.domain.exception;
  */
 public interface HasErrorCode {
 
+  /**
+   * @return the published error code (ADR-012), e.g. {@code "CATEGORY_NOT_FOUND"}
+   */
   String errorCode();
 }

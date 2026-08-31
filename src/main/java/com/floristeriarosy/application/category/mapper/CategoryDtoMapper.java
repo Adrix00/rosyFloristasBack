@@ -8,6 +8,10 @@ public final class CategoryDtoMapper {
 
   private CategoryDtoMapper() {}
 
+  /**
+   * @param category the domain category to expose
+   * @return its read shape, with plain UUID/enum fields a Controller may hold directly
+   */
   public static CategoryDto toDto(Category category) {
     return new CategoryDto(
         category.id().value(),
