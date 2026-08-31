@@ -13,6 +13,7 @@ import com.floristeriarosy.infrastructure.persistence.entity.category.CategoryEn
 import com.floristeriarosy.infrastructure.persistence.jdbc.category.repository.CategoryJdbcRepository;
 import com.floristeriarosy.infrastructure.persistence.jpa.category.repository.CategoryJpaRepository;
 import com.floristeriarosy.infrastructure.persistence.mapper.category.CategoryPersistenceMapper;
+import com.floristeriarosy.shared.util.LogSanitizer;
 import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -66,9 +67,9 @@ public class CategoryPersistenceAdapter
    */
   @Override
   public Optional<Category> findBySlug(String slug) {
-    LOGGER.debug("findBySlug slug={}", slug);
+    LOGGER.debug("findBySlug slug={}", LogSanitizer.sanitize(slug));
     Optional<Category> result = jpaRepository.findBySlug(slug).map(mapper::toDomain);
-    LOGGER.debug("findBySlug slug={} -> found={}", slug, result.isPresent());
+    LOGGER.debug("findBySlug slug={} -> found={}", LogSanitizer.sanitize(slug), result.isPresent());
     return result;
   }
 
