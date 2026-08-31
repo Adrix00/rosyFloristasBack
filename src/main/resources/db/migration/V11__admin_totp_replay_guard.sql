@@ -1,0 +1,13 @@
+-- V11__admin_totp_replay_guard.sql
+-- RFC 6238 exige que un codigo TOTP no se acepte dos veces: dentro de su ventana de
+-- 30 segundos, un codigo interceptado seria reutilizable sin esta columna. V1 dejo
+-- totp_secret_encrypted y totp_enabled, pero nada donde recordar que paso ya se gasto.
+--
+-- Se guarda el numero de paso (unix_time / 30), no el codigo: el codigo es un secreto
+-- derivado y no tiene por que persistirse ni siquiera hasheado, mientras que el paso
+-- es un entero publico que solo dice "de este intervalo ya se uso uno". La verificacion
+-- rechaza cualquier paso <= totp_last_used_step.
+--
+-- NULL = ningun codigo verificado todavia (admin recien creado, aun sin enrolar).
+-- Ver docs/features/auth.md, regla 3.4.
+ALTER TABLE admin_users ADD COLUMN totp_last_used_step BIGINT;

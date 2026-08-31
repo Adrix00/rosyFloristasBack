@@ -17,6 +17,7 @@ Dos tareas por ahora:
 |---|---|---|---|---|
 | Alertas de stock bajo / reconciliación | `inventory_alerts` | Sí, diaria | Resolver/descartar, no disparar | [`inventory.md`](inventory.md), sección 3.8 — no se repite aquí |
 | Purga de PII de pedidos vencidos | `orders`, `order_deliveries` | Sí, condicionada | Sí, `ADMIN` | Esta sección |
+| Limpieza de filas caducadas | `refresh_tokens`, `verification_tokens`, `idempotency_keys` | Pendiente | No | Sección 3.3 |
 
 ---
 
@@ -54,8 +55,8 @@ Consecuencia directa: un pedido de invitado (`customer_id IS NULL`, sin cuenta q
 `POST /orders/{id}/purge-personal-data`. Cubre lo que la automática deja fuera a propósito:
 
 - Pedidos de invitado.
-- Pedidos de un cliente `ACTIVE` que pide expresamente el borrado de un pedido concreto (vía soporte;
-  no hay autoservicio — regla 3.3).
+- Pedidos de un cliente `ACTIVE` que pide expresamente el borrado de un pedido concreto, tramitado por
+  soporte: no hay autoservicio.
 - Cualquier pedido, esté o no vencido su `retention_until`: la vía manual no comprueba el periodo
   legal, es una petición explícita de supresión, no una aplicación automática del plazo.
 
@@ -63,7 +64,23 @@ Solo el administrador puede iniciarla — el cliente, logueado o no, no tiene ni
 para borrar datos de sus pedidos; si lo pide, lo tramita soporte. Idempotente: sobre un pedido ya
 purgado, 409 `ORDER_ALREADY_PURGED`, no un no-op silencioso.
 
-### 3.3 Relación con la baja de cliente
+### 3.3 Limpieza de filas caducadas — pendiente
+
+`refresh_tokens` ([`auth.md`](auth.md)), `verification_tokens` ([`customer.md`](customer.md)) y
+`idempotency_keys` ([ADR-011](../architecture/ADR/ADR-011-idempotent-money-operations.md)) acumulan
+filas que dejan de servir para nada al pasar su `expires_at`. Ninguna se borra sola: las tres ADR que
+las introdujeron dicen explícitamente que la limpieza es una tarea programada, no una constraint.
+
+**No está diseñada todavía.** Falta decidir frecuencia y ventana de gracia, y es la única de las tres
+tareas de este documento sin cerrar
+([`00-security-validation-integrity.md`](00-security-validation-integrity.md), sección 12, punto 5).
+No es urgente en el sentido funcional —nada se rompe si la tabla crece— pero sí lo es en el operativo:
+crecimiento sin límite y sin nadie mirándolo.
+
+Un token caducado que sigue en la tabla no es un agujero de seguridad: la verificación comprueba
+`expires_at` y `revoked_at` en cada uso, no la mera existencia de la fila.
+
+### 3.4 Relación con la baja de cliente
 
 Darse de baja ([`customer.md`](customer.md)) no purga los pedidos del cliente en el mismo instante:
 solo cambia `customers.status` a `ARCHIVED`, que es la condición que la regla 3.1 necesita para que la

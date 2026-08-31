@@ -19,6 +19,14 @@ Fuentes de verdad relacionadas:
 
 ## 1. Autenticación
 
+### Transporte
+
+El **refresh token** viaja en cookie `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/api/v1/auth`; el
+frontend nunca lo ve. `SameSite=Strict` es la protección CSRF de esos endpoints: el navegador no envía
+la cookie en peticiones originadas fuera del sitio. El **access token** viaja en el cuerpo de la
+respuesta y el frontend lo guarda solo en memoria, enviándolo en `Authorization: Bearer` — nunca en
+`localStorage`, donde un XSS lo alcanzaría. Detalle en [`auth.md`](auth.md), regla 3.1.
+
 ### Access token (JWT, stateless)
 
 No se persiste. Vida útil: **15 minutos** para cliente, **5 minutos** para administrador.
@@ -49,8 +57,10 @@ no ventana deslizante.
 
 ### TOTP de administrador
 
-`admin_users.totp_secret_encrypted` cifrado (AES-256-GCM). El segundo factor se exige en el login de
-administrador cuando `totp_enabled = true`, antes de emitir ningún token.
+`admin_users.totp_secret_encrypted` cifrado (AES-256-GCM). El segundo factor es **obligatorio** para
+todo administrador: el login del panel es de dos pasos, y un admin recién creado
+(`totp_enabled = false`) no accede a nada hasta enrolar su TOTP en ese primer acceso. Un código no se
+acepta dos veces (`totp_last_used_step`, `V11`). Detalle en [`auth.md`](auth.md), reglas 3.3 y 3.4.
 
 ---
 

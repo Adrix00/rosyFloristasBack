@@ -5,7 +5,7 @@ Cubre también el cliente `GUEST` que nace de un checkout web sin sesión — no
 autenticarse, pero es lo que permite, más adelante, relacionar ese pedido con la cuenta que esa misma
 persona cree.
 
-No incluye login ni sesión: eso vive en `auth.md`, que se escribe a continuación y consume las
+No incluye login ni sesión: eso vive en [`auth.md`](auth.md), que consume las
 columnas que este documento define (`password_hash`, `email_verified_at`,
 `chk_customers_archived_no_pii`). Reglas transversales en
 [`00-security-validation-integrity.md`](00-security-validation-integrity.md).
@@ -36,7 +36,7 @@ y el mismo mecanismo de baja (regla 3.6).
 | `type` | `GUEST`, `REGISTERED`; `GUEST` nunca tiene `password_hash` (`chk_customers_guest_no_password`) |
 | `status` | `ACTIVE`, `ARCHIVED`; `ARCHIVED` exige `email_hash`/`password_hash` en `NULL` y `anonymized_at` relleno |
 | `email_hash` | `UNIQUE`; `NULL` en `ARCHIVED`, así que un email puede reutilizarse tras una baja (regla 3.6) |
-| `email_verified_at` | `NULL` hasta verificar; bloquea el login (`auth.md`) mientras lo esté (regla 3.1) |
+| `email_verified_at` | `NULL` hasta verificar; bloquea el login ([`auth.md`](auth.md)) mientras lo esté (regla 3.1) |
 | `version` | Bloqueo optimista ([ADR-009](../architecture/ADR/ADR-009-optimistic-locking.md)) |
 
 `customer_addresses`: sin cambios de esquema; `is_default` con índice único parcial, igual patrón que
@@ -51,7 +51,7 @@ y el mismo mecanismo de baja (regla 3.6).
 `POST /customers/register` crea una fila `REGISTERED`, `status = ACTIVE`, `email_verified_at = NULL`.
 Envía un `verification_tokens` (`purpose = EMAIL_VERIFICATION`) por email.
 
-**El login queda bloqueado hasta verificar** (`auth.md` responde 403 `EMAIL_NOT_VERIFIED` si
+**El login queda bloqueado hasta verificar** ([`auth.md`](auth.md) responde 403 `EMAIL_NOT_VERIFIED` si
 `email_verified_at IS NULL`) — decisión explícita: verificar es la puerta de entrada, no un paso
 opcional posterior. `POST /customers/verify-email` consume el token y rellena
 `email_verified_at`; `POST /customers/resend-verification` reenvía uno nuevo si el anterior caducó,
@@ -115,6 +115,11 @@ guardadas, [`payment.md`](payment.md), regla 3.5).
 `POST /customers/password-reset/confirm`): `verification_tokens` con `purpose = PASSWORD_RESET`.
 Respuesta uniforme exista o no la cuenta con ese email — mismo criterio que el login (00-security,
 regla 7), para no convertir el endpoint en un enumerador de cuentas.
+
+**Ambos revocan todas las sesiones abiertas** del cliente, la actual incluida, vía
+`RevokeTokenFamilyPort` ([`auth.md`](auth.md), regla 3.8): si el cambio se hizo por sospecha de robo,
+dejar viva la sesión del ladrón vacía la operación de sentido. El cliente vuelve a entrar con la
+contraseña nueva.
 
 Ninguno de los dos aplica a `GUEST`: no tiene contraseña que cambiar.
 
@@ -328,7 +333,7 @@ Enum `CustomerErrorCode` en `domain/exception/customer/`
 | `CUSTOMER_VALIDATION_FAILED` | 422 | Bean Validation; con `errors[]` |
 
 `EMAIL_NOT_VERIFIED` (403, login bloqueado por email sin verificar) vive en `AuthErrorCode`
-(`auth.md`): es un error del flujo de login, no de este módulo, aunque la condición
+([`auth.md`](auth.md)): es un error del flujo de login, no de este módulo, aunque la condición
 (`email_verified_at IS NULL`) la fije aquí.
 
 ---
@@ -352,10 +357,10 @@ Enum `CustomerErrorCode` en `domain/exception/customer/`
 
 ## 11. Alcance ajeno
 
-- **Login, sesión, refresh token** — `auth.md`, cuando se escriba; consume `password_hash` y
+- **Login, sesión, refresh token** — [`auth.md`](auth.md); consume `password_hash` y
   `email_verified_at` que este documento define.
 - **Fusión de carritos al iniciar sesión** — [`cart.md`](cart.md), `MergeCartUseCase`, invocado por
-  `auth.md` en el login, no aquí.
+  [`auth.md`](auth.md) en el login, no aquí.
 - **Tarjetas guardadas** — [`payment.md`](payment.md).
 - **Purga de PII de pedidos y su condición sobre el `status` del cliente** —
   [`scheduled-tasks.md`](scheduled-tasks.md).
