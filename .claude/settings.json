@@ -19,6 +19,48 @@
           }
         ]
       }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "coder",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mvn -q -DskipTests compile > /tmp/claude-coder-build.log 2>&1; if [ $? -ne 0 ]; then jq -Rs '{decision:\"block\", reason: (\"mvn compile failed after the coder agent:\\n\\n\" + . + \"\\n\\nDo not launch tester. Go back to the coder agent and fix the build.\")}' < /tmp/claude-coder-build.log; else echo '{}'; fi",
+            "timeout": 180
+          }
+        ]
+      },
+      {
+        "matcher": "tester",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mvn -q verify > /tmp/claude-tester-build.log 2>&1; if [ $? -ne 0 ]; then jq -Rs '{decision:\"block\", reason: (\"mvn verify failed after the tester agent:\\n\\n\" + . + \"\\n\\nDo not launch reviewer. If the failure is in production code go back to the coder agent, if it is in test code go back to the tester agent, then rerun mvn verify.\")}' < /tmp/claude-tester-build.log; else echo '{}'; fi",
+            "timeout": 300
+          }
+        ]
+      },
+      {
+        "matcher": "reviewer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mvn -q verify > /tmp/claude-reviewer-build.log 2>&1; if [ $? -ne 0 ]; then jq -Rs '{decision:\"block\", reason: (\"mvn verify failed after the reviewer agent:\\n\\n\" + . + \"\\n\\nDo not launch security-reviewer. Go back to the coder or tester agent depending on the failure, fix it, then rerun mvn verify.\")}' < /tmp/claude-reviewer-build.log; else echo '{}'; fi",
+            "timeout": 300
+          }
+        ]
+      },
+      {
+        "matcher": "security-reviewer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mvn -q verify > /tmp/claude-security-build.log 2>&1; if [ $? -ne 0 ]; then jq -Rs '{decision:\"block\", reason: (\"mvn verify failed after the security-reviewer agent:\\n\\n\" + . + \"\\n\\nGo back to the coder agent to apply the security fix, then rerun the pipeline starting from tester.\")}' < /tmp/claude-security-build.log; else echo '{}'; fi",
+            "timeout": 300
+          }
+        ]
+      }
     ]
   }
 }
