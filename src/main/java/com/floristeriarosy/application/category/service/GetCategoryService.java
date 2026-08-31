@@ -41,7 +41,9 @@ public class GetCategoryService implements GetCategoryUseCase {
    */
   @Override
   public CategoryDto execute(GetCategoryQuery query) {
-    LOGGER.debug("getCategory idOrSlug={}", LogSanitizer.sanitize(query.idOrSlug()));
+    // CodeQL's log-injection sanitizer recognition doesn't trace through LogSanitizer as a
+    // helper method call, only a literal replaceAll on the tainted expression at the log site.
+    LOGGER.debug("getCategory idOrSlug={}", query.idOrSlug().replaceAll("[\r\n]", " "));
 
     Category category =
         lookUp(query.idOrSlug())

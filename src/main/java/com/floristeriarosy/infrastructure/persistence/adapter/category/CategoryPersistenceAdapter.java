@@ -13,7 +13,6 @@ import com.floristeriarosy.infrastructure.persistence.entity.category.CategoryEn
 import com.floristeriarosy.infrastructure.persistence.jdbc.category.repository.CategoryJdbcRepository;
 import com.floristeriarosy.infrastructure.persistence.jpa.category.repository.CategoryJpaRepository;
 import com.floristeriarosy.infrastructure.persistence.mapper.category.CategoryPersistenceMapper;
-import com.floristeriarosy.shared.util.LogSanitizer;
 import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -67,9 +66,12 @@ public class CategoryPersistenceAdapter
    */
   @Override
   public Optional<Category> findBySlug(String slug) {
-    LOGGER.debug("findBySlug slug={}", LogSanitizer.sanitize(slug));
+    // CodeQL's log-injection sanitizer recognition doesn't trace through LogSanitizer as a
+    // helper method call, only a literal replaceAll on the tainted expression at the log site.
+    LOGGER.debug("findBySlug slug={}", slug.replaceAll("[\r\n]", " "));
     Optional<Category> result = jpaRepository.findBySlug(slug).map(mapper::toDomain);
-    LOGGER.debug("findBySlug slug={} -> found={}", LogSanitizer.sanitize(slug), result.isPresent());
+    LOGGER.debug(
+        "findBySlug slug={} -> found={}", slug.replaceAll("[\r\n]", " "), result.isPresent());
     return result;
   }
 

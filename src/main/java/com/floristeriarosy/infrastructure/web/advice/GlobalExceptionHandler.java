@@ -34,7 +34,8 @@ public class GlobalExceptionHandler {
    */
   @ExceptionHandler(NotFoundException.class)
   public ProblemDetail handleNotFound(NotFoundException exception, HttpServletRequest request) {
-    LOGGER.debug("404 on {}: {}", request.getRequestURI(), exception.getMessage());
+    LOGGER.debug(
+        "404 on {}: {}", request.getRequestURI().replaceAll("[\r\n]", " "), exception.getMessage());
     return problemDetail(HttpStatus.NOT_FOUND, exception, request);
   }
 
@@ -47,7 +48,8 @@ public class GlobalExceptionHandler {
    */
   @ExceptionHandler(ConflictException.class)
   public ProblemDetail handleConflict(ConflictException exception, HttpServletRequest request) {
-    LOGGER.debug("409 on {}: {}", request.getRequestURI(), exception.getMessage());
+    LOGGER.debug(
+        "409 on {}: {}", request.getRequestURI().replaceAll("[\r\n]", " "), exception.getMessage());
     return problemDetail(HttpStatus.CONFLICT, exception, request);
   }
 
@@ -61,7 +63,8 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(UnprocessableException.class)
   public ProblemDetail handleUnprocessable(
       UnprocessableException exception, HttpServletRequest request) {
-    LOGGER.debug("422 on {}: {}", request.getRequestURI(), exception.getMessage());
+    LOGGER.debug(
+        "422 on {}: {}", request.getRequestURI().replaceAll("[\r\n]", " "), exception.getMessage());
     return problemDetail(HttpStatus.UNPROCESSABLE_CONTENT, exception, request);
   }
 
@@ -79,7 +82,7 @@ public class GlobalExceptionHandler {
     String code = validationCodeFor(exception);
     LOGGER.debug(
         "422 on {}: code={} rejectedFields={}",
-        request.getRequestURI(),
+        request.getRequestURI().replaceAll("[\r\n]", " "),
         code,
         exception.getBindingResult().getFieldErrorCount());
 
@@ -107,7 +110,10 @@ public class GlobalExceptionHandler {
    */
   @ExceptionHandler(Exception.class)
   public ProblemDetail handleUnexpected(Exception exception, HttpServletRequest request) {
-    LOGGER.error("Unexpected error handling {}", request.getRequestURI(), exception);
+    LOGGER.error(
+        "Unexpected error handling {}",
+        request.getRequestURI().replaceAll("[\r\n]", " "),
+        exception);
     ProblemDetail problem =
         ProblemDetail.forStatusAndDetail(
             HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred");
