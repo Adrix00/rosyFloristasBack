@@ -300,3 +300,5 @@ Enum `PaymentErrorCode` en `domain/exception/payment/`
   definido todavía. Se documenta como descartado por ahora, no como pendiente sin cerrar.
 - **Liquidación contable real con la red Interflora** (regla 3.7) — proceso externo al backend.
 - **Frecuencia de purga de `idempotency_keys`** — `00-security-validation-integrity.md`, sección 12.
+- **Correo de confirmación del reembolso** — [`notification.md`](notification.md), tipo
+  `REFUND_ISSUED`; este documento solo registra la notificación al reembolsar.

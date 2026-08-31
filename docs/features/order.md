@@ -30,7 +30,8 @@ que no llega a cobrarse no se crea, no queda ninguna fila en `orders`.
 ## 2. Tablas implicadas
 
 `orders`, `order_items`, `order_status_history`, `order_deliveries`, `shipping_rates`. Esquema en
-[`../database/README.md`](../database/README.md).
+[`../database/README.md`](../database/README.md). Escribe además en `notifications`
+([`notification.md`](notification.md), regla 3.4), siempre dentro de su propia transacción.
 
 | Columna de `orders` | Restricción |
 |---|---|
@@ -90,7 +91,8 @@ Fase 3a — CONFIRMAR (transacción, se confirma)          Fase 3b — COMPENSAR
     Si el cobro tuvo éxito:                                  Si el cobro fue rechazado:
     orders + order_items + order_deliveries                  ADJUSTMENT que revierte la reserva de stock
     + payments (CAPTURED) + order_status_history              (regla 3.6)
-    + vaciar el carrito + idempotency_keys COMPLETED          release() de las unidades de descuento
+    + notifications (aviso al cliente y a la tienda)          release() de las unidades de descuento
+    + vaciar el carrito + idempotency_keys COMPLETED
                                                                reservadas (product-discounts.md)
                                                                idempotency_keys FAILED
                                                                Error al cliente: pago rechazado,
@@ -213,6 +215,9 @@ inicia el cliente.
   movimiento nuevo de signo contrario.
 - `release()` de las unidades reservadas en cada `product_discounts` con `discount_id` no nulo
   ([`product-discounts.md`](product-discounts.md), regla 3.6).
+- Una fila de `notifications` con el aviso que corresponda
+  ([`notification.md`](notification.md), regla 3.1): al cliente si quien rechaza o cancela es el
+  administrador, con su motivo; a la floristería si quien cancela es el cliente.
 
 **El reembolso no lo decide este módulo.** El cambio de estado dispara una llamada a
 `OrderPaymentPort.refund()`, pero cuánto se reembolsa —todo, una parte, nada— y con qué criterio lo
@@ -324,7 +329,12 @@ bloque es obligatorio.
 | `reason` | String | `@Size(max = 500)`, opcional para el cliente, `@NotBlank` para admin |
 
 Un cliente cancelando su propio pedido no necesita justificarse; un administrador sí, porque ese
-motivo es lo que verá el equipo y, potencialmente, el propio cliente en una comunicación.
+motivo **es el cuerpo del correo que recibe el cliente** ([`notification.md`](notification.md),
+regla 3.1), además de quedar para el equipo.
+
+Se guarda en `order_status_history.reason` (`V14`), columna que no existía: este documento lo pedía
+desde que se escribió y el esquema no tenía dónde ponerlo. `chk_order_status_history_reason_required`
+lo exige también en la base de datos cuando quien rechaza o cancela es un administrador.
 
 ### `AcceptOrderRequest` / `RejectOrderRequest` / etc.
 
@@ -455,6 +465,8 @@ donde el estado HTTP describe con precisión lo que pasó.
 - **Validación y vaciado del carrito** — [`cart.md`](cart.md).
 - **Ejecución y condiciones de la purga de PII** — [`scheduled-tasks.md`](scheduled-tasks.md).
 - **Baja de cliente** — [`customer.md`](customer.md).
+- **Correos de confirmación, rechazo, cancelación y entrega** — [`notification.md`](notification.md);
+  este documento solo registra la notificación en su transacción.
 
 ---
 

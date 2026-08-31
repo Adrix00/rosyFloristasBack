@@ -11,13 +11,14 @@ Reglas transversales en [`00-security-validation-integrity.md`](00-security-vali
 
 ## 1. Resumen
 
-Dos tareas por ahora:
+Cuatro tareas, tres cerradas y una pendiente:
 
 | Tarea | Tabla | Automática | Manual | Documentada aquí |
 |---|---|---|---|---|
 | Alertas de stock bajo / reconciliación | `inventory_alerts` | Sí, diaria | Resolver/descartar, no disparar | [`inventory.md`](inventory.md), sección 3.8 — no se repite aquí |
 | Purga de PII de pedidos vencidos | `orders`, `order_deliveries` | Sí, condicionada | Sí, `ADMIN` | Esta sección |
-| Limpieza de filas caducadas | `refresh_tokens`, `verification_tokens`, `idempotency_keys` | Pendiente | No | Sección 3.3 |
+| Envío de notificaciones pendientes | `notifications` | Sí, cada pocos minutos | Reintentar una fallida | [`notification.md`](notification.md), reglas 3.5 y 3.6 — no se repite aquí |
+| Limpieza de filas caducadas | `refresh_tokens`, `verification_tokens`, `idempotency_keys`, `notifications` | Pendiente | No | Sección 3.3 |
 
 ---
 
@@ -66,13 +67,14 @@ purgado, 409 `ORDER_ALREADY_PURGED`, no un no-op silencioso.
 
 ### 3.3 Limpieza de filas caducadas — pendiente
 
-`refresh_tokens` ([`auth.md`](auth.md)), `verification_tokens` ([`customer.md`](customer.md)) y
-`idempotency_keys` ([ADR-011](../architecture/ADR/ADR-011-idempotent-money-operations.md)) acumulan
-filas que dejan de servir para nada al pasar su `expires_at`. Ninguna se borra sola: las tres ADR que
-las introdujeron dicen explícitamente que la limpieza es una tarea programada, no una constraint.
+`refresh_tokens` ([`auth.md`](auth.md)), `verification_tokens` ([`customer.md`](customer.md)),
+`idempotency_keys` ([ADR-011](../architecture/ADR/ADR-011-idempotent-money-operations.md)) y las filas
+`SENT` de `notifications` ([ADR-015](../architecture/ADR/ADR-015-transactional-outbox-for-notifications.md))
+acumulan filas que dejan de servir para nada. Ninguna se borra sola: las ADR que las introdujeron dicen
+explícitamente que la limpieza es una tarea programada, no una constraint.
 
-**No está diseñada todavía.** Falta decidir frecuencia y ventana de gracia, y es la única de las tres
-tareas de este documento sin cerrar
+**No está diseñada todavía.** Falta decidir frecuencia y ventana de gracia, y es la única tarea de
+este documento sin cerrar
 ([`00-security-validation-integrity.md`](00-security-validation-integrity.md), sección 12, punto 5).
 No es urgente en el sentido funcional —nada se rompe si la tabla crece— pero sí lo es en el operativo:
 crecimiento sin límite y sin nadie mirándolo.
@@ -169,8 +171,10 @@ error, un error de `order` — [ADR-012](../architecture/ADR/ADR-012-api-error-c
 ## 10. Alcance ajeno
 
 - **Baja de cliente** (`customers.status = ARCHIVED`) — [`customer.md`](customer.md).
-- **Alertas de inventario** (la otra tarea programada) — [`inventory.md`](inventory.md), sección 3.8,
+- **Alertas de inventario** (otra tarea programada) — [`inventory.md`](inventory.md), sección 3.8,
   [ADR-013](../architecture/ADR/ADR-013-inventory-alerts.md).
+- **Envío de notificaciones** (otra más) — [`notification.md`](notification.md), reglas 3.5 a 3.7,
+  [ADR-015](../architecture/ADR/ADR-015-transactional-outbox-for-notifications.md).
 - **Valor de `app.retention.orders-period`** — depende del requisito legal aplicable; pendiente en
   [`00-security-validation-integrity.md`](00-security-validation-integrity.md), sección 12.
 - **Esquema y snapshot cifrado del comprador** — [`order.md`](order.md).

@@ -304,7 +304,7 @@ mezclar dos casos de uso con quién los invoca y qué garantiza cada uno tan dis
 | `AddressReadPort` | `findById`, `findAllByCustomer` |
 | `AddressWritePort` | `save`, `delete` |
 | `VerificationTokenPort` | `create`, `findValidByHash`, `markUsed` |
-| `MailPort` | `sendVerificationEmail`, `sendPasswordResetEmail` — implementado fuera de este módulo, ver `notification.md` |
+| `RegisterNotificationUseCase` | Capacidad de [`notification.md`](notification.md); este módulo registra la notificación, no envía nada |
 
 `FindOrCreateGuestCustomerUseCase` es la capacidad que `order.md` consume directamente (regla 3.2),
 igual que `order.md` consume `RegisterStockMovementUseCase` de `inventory.md` — no hay un puerto de
@@ -364,5 +364,7 @@ Enum `CustomerErrorCode` en `domain/exception/customer/`
 - **Tarjetas guardadas** — [`payment.md`](payment.md).
 - **Purga de PII de pedidos y su condición sobre el `status` del cliente** —
   [`scheduled-tasks.md`](scheduled-tasks.md).
-- **Envío real de los correos de verificación y reseteo** — `notification.md`, cuando se escriba; este
-  documento solo define cuándo se dispara cada uno.
+- **Envío real de los correos de verificación y reseteo** — [`notification.md`](notification.md);
+  este documento solo define cuándo se dispara cada uno. Son los dos únicos que no se pueden
+  reintentar automáticamente, porque su token no se puede reconstruir (regla 3.7 de ese documento);
+  por eso existen los endpoints de reenvío.

@@ -373,7 +373,7 @@ en un enumerador de cuentas (00-security, regla 7).
 - **Alta, baja, cambio de rol, y reseteo de contraseña y de TOTP de administradores** —
   [`admin.md`](admin.md).
 - **Fusión de carritos** — [`cart.md`](cart.md), `MergeCartUseCase`; este documento solo la dispara.
-- **Envío de correos** — `notification.md`, cuando se escriba. Este módulo no envía ninguno: no hay
+- **Envío de correos** — [`notification.md`](notification.md). Este módulo no registra ninguno: no hay
   correo de "has iniciado sesión".
 - **Valores concretos del límite de peticiones** —
   [`00-security-validation-integrity.md`](00-security-validation-integrity.md), sección 12.

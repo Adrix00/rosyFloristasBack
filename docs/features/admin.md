@@ -65,8 +65,8 @@ documento).
 `UUID NOT NULL REFERENCES customers`: la tabla es exclusiva de clientes, y un enlace de invitación
 para administradores exigiría generalizarla a los dos sujetos, con la misma forma que
 `refresh_tokens` (`customer_id` anulable, `admin_user_id`, `CHECK` de exactamente uno). Se descartó
-por ahora — el panel lo usan dos o tres personas que se conocen, y la migración solo tendría sentido
-si `notification.md` acaba justificando un flujo de invitación completo.
+por ahora — el panel lo usan dos o tres personas que se conocen. [`notification.md`](notification.md)
+lo confirmó al escribirse: la migración no se hace y este flujo se queda como está.
 
 ### 3.3 Email
 
@@ -352,5 +352,6 @@ Enum `AdminErrorCode` en `domain/exception/admin/`
   ([`customer.md`](customer.md)).
 - **Formato y contenido de `audit_log`** —
   [ADR-010](../architecture/ADR/ADR-010-admin-audit-log.md).
-- **Invitación y reseteo por email** — descartados por ahora (reglas 3.2 y 3.4); volverían a estar
-  sobre la mesa si `notification.md` justificara generalizar `verification_tokens` a los dos sujetos.
+- **Invitación y reseteo por email** — descartados (reglas 3.2 y 3.4), y confirmado en
+  [`notification.md`](notification.md): no se generaliza `verification_tokens` a los dos sujetos.
+  Ningún cambio sobre un administrador genera correo.
