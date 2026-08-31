@@ -1,0 +1,15 @@
+-- V12__admin_password_change_required.sql
+-- Un administrador no elige su primera contrasena: la teclea el OWNER al crearlo, y se
+-- la comunica por un canal humano (ver docs/features/admin.md, regla 3.2). Esa
+-- contrasena es provisional por definicion, y lo mismo vale para la que el OWNER genera
+-- cuando un admin olvida la suya. Hace falta recordar que sigue siendo provisional
+-- entre que se fija y el admin la sustituye.
+--
+-- No sirve deducirlo de totp_enabled = false: eso solo es cierto en el alta. Un reseteo
+-- de contrasena ocurre sobre un admin con su TOTP ya enrolado, y tambien debe forzar el
+-- cambio.
+--
+-- DEFAULT false porque una fila existente (ninguna todavia) tendria una contrasena ya
+-- elegida por su dueno. Lo ponen a true CreateAdminService y ResetAdminPasswordService;
+-- lo baja a false el propio admin al cambiarla.
+ALTER TABLE admin_users ADD COLUMN password_change_required BOOLEAN NOT NULL DEFAULT false;
