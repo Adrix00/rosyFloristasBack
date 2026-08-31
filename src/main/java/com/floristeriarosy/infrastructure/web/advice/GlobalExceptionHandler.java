@@ -7,6 +7,8 @@ import com.floristeriarosy.domain.exception.UnprocessableException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.util.Locale;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -20,6 +22,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
   @ExceptionHandler(NotFoundException.class)
   public ProblemDetail handleNotFound(NotFoundException exception, HttpServletRequest request) {
@@ -56,6 +60,9 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(Exception.class)
   public ProblemDetail handleUnexpected(Exception exception, HttpServletRequest request) {
+    // Detalle solo en el log del servidor: la respuesta al cliente nunca lleva traza ni mensaje
+    // interno (00-security-validation-integrity.md, sección 9).
+    LOGGER.error("Unexpected error handling {}", request.getRequestURI(), exception);
     ProblemDetail problem =
         ProblemDetail.forStatusAndDetail(
             HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred");
