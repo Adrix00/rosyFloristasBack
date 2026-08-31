@@ -63,6 +63,7 @@ application-dev.yaml
 ### Generated ###
 generated/
 *.properties
+!src/test/resources/archunit.properties
 
 ### Graphify out ###
 graphify-out/
@@ -74,3 +75,4 @@ graphify-out/
 
 ### Cuaderno de trabajo local ###
 /.claude/daily-log.md
+/.claude/dev-plan.md

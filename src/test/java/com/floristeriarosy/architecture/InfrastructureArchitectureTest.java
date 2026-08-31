@@ -23,34 +23,37 @@ import com.tngtech.archunit.lang.ArchRule;
 class InfrastructureArchitectureTest {
 
   /**
-   * Infrastructure nunca debe depender directamente de Commands.
+   * Persistence nunca debe depender directamente de Commands.
    *
    * <p>Motivo: Los Commands pertenecen exclusivamente a la capa Application y representan
-   * peticiones internas de un caso de uso.
+   * peticiones internas de un caso de uso; los Adapters de persistencia solo conocen el dominio.
    *
-   * <p>Infrastructure debe invocar únicamente los Input Ports.
+   * <p>El Controller sí construye Commands a partir del Request (ADR-001, flujo de comunicación):
+   * esta regla se acota a persistence para no contradecirlo.
    */
   @ArchTest
-  static final ArchRule infrastructure_should_not_depend_on_commands =
+  static final ArchRule persistence_should_not_depend_on_commands =
       noClasses()
           .that()
-          .resideInAPackage("..infrastructure..")
+          .resideInAPackage("..infrastructure.persistence..")
           .should()
           .dependOnClassesThat()
           .resideInAPackage("..application..command..");
 
   /**
-   * Infrastructure nunca debe depender directamente de Queries.
+   * Persistence nunca debe depender directamente de Queries.
    *
-   * <p>Motivo: Las Queries forman parte del contrato interno de Application.
+   * <p>Motivo: Las Queries forman parte del contrato interno de Application; los Adapters de
+   * persistencia solo conocen el dominio.
    *
-   * <p>Infrastructure únicamente ejecuta los casos de uso mediante los Input Ports.
+   * <p>El Controller sí construye Queries a partir del Request (ADR-001, flujo de comunicación):
+   * esta regla se acota a persistence para no contradecirlo.
    */
   @ArchTest
-  static final ArchRule infrastructure_should_not_depend_on_queries =
+  static final ArchRule persistence_should_not_depend_on_queries =
       noClasses()
           .that()
-          .resideInAPackage("..infrastructure..")
+          .resideInAPackage("..infrastructure.persistence..")
           .should()
           .dependOnClassesThat()
           .resideInAPackage("..application..query..");

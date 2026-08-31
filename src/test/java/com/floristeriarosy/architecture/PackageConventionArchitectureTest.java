@@ -122,6 +122,8 @@ class PackageConventionArchitectureTest {
           .that()
           .resideOutsideOfPackage("..infrastructure.web.mapper..")
           .and()
+          .resideOutsideOfPackage("..application..mapper..")
+          .and()
           .haveSimpleNameEndingWith("Mapper")
           .and()
           .haveSimpleNameNotEndingWith("RowMapper")

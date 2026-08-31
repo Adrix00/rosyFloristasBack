@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: rosy-floristas-back
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${POSTGRES_DB:rosy}
+    username: ${POSTGRES_USER:rosy}
+    password: ${POSTGRES_PASSWORD:rosy}
+  flyway:
+    locations: classpath:db/migration
+  jpa:
+    open-in-view: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
