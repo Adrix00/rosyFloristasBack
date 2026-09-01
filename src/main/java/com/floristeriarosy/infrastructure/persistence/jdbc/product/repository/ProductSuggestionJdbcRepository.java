@@ -2,6 +2,7 @@ package com.floristeriarosy.infrastructure.persistence.jdbc.product.repository;
 
 import com.floristeriarosy.application.product.dto.ProductSummaryDto;
 import com.floristeriarosy.infrastructure.persistence.jdbc.product.rowmapper.ProductSummaryRowMapper;
+import com.floristeriarosy.infrastructure.persistence.support.product.ProductActiveSalePriceSql;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -17,23 +18,21 @@ public class ProductSuggestionJdbcRepository {
   private static final Logger LOGGER = LoggerFactory.getLogger(ProductSuggestionJdbcRepository.class);
 
   private static final String FIND_VISIBLE_SQL =
-      """
-      SELECT p.id, p.name, p.slug, p.price,
-        (SELECT d.sale_price FROM product_discounts d
-         WHERE d.product_id = p.id
-           AND tstzrange(d.starts_at, d.ends_at, '[)') @> now()
-           AND (d.quantity_limit IS NULL OR d.quantity_sold < d.quantity_limit)) AS active_sale_price
-      FROM product_suggestions ps
-      JOIN products p ON p.id = ps.suggested_product_id
-      WHERE ps.product_id = ?
-        AND p.status = 'ACTIVE'
-        AND EXISTS (
-          SELECT 1 FROM product_categories pc
-          JOIN categories c ON c.id = pc.category_id AND c.status = 'ACTIVE'
-          WHERE pc.product_id = p.id
-        )
-      ORDER BY ps.position
-      """;
+      "SELECT p.id, p.name, p.slug, p.price, ("
+          + ProductActiveSalePriceSql.CORRELATED_SUBQUERY
+          + ") AS active_sale_price "
+          + """
+          FROM product_suggestions ps
+          JOIN products p ON p.id = ps.suggested_product_id
+          WHERE ps.product_id = ?
+            AND p.status = 'ACTIVE'
+            AND EXISTS (
+              SELECT 1 FROM product_categories pc
+              JOIN categories c ON c.id = pc.category_id AND c.status = 'ACTIVE'
+              WHERE pc.product_id = p.id
+            )
+          ORDER BY ps.position
+          """;
 
   private final JdbcTemplate jdbcTemplate;
   private final ProductSummaryRowMapper rowMapper = new ProductSummaryRowMapper();
