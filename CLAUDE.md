@@ -124,6 +124,34 @@ A security-relevant startup decision (e.g. a permissive placeholder `SecurityCon
 `WARN` on startup — cheap, and it is the one signal an operator has that the posture is
 provisional.
 
+**Sanitizing request-controlled text before it reaches a log call (CodeQL `java/log-injection`,
+CWE-117).** A `@PathVariable String` (e.g. `idOrSlug`) or `request.getRequestURI()` is
+user-controlled and must never reach `LOGGER.debug`/`LOGGER.error` raw — wrap it with
+`org.owasp.encoder.Encode.forJava(value)` **inline, at the log call itself**:
+
+```java
+LOGGER.debug("GET /products/{}", Encode.forJava(idOrSlug));
+```
+
+`shared.util.LogSanitizer.sanitize(...)` (also backed by `Encode.forJava`) is the right choice for
+every other case — a request-body field like `name` or `description` logged inside a Service — but
+CodeQL's log-injection sanitizer recognition does not trace taint through a helper method call, only
+through a literal call on the tainted expression at the log site itself. Confirmed empirically on
+`feature/category` (PR #8): a CR/LF-stripping regex, `Matcher#replaceAll`, and `LogSanitizer` as a
+wrapper were all tried first and none cleared the alert; only inlining `Encode.forJava` directly at
+each flagged log call did. A UUID, an int or an enum never needs this — it cannot carry a newline or
+a control character.
+
+A UUID/enum-typed `@PathVariable` (`id`) is not tainted the same way and needs no wrapping.
+
+CSRF: `SecurityConfig`'s `csrf.disable()` is intentional (`SessionCreationPolicy.STATELESS`, JWT
+Bearer auth per ADR-008 — no session cookie for CSRF to ride on) and CodeQL's
+`java/spring-disabled-csrf-protection` rule pattern-matches the `disable()` call itself, with no
+way to express "stateless" to it. **Do not try to work around this in code** — there is no
+code-level fix that both keeps the API stateless and satisfies the rule; enabling CSRF here would
+add real client-side friction (token/cookie dance) for zero actual protection, since Bearer-token
+endpoints aren't exploitable via classic CSRF. Leave the alert as a documented false positive.
+
 ---
 
 ## Javadoc

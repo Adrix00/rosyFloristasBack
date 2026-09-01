@@ -15,6 +15,7 @@ import com.floristeriarosy.infrastructure.persistence.jpa.category.repository.Ca
 import com.floristeriarosy.infrastructure.persistence.mapper.category.CategoryPersistenceMapper;
 import java.util.List;
 import java.util.Optional;
+import org.owasp.encoder.Encode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -67,11 +68,10 @@ public class CategoryPersistenceAdapter
   @Override
   public Optional<Category> findBySlug(String slug) {
     // CodeQL's log-injection sanitizer recognition doesn't trace through LogSanitizer as a
-    // helper method call, only a literal replaceAll on the tainted expression at the log site.
-    LOGGER.debug("findBySlug slug={}", slug.replaceAll("[\r\n]", " "));
+    // helper method call, only a literal encode call on the tainted expression at the log site.
+    LOGGER.debug("findBySlug slug={}", Encode.forJava(slug));
     Optional<Category> result = jpaRepository.findBySlug(slug).map(mapper::toDomain);
-    LOGGER.debug(
-        "findBySlug slug={} -> found={}", slug.replaceAll("[\r\n]", " "), result.isPresent());
+    LOGGER.debug("findBySlug slug={} -> found={}", Encode.forJava(slug), result.isPresent());
     return result;
   }
 

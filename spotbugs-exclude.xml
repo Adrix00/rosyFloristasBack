@@ -11,6 +11,7 @@
     <Bug pattern="EI_EXPOSE_REP2" />
     <Or>
       <Package name="~.*\.application\..*\.service" />
+      <Package name="~.*\.application\..*\.validation" />
       <Package name="~.*\.infrastructure\.persistence\.adapter\..*" />
       <Package name="~.*\.infrastructure\.persistence\.jdbc\..*\.repository" />
     </Or>

@@ -12,6 +12,7 @@ import com.floristeriarosy.domain.model.category.valueobject.CategoryId;
 import com.floristeriarosy.shared.util.LogSanitizer;
 import java.util.Optional;
 import java.util.UUID;
+import org.owasp.encoder.Encode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -42,8 +43,8 @@ public class GetCategoryService implements GetCategoryUseCase {
   @Override
   public CategoryDto execute(GetCategoryQuery query) {
     // CodeQL's log-injection sanitizer recognition doesn't trace through LogSanitizer as a
-    // helper method call, only a literal replaceAll on the tainted expression at the log site.
-    LOGGER.debug("getCategory idOrSlug={}", query.idOrSlug().replaceAll("[\r\n]", " "));
+    // helper method call, only a literal encode call on the tainted expression at the log site.
+    LOGGER.debug("getCategory idOrSlug={}", Encode.forJava(query.idOrSlug()));
 
     Category category =
         lookUp(query.idOrSlug())
