@@ -227,6 +227,12 @@ Validaciones de negocio, en el servicio:
 (regla 3.3); un campo no editable enviado con un valor distinto al actual se rechaza con 422, no se
 ignora en silencio.
 
+Un campo ausente en el body significa "sin cambios", incluido `quantityLimit`: por eso esta vía
+**no permite quitar un límite ya puesto** — solo subirlo o bajarlo (nunca por debajo de
+`quantitySold`, regla 3.3). Quitar el límite del todo no está implementado; si hiciera falta,
+necesita un mecanismo explícito para distinguir "sin cambios" de "vaciar" (el mismo problema que
+`UpdateProductRequest` evita en `product.md` no incluyendo el stock en su `PUT`).
+
 ---
 
 ## 6. Response DTOs
