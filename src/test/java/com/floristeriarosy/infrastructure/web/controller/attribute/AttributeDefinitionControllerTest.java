@@ -2,6 +2,7 @@ package com.floristeriarosy.infrastructure.web.controller.attribute;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -49,6 +50,7 @@ class AttributeDefinitionControllerTest {
     mockMvc
         .perform(
             post("/api/v1/product-attributes")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"attributeKey\":\"color\",\"label\":\"Color\",\"dataType\":\"TEXT\"}"))
         .andExpect(status().isCreated())
@@ -60,6 +62,7 @@ class AttributeDefinitionControllerTest {
     mockMvc
         .perform(
             post("/api/v1/product-attributes")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"attributeKey\":\"\",\"label\":\"Color\",\"dataType\":\"TEXT\"}"))
         .andExpect(status().is(422))
@@ -76,6 +79,7 @@ class AttributeDefinitionControllerTest {
     mockMvc
         .perform(
             post("/api/v1/product-attributes")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"attributeKey\":\"color\",\"label\":\"Color\",\"dataType\":\"TEXT\"}"))
         .andExpect(status().isConflict())

@@ -144,13 +144,24 @@ a control character.
 
 A UUID/enum-typed `@PathVariable` (`id`) is not tainted the same way and needs no wrapping.
 
-CSRF: `SecurityConfig`'s `csrf.disable()` is intentional (`SessionCreationPolicy.STATELESS`, JWT
-Bearer auth per ADR-008 — no session cookie for CSRF to ride on) and CodeQL's
-`java/spring-disabled-csrf-protection` rule pattern-matches the `disable()` call itself, with no
-way to express "stateless" to it. **Do not try to work around this in code** — there is no
-code-level fix that both keeps the API stateless and satisfies the rule; enabling CSRF here would
-add real client-side friction (token/cookie dance) for zero actual protection, since Bearer-token
-endpoints aren't exploitable via classic CSRF. Leave the alert as a documented false positive.
+**CSRF is enabled**, `SecurityConfig` stays `SessionCreationPolicy.STATELESS` (JWT Bearer auth,
+ADR-008 — no `HttpSession`, so the CSRF token cannot live server-side). It uses
+`CookieCsrfTokenRepository.withHttpOnlyFalse()`: the token travels in a JS-readable `XSRF-TOKEN`
+cookie the SPA reads and echoes back as an `X-XSRF-TOKEN` header on every mutating request (axios
+does this automatically; a hand-rolled `fetch` client must read the cookie and set the header
+itself). `CsrfCookieFilter` (nested in `SecurityConfig`) forces the token to be read — and its
+cookie written — on every request, not only ones that happen to touch it. `GET`/`HEAD`/`OPTIONS`
+are exempt by Spring's own default; every `POST`/`PUT`/`PATCH`/`DELETE` needs the header.
+
+Real value today is defense-in-depth (nothing currently rides a cookie — Bearer-only — so no
+concrete exploit closes), but it becomes load-bearing once `auth.md`'s `SameSite=Strict` refresh
+token cookie exists, and it satisfies CodeQL's `java/spring-disabled-csrf-protection` rule
+directly instead of carrying it as a documented false positive.
+
+**Every `@WebMvcTest` controller test's mutating `MockMvc` request needs `.with(csrf())`**
+(`org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf`)
+or it 403s against the real `SecurityConfig` bean the test `@Import`s — `GET` requests are exempt
+and need nothing.
 
 ---
 
