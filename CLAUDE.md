@@ -124,6 +124,45 @@ A security-relevant startup decision (e.g. a permissive placeholder `SecurityCon
 `WARN` on startup — cheap, and it is the one signal an operator has that the posture is
 provisional.
 
+**Sanitizing request-controlled text before it reaches a log call (CodeQL `java/log-injection`,
+CWE-117).** A `@PathVariable String` (e.g. `idOrSlug`) or `request.getRequestURI()` is
+user-controlled and must never reach `LOGGER.debug`/`LOGGER.error` raw — wrap it with
+`org.owasp.encoder.Encode.forJava(value)` **inline, at the log call itself**:
+
+```java
+LOGGER.debug("GET /products/{}", Encode.forJava(idOrSlug));
+```
+
+`shared.util.LogSanitizer.sanitize(...)` (also backed by `Encode.forJava`) is the right choice for
+every other case — a request-body field like `name` or `description` logged inside a Service — but
+CodeQL's log-injection sanitizer recognition does not trace taint through a helper method call, only
+through a literal call on the tainted expression at the log site itself. Confirmed empirically on
+`feature/category` (PR #8): a CR/LF-stripping regex, `Matcher#replaceAll`, and `LogSanitizer` as a
+wrapper were all tried first and none cleared the alert; only inlining `Encode.forJava` directly at
+each flagged log call did. A UUID, an int or an enum never needs this — it cannot carry a newline or
+a control character.
+
+A UUID/enum-typed `@PathVariable` (`id`) is not tainted the same way and needs no wrapping.
+
+**CSRF is enabled**, `SecurityConfig` stays `SessionCreationPolicy.STATELESS` (JWT Bearer auth,
+ADR-008 — no `HttpSession`, so the CSRF token cannot live server-side). It uses
+`CookieCsrfTokenRepository.withHttpOnlyFalse()`: the token travels in a JS-readable `XSRF-TOKEN`
+cookie the SPA reads and echoes back as an `X-XSRF-TOKEN` header on every mutating request (axios
+does this automatically; a hand-rolled `fetch` client must read the cookie and set the header
+itself). `CsrfCookieFilter` (nested in `SecurityConfig`) forces the token to be read — and its
+cookie written — on every request, not only ones that happen to touch it. `GET`/`HEAD`/`OPTIONS`
+are exempt by Spring's own default; every `POST`/`PUT`/`PATCH`/`DELETE` needs the header.
+
+Real value today is defense-in-depth (nothing currently rides a cookie — Bearer-only — so no
+concrete exploit closes), but it becomes load-bearing once `auth.md`'s `SameSite=Strict` refresh
+token cookie exists, and it satisfies CodeQL's `java/spring-disabled-csrf-protection` rule
+directly instead of carrying it as a documented false positive.
+
+**Every `@WebMvcTest` controller test's mutating `MockMvc` request needs `.with(csrf())`**
+(`org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf`)
+or it 403s against the real `SecurityConfig` bean the test `@Import`s — `GET` requests are exempt
+and need nothing.
+
 ---
 
 ## Javadoc
@@ -302,6 +341,15 @@ Individual checks:
 - `mvn spotbugs:check` — static analysis only (requires prior compile)
 
 Never skip `mvn verify` before declaring a task complete.
+
+---
+
+## Commits
+
+Commit messages **never** include a `Co-Authored-By: Claude ...` trailer or a `Claude-Session:`
+link. Write the message as the author's own.
+
+---
 
 ## graphify
 

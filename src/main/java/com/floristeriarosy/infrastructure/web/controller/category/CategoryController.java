@@ -20,6 +20,7 @@ import com.floristeriarosy.shared.util.LogSanitizer;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
+import org.owasp.encoder.Encode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -142,11 +143,11 @@ public class CategoryController {
   @GetMapping("/{idOrSlug}")
   public ResponseEntity<CategoryResponse> getOne(@PathVariable String idOrSlug) {
     // CodeQL's log-injection sanitizer recognition doesn't trace through LogSanitizer as a
-    // helper method call, only a literal replaceAll on the tainted expression at the log site.
-    LOGGER.debug("GET /categories/{}", idOrSlug.replaceAll("[\r\n]", " "));
+    // helper method call, only a literal encode call on the tainted expression at the log site.
+    LOGGER.debug("GET /categories/{}", Encode.forJava(idOrSlug));
     CategoryResponse response =
         mapper.toResponse(getCategoryUseCase.execute(mapper.toQuery(idOrSlug)));
-    LOGGER.debug("GET /categories/{} -> 200", idOrSlug.replaceAll("[\r\n]", " "));
+    LOGGER.debug("GET /categories/{} -> 200", Encode.forJava(idOrSlug));
     return ResponseEntity.ok(response);
   }
 

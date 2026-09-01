@@ -428,7 +428,7 @@ generada.
 
 | Port | Capacidad |
 |---|---|
-| `ProductReadPort` | `findById`, `findBySlug`, `findAllVisible`, `findAllForAdmin` |
+| `ProductReadPort` | `findById`, `findBySlug`, `findAllForAdmin` |
 | `ProductWritePort` | `save`, `delete`, `updateStatus` |
 | `ProductExistencePort` | `existsBySlug`, `existsById`, `hasCommercialHistory` |
 | `ProductSearchPort` | `search`, `autocomplete` |
@@ -439,7 +439,10 @@ generada.
 | `ProductInventoryPort` | `initializeStock`, `adjustStock`, `disableStockManagement` |
 
 `ProductSearchPort` esconde los dos mecanismos de ADR-006 detrás de una interfaz: la capa de
-aplicación no sabe que uno es `tsvector` y el otro `pg_trgm`.
+aplicación no sabe que uno es `tsvector` y el otro `pg_trgm`. El listado público paginado
+(`GET /products`, sin filtros) es un caso particular de `search`, así que `ProductReadPort` no
+tiene un `findAllVisible` propio — sería una segunda forma de listar productos visibles que
+acabaría divergiendo de la primera.
 
 `ProductInventoryPort` es la frontera con el módulo de inventario. `product` no escribe en
 `stock_movements` por su cuenta: delega en el único punto de escritura transaccional

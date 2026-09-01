@@ -2,6 +2,7 @@ package com.floristeriarosy.infrastructure.web.controller.category;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -66,6 +67,7 @@ class CategoryControllerTest {
     mockMvc
         .perform(
             post("/api/v1/categories")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"Ramos\"}"))
         .andExpect(status().isCreated())
@@ -77,6 +79,7 @@ class CategoryControllerTest {
     mockMvc
         .perform(
             post("/api/v1/categories")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"\"}"))
         .andExpect(status().is(422))

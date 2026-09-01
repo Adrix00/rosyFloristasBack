@@ -7,9 +7,9 @@ import org.junit.jupiter.api.Test;
 class LogSanitizerTest {
 
   @Test
-  void stripsCarriageReturnAndNewline() {
+  void escapesCarriageReturnAndNewline() {
     assertThat(LogSanitizer.sanitize("Ramos\r\nFAKE LOG LINE injected=true"))
-        .isEqualTo("Ramos  FAKE LOG LINE injected=true");
+        .isEqualTo("Ramos\\r\\nFAKE LOG LINE injected=true");
   }
 
   @Test
