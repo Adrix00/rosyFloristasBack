@@ -3,6 +3,7 @@ package com.floristeriarosy.infrastructure.persistence.jdbc.product.repository;
 import com.floristeriarosy.application.product.dto.ProductSummaryDto;
 import com.floristeriarosy.infrastructure.persistence.jdbc.product.rowmapper.ProductSummaryRowMapper;
 import com.floristeriarosy.infrastructure.persistence.support.product.ProductActiveSalePriceSql;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -54,7 +55,7 @@ public class ProductSuggestionJdbcRepository {
   public void replaceSuggestions(UUID productId, List<UUID> extraProductIds) {
     LOGGER.debug("replaceSuggestions productId={} count={}", productId, extraProductIds.size());
     jdbcTemplate.update("DELETE FROM product_suggestions WHERE product_id = ?", productId);
-    Instant now = Instant.now();
+    Timestamp now = Timestamp.from(Instant.now());
     List<Object[]> params =
         java.util.stream.IntStream.range(0, extraProductIds.size())
             .mapToObj(index -> new Object[] {productId, extraProductIds.get(index), index, now})

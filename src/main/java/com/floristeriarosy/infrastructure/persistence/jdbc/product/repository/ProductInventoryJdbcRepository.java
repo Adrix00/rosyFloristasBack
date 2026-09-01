@@ -1,5 +1,6 @@
 package com.floristeriarosy.infrastructure.persistence.jdbc.product.repository;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -83,7 +84,10 @@ public class ProductInventoryJdbcRepository {
    */
   public void disableStockManagement(UUID productId) {
     LOGGER.debug("disableStockManagement productId={}", productId);
-    jdbcTemplate.update("UPDATE products SET stock = NULL, updated_at = ? WHERE id = ?", Instant.now(), productId);
+    jdbcTemplate.update(
+        "UPDATE products SET stock = NULL, updated_at = ? WHERE id = ?",
+        Timestamp.from(Instant.now()),
+        productId);
     LOGGER.debug("disableStockManagement productId={} -> disabled", productId);
   }
 
@@ -104,7 +108,7 @@ public class ProductInventoryJdbcRepository {
         quantity,
         resultingStock,
         note,
-        Instant.now());
+        Timestamp.from(Instant.now()));
   }
 
   /**
@@ -117,7 +121,7 @@ public class ProductInventoryJdbcRepository {
         "UPDATE products SET stock = ?, low_stock_threshold = ?, updated_at = ? WHERE id = ?",
         stock,
         lowStockThreshold,
-        Instant.now(),
+        Timestamp.from(Instant.now()),
         productId);
   }
 }

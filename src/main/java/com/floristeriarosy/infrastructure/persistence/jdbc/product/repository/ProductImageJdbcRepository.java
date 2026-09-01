@@ -3,6 +3,7 @@ package com.floristeriarosy.infrastructure.persistence.jdbc.product.repository;
 import com.floristeriarosy.application.product.dto.ProductImageAssignment;
 import com.floristeriarosy.application.product.dto.ProductImageRef;
 import com.floristeriarosy.infrastructure.persistence.jdbc.product.rowmapper.ProductImageRefRowMapper;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -40,7 +41,7 @@ public class ProductImageJdbcRepository {
   public void replaceImages(UUID productId, List<ProductImageAssignment> images) {
     LOGGER.debug("replaceImages productId={} count={}", productId, images.size());
     jdbcTemplate.update("DELETE FROM product_images WHERE product_id = ?", productId);
-    Instant now = Instant.now();
+    Timestamp now = Timestamp.from(Instant.now());
     List<Object[]> params =
         java.util.stream.IntStream.range(0, images.size())
             .mapToObj(
