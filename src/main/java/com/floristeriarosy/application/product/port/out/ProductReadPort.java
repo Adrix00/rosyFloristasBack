@@ -1,5 +1,8 @@
 package com.floristeriarosy.application.product.port.out;
 
+import com.floristeriarosy.application.product.dto.PageResult;
+import com.floristeriarosy.application.product.dto.ProductAdminListingCriteria;
+import com.floristeriarosy.application.product.dto.ProductSummaryDto;
 import com.floristeriarosy.domain.model.product.Product;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 import java.math.BigDecimal;
@@ -33,4 +36,11 @@ public interface ProductReadPort {
    *     3.1: time-window vigency and, when limited, unsold units remaining)
    */
   Optional<BigDecimal> findActiveSalePrice(ProductId id);
+
+  /**
+   * @param criteria the admin's status/category/extra filters and the requested page
+   * @return the matching products, paginated, regardless of visibility (product.md, section 4:
+   *     {@code GET /products/all})
+   */
+  PageResult<ProductSummaryDto> findAllForAdmin(ProductAdminListingCriteria criteria);
 }

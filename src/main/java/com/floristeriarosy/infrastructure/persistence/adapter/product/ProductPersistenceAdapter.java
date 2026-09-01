@@ -1,6 +1,9 @@
 package com.floristeriarosy.infrastructure.persistence.adapter.product;
 
+import com.floristeriarosy.application.product.dto.PageResult;
+import com.floristeriarosy.application.product.dto.ProductAdminListingCriteria;
 import com.floristeriarosy.application.product.dto.ProductDeletionImpact;
+import com.floristeriarosy.application.product.dto.ProductSummaryDto;
 import com.floristeriarosy.application.product.port.out.ProductExistencePort;
 import com.floristeriarosy.application.product.port.out.ProductReadPort;
 import com.floristeriarosy.application.product.port.out.ProductWritePort;
@@ -205,6 +208,26 @@ public class ProductPersistenceAdapter implements ProductReadPort, ProductWriteP
     LOGGER.debug("deletionImpact id={}", id);
     ProductDeletionImpact result = jdbcRepository.deletionImpact(id.value());
     LOGGER.debug("deletionImpact id={} -> deletable={}", id, result.deletable());
+    return result;
+  }
+
+  /**
+   * @param criteria the admin's status/category/extra filters and the requested page
+   * @return the matching products, paginated, regardless of visibility
+   */
+  @Override
+  public PageResult<ProductSummaryDto> findAllForAdmin(ProductAdminListingCriteria criteria) {
+    LOGGER.debug(
+        "findAllForAdmin status={} withoutCategory={} isExtra={} page={} size={}",
+        criteria.status(),
+        criteria.withoutCategory(),
+        criteria.isExtra(),
+        criteria.page(),
+        criteria.size());
+    PageResult<ProductSummaryDto> result =
+        jdbcRepository.findAllForAdmin(
+            criteria.status(), criteria.withoutCategory(), criteria.isExtra(), criteria.page(), criteria.size());
+    LOGGER.debug("findAllForAdmin -> totalElements={}", result.totalElements());
     return result;
   }
 
