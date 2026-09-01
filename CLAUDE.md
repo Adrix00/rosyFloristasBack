@@ -342,6 +342,15 @@ Individual checks:
 
 Never skip `mvn verify` before declaring a task complete.
 
+---
+
+## Commits
+
+Commit messages **never** include a `Co-Authored-By: Claude ...` trailer or a `Claude-Session:`
+link. Write the message as the author's own.
+
+---
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
