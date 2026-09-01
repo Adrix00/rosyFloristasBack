@@ -8,15 +8,21 @@ import com.floristeriarosy.application.product.command.UpdateProductCategoriesCo
 import com.floristeriarosy.application.product.command.UpdateProductCommand;
 import com.floristeriarosy.application.product.command.UpdateProductExtrasCommand;
 import com.floristeriarosy.application.product.command.UpdateProductImagesCommand;
+import com.floristeriarosy.application.product.dto.PageResult;
 import com.floristeriarosy.application.product.dto.ProductCategoryRef;
 import com.floristeriarosy.application.product.dto.ProductDeletionImpact;
 import com.floristeriarosy.application.product.dto.ProductDto;
 import com.floristeriarosy.application.product.dto.ProductImageAssignment;
 import com.floristeriarosy.application.product.dto.ProductImageRef;
+import com.floristeriarosy.application.product.dto.ProductSuggestionDto;
 import com.floristeriarosy.application.product.dto.ProductSummaryDto;
+import com.floristeriarosy.application.product.query.AutocompleteProductsQuery;
 import com.floristeriarosy.application.product.query.GetProductDeletionImpactQuery;
 import com.floristeriarosy.application.product.query.GetProductExtrasQuery;
 import com.floristeriarosy.application.product.query.GetProductQuery;
+import com.floristeriarosy.application.product.query.GetProductsQuery;
+import com.floristeriarosy.application.product.query.SearchProductsQuery;
+import com.floristeriarosy.domain.model.product.ProductStatus;
 import com.floristeriarosy.infrastructure.web.request.product.ChangeInventoryModeRequest;
 import com.floristeriarosy.infrastructure.web.request.product.ChangeProductStatusRequest;
 import com.floristeriarosy.infrastructure.web.request.product.CreateProductRequest;
@@ -27,10 +33,15 @@ import com.floristeriarosy.infrastructure.web.request.product.UpdateProductReque
 import com.floristeriarosy.infrastructure.web.response.product.ProductCategoryRefResponse;
 import com.floristeriarosy.infrastructure.web.response.product.ProductDeletionImpactResponse;
 import com.floristeriarosy.infrastructure.web.response.product.ProductImageRefResponse;
+import com.floristeriarosy.infrastructure.web.response.product.ProductPageResponse;
 import com.floristeriarosy.infrastructure.web.response.product.ProductResponse;
+import com.floristeriarosy.infrastructure.web.response.product.ProductSuggestionResponse;
 import com.floristeriarosy.infrastructure.web.response.product.ProductSummaryResponse;
+import java.math.BigDecimal;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
@@ -43,6 +54,12 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class ProductWebMapper {
+
+  /** Upper bound of {@code size} on a paginated listing (product.md, section 4). */
+  private static final int MAX_PAGE_SIZE = 100;
+
+  /** Every {@code attr.{key}} query parameter carries this prefix (product.md, section 4). */
+  private static final String ATTR_PREFIX = "attr.";
 
   /**
    * @param request the create request
@@ -198,6 +215,118 @@ public class ProductWebMapper {
         impact.orderCount(),
         impact.stockMovementCount(),
         impact.purchaseCount());
+  }
+
+  /**
+   * @param q free text, or {@code null}
+   * @param category a category's id or slug, or {@code null}
+   * @param minPrice minimum effective price, or {@code null}
+   * @param maxPrice maximum effective price, or {@code null}
+   * @param onSale whether to only return products with a currently active discount
+   * @param allParams every request query parameter, used to extract {@code attr.{key}} entries
+   * @param page requested page, clamped to {@code >= 0}
+   * @param size requested page size, clamped to {@code [1, MAX_PAGE_SIZE]}
+   * @return the query to hand to {@code SearchProductsUseCase}
+   */
+  public SearchProductsQuery toSearchQuery(
+      String q,
+      String category,
+      BigDecimal minPrice,
+      BigDecimal maxPrice,
+      boolean onSale,
+      Map<String, String> allParams,
+      int page,
+      int size) {
+    return new SearchProductsQuery(
+        q, category, minPrice, maxPrice, onSale, attributeFilters(allParams), clampPage(page), clampSize(size));
+  }
+
+  /**
+   * @param q the text typed so far
+   * @return the query to hand to {@code AutocompleteProductsUseCase}
+   */
+  public AutocompleteProductsQuery toAutocompleteQuery(String q) {
+    return new AutocompleteProductsQuery(q);
+  }
+
+  /**
+   * @param status raw {@code status} query parameter, or {@code null}; an unparseable value is
+   *     treated as absent rather than rejected — this is an optional admin filter, not a
+   *     validated request body field
+   * @param withoutCategory whether to only return products with no category at all
+   * @param isExtra only products with this {@code is_extra} flag, or {@code null} for both
+   * @param page requested page, clamped to {@code >= 0}
+   * @param size requested page size, clamped to {@code [1, MAX_PAGE_SIZE]}
+   * @return the query to hand to {@code GetProductsUseCase}
+   */
+  public GetProductsQuery toGetProductsQuery(
+      String status, boolean withoutCategory, Boolean isExtra, int page, int size) {
+    return new GetProductsQuery(parseStatus(status), withoutCategory, isExtra, clampPage(page), clampSize(size));
+  }
+
+  /**
+   * @param dto the suggestion to expose
+   * @return its API representation
+   */
+  public ProductSuggestionResponse toSuggestionResponse(ProductSuggestionDto dto) {
+    return new ProductSuggestionResponse(dto.name(), dto.slug());
+  }
+
+  /**
+   * @param result the paginated result to expose
+   * @return its API representation
+   */
+  public ProductPageResponse toPageResponse(PageResult<ProductSummaryDto> result) {
+    return new ProductPageResponse(
+        result.items().stream().map(this::toSummaryResponse).toList(),
+        result.totalElements(),
+        result.page(),
+        result.size());
+  }
+
+  /**
+   * @param allParams every request query parameter
+   * @return the entries prefixed with {@code attr.}, keyed without the prefix
+   */
+  private Map<String, String> attributeFilters(Map<String, String> allParams) {
+    Map<String, String> filters = new LinkedHashMap<>();
+    for (Map.Entry<String, String> entry : allParams.entrySet()) {
+      if (entry.getKey().startsWith(ATTR_PREFIX)) {
+        filters.put(entry.getKey().substring(ATTR_PREFIX.length()), entry.getValue());
+      }
+    }
+    return filters;
+  }
+
+  /**
+   * @param page the raw requested page
+   * @return {@code page}, never negative
+   */
+  private int clampPage(int page) {
+    return Math.max(page, 0);
+  }
+
+  /**
+   * @param size the raw requested page size
+   * @return {@code size}, clamped to {@code [1, MAX_PAGE_SIZE]}
+   */
+  private int clampSize(int size) {
+    return Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+  }
+
+  /**
+   * @param status the raw {@code status} query parameter
+   * @return {@code status} parsed, or {@code null} if absent or unparseable
+   */
+  private ProductStatus parseStatus(String status) {
+    if (status == null || status.isBlank()) {
+      return null;
+    }
+    try {
+      return ProductStatus.valueOf(status.trim().toUpperCase(Locale.ROOT));
+    } catch (IllegalArgumentException unparseable) {
+      return null;
+    }
   }
 
   /**

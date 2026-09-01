@@ -40,10 +40,13 @@ public final class ProductSearchTextBuilder {
   }
 
   /**
+   * Normalizes a raw string the same way {@link #build} normalizes {@code search_text}, so a
+   * query built from user input matches what was indexed (ADR-006).
+   *
    * @param value the raw text to normalize
    * @return {@code value} lower-cased, with diacritics stripped
    */
-  private static String normalize(String value) {
+  public static String normalize(String value) {
     String decomposed = Normalizer.normalize(value.toLowerCase(Locale.ROOT), Normalizer.Form.NFD);
     return DIACRITICS.matcher(decomposed).replaceAll("");
   }
