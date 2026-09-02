@@ -41,6 +41,9 @@ public class PiiCrypto implements PiiCryptoPort {
    */
   private static final int MAX_PLAINTEXT_LENGTH = 4096;
 
+  /** {@link #MAX_PLAINTEXT_LENGTH} in UTF-8 bytes, worst case, plus GCM's fixed 16-byte tag. */
+  private static final int MAX_CIPHERTEXT_LENGTH = MAX_PLAINTEXT_LENGTH * 4 + 16;
+
   private final SecureRandom secureRandom = new SecureRandom();
   private final SecretKeySpec encryptionKey;
   private final SecretKeySpec hmacKey;
@@ -79,6 +82,12 @@ public class PiiCrypto implements PiiCryptoPort {
       cipher.init(
           Cipher.ENCRYPT_MODE, encryptionKey, new GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv));
       byte[] ciphertext = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
+      if (ciphertext.length > MAX_CIPHERTEXT_LENGTH) {
+        // Unreachable in practice: GCM output is plaintext length + a fixed 16-byte tag, and
+        // plaintext is already bounded above. Guards the exact value the array-size arithmetic
+        // below uses, since that is what CodeQL's overflow check (CWE-190) tracks.
+        throw new IllegalStateException("Ciphertext exceeds the maximum length this port handles");
+      }
       byte[] result = new byte[iv.length + ciphertext.length];
       System.arraycopy(iv, 0, result, 0, iv.length);
       System.arraycopy(ciphertext, 0, result, iv.length, ciphertext.length);
