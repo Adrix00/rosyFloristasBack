@@ -43,6 +43,16 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
+		<!-- Runtime-only: Argon2PasswordEncoder needs it, but spring-security-crypto declares it
+			optional so it never arrives transitively. Version 1.84 pinned to match what
+			spring-security-crypto 7.1.0 itself is built and tested against
+			(spring-projects/spring-security, gradle/libs.versions.toml, tag 7.1.0). -->
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcprov-jdk18on</artifactId>
+			<version>1.84</version>
+			<scope>runtime</scope>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc</artifactId>
