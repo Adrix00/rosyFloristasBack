@@ -33,6 +33,14 @@ public class PiiCrypto implements PiiCryptoPort {
   private static final int GCM_IV_LENGTH_BYTES = 12;
   private static final int GCM_TAG_LENGTH_BITS = 128;
 
+  /**
+   * No PII field this port encrypts (email, phone, name, address, card message) comes close to
+   * this. Bounding it here closes a CodeQL-flagged CWE-190 (uncontrolled arithmetic overflow):
+   * without it, {@code iv.length + ciphertext.length} is computed from an attacker-influenced
+   * length with no upper bound.
+   */
+  private static final int MAX_PLAINTEXT_LENGTH = 4096;
+
   private final SecureRandom secureRandom = new SecureRandom();
   private final SecretKeySpec encryptionKey;
   private final SecretKeySpec hmacKey;
@@ -55,9 +63,15 @@ public class PiiCrypto implements PiiCryptoPort {
   /**
    * @param plaintext the value to encrypt
    * @return {@code IV || ciphertext || GCM tag}
+   * @throws IllegalArgumentException {@code plaintext} is longer than {@link
+   *     #MAX_PLAINTEXT_LENGTH}
    */
   @Override
   public byte[] encrypt(String plaintext) {
+    if (plaintext.length() > MAX_PLAINTEXT_LENGTH) {
+      throw new IllegalArgumentException(
+          "Plaintext exceeds the maximum length this port encrypts (" + MAX_PLAINTEXT_LENGTH + " characters)");
+    }
     try {
       byte[] iv = new byte[GCM_IV_LENGTH_BYTES];
       secureRandom.nextBytes(iv);

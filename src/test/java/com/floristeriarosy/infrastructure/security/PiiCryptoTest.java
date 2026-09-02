@@ -51,4 +51,11 @@ class PiiCryptoTest {
 
     assertThatThrownBy(() -> adapter.decrypt(ciphertext)).isInstanceOf(IllegalStateException.class);
   }
+
+  @Test
+  void rejectsPlaintextLongerThanTheMaximumLength() {
+    String tooLong = "a".repeat(4097);
+
+    assertThatThrownBy(() -> adapter.encrypt(tooLong)).isInstanceOf(IllegalArgumentException.class);
+  }
 }
