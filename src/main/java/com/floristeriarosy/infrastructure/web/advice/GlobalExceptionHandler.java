@@ -3,6 +3,7 @@ package com.floristeriarosy.infrastructure.web.advice;
 import com.floristeriarosy.domain.exception.ConflictException;
 import com.floristeriarosy.domain.exception.HasErrorCode;
 import com.floristeriarosy.domain.exception.NotFoundException;
+import com.floristeriarosy.domain.exception.UnauthorizedException;
 import com.floristeriarosy.domain.exception.UnprocessableException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
@@ -50,6 +51,20 @@ public class GlobalExceptionHandler {
   public ProblemDetail handleConflict(ConflictException exception, HttpServletRequest request) {
     LOGGER.debug("409 on {}: {}", Encode.forJava(request.getRequestURI()), exception.getMessage());
     return problemDetail(HttpStatus.CONFLICT, exception, request);
+  }
+
+  /**
+   * Maps any {@link UnauthorizedException} to 401.
+   *
+   * @param exception the domain exception that was thrown
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body
+   */
+  @ExceptionHandler(UnauthorizedException.class)
+  public ProblemDetail handleUnauthorized(
+      UnauthorizedException exception, HttpServletRequest request) {
+    LOGGER.debug("401 on {}: {}", Encode.forJava(request.getRequestURI()), exception.getMessage());
+    return problemDetail(HttpStatus.UNAUTHORIZED, exception, request);
   }
 
   /**

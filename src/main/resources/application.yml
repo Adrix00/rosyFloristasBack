@@ -12,3 +12,11 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: validate
+
+app:
+  security:
+    pii-encryption-key: ${PII_ENCRYPTION_KEY:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+    pii-hmac-pepper: ${PII_HMAC_PEPPER:dev-only-insecure-pepper-change-me}
+  bootstrap:
+    owner-email: ${BOOTSTRAP_OWNER_EMAIL:}
+    owner-password: ${BOOTSTRAP_OWNER_PASSWORD:}
