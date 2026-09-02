@@ -30,13 +30,15 @@ Mandatory documents:
 - docs/architecture/ADR/ADR-013-inventory-alerts.md
 - docs/architecture/ADR/ADR-014-purchase-receiving-and-reversal.md
 - docs/architecture/ADR/ADR-015-transactional-outbox-for-notifications.md
+- docs/architecture/ADR/ADR-016-request-rate-limiting.md
 
 Read the ADR that governs the area being touched, not only the list above:
 authentication and sessions (ADR-008), concurrent writes (ADR-009), admin actions
 (ADR-010), checkout and payments (ADR-011), any personal data (ADR-005), product or
 customer deactivation (ADR-007), catalog search (ADR-006), any API error response
 (ADR-012), inventory alerts and scheduled jobs (ADR-013), purchase receiving and
-reversal (ADR-014), anything that sends an email (ADR-015).
+reversal (ADR-014), anything that sends an email (ADR-015), any endpoint that must be rate
+limited (ADR-016).
 
 ---
 
