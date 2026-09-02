@@ -3,10 +3,12 @@ package com.floristeriarosy.application.product.port.out;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 
 /**
- * Writes {@code products.stock} and its {@code stock_movements} trail (ADR-003; product.md,
- * section 8). {@code product} owns only the mode switch and the resulting {@code
- * INITIAL}/{@code ADJUSTMENT} movements it generates directly; sale, purchase and waste movements
- * are inventory.md's own write path.
+ * Requests {@code inventory} to write {@code products.stock} and its {@code stock_movements} trail
+ * (ADR-003; product.md, section 8). {@code product} never writes {@code stock_movements} on its
+ * own: it delegates every {@code INITIAL}/{@code ADJUSTMENT} it triggers to {@code
+ * RegisterStockMovementUseCase} (inventory.md, section 1), the module's single transactional write
+ * path. This port only owns the mode switch's intent and the {@code low_stock_threshold} update;
+ * {@code ProductStockPort} (inventory.md, section 8) is the port that actually executes the write.
  */
 public interface ProductInventoryPort {
 
