@@ -231,9 +231,11 @@ cliente. `CF-Connecting-IP` solo se acepta si la petición llega efectivamente d
 Cloudflare; en caso contrario cualquiera podría falsificarla.
 
 Endpoints con límite obligatorio: login de cliente, login de administrador, verificación TOTP,
-solicitud de reseteo de contraseña, verificación de email, reenvío de verificación, renovación de
-sesión (`refresh`) — sin límite en este último, un refresh token robado permite renovar en bucle sin
-coste ([`auth.md`](auth.md), sección 4).
+solicitud de reseteo de contraseña, verificación de email, reenvío de verificación, y renovación de
+sesión (`refresh`) — un refresh token robado que se pudiera renovar en bucle sin coste anularía la
+rotación de [ADR-008](../architecture/ADR/ADR-008-refresh-token-rotation.md). Números concretos,
+ventanas y el resto del mecanismo (respuesta 429, `Retry-After`) en
+[ADR-016](../architecture/ADR/ADR-016-request-rate-limiting.md).
 
 **Respuesta uniforme.** El login responde igual con email inexistente que con contraseña incorrecta,
 y con el mismo tiempo de respuesta. Distinguirlos convierte el endpoint en un enumerador de cuentas.
@@ -318,8 +320,10 @@ No están cerradas. No implementar ninguna de ellas por deducción:
    el pepper obliga a recalcular todos los HMAC; rotar la clave, a recifrar. Necesita su propio ADR.
 2. **Catálogo publicado de códigos de error.** El formato y el sitio están decididos (ADR-012); el
    catálogo de `docs/api/` se genera cuando existan los enums de cada módulo.
-3. **Valores concretos de los límites de peticiones.** El mecanismo está decidido; los números no.
-4. **Periodo de retención (`app.retention.orders-period`).** [ADR-007](../architecture/ADR/ADR-007-historical-integrity-and-data-lifecycle.md) lo deja explícitamente al
+3. **Periodo de retención (`app.retention.orders-period`).** [ADR-007](../architecture/ADR/ADR-007-historical-integrity-and-data-lifecycle.md) lo deja explícitamente al
    requisito legal aplicable.
-5. **Purga de `idempotency_keys` y de tokens caducados.** Hace falta una tarea programada; su
+4. **Purga de `idempotency_keys` y de tokens caducados.** Hace falta una tarea programada; su
    frecuencia y su ventana no están fijadas.
+
+Cerrada por [ADR-016](../architecture/ADR/ADR-016-request-rate-limiting.md): los valores concretos de
+los límites de peticiones.

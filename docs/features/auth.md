@@ -10,6 +10,13 @@ No incluye el alta de la cuenta ni la recuperación de contraseña —eso es
 rol, reseteo de contraseña y de TOTP), que vive en [`admin.md`](admin.md). Reglas transversales en
 [`00-security-validation-integrity.md`](00-security-validation-integrity.md).
 
+**Estado de la implementación (`feature/auth`).** Este documento describe el diseño completo del
+módulo, cliente incluido. Lo implementado hasta ahora es solo el lado administrador: `POST
+/auth/admin/login`, `/auth/admin/totp/enrollment`, `/auth/admin/mfa`, `/auth/refresh`, `/auth/logout`
+y `/auth/logout-all`. `POST /auth/login` (`LoginCustomerUseCase`) y la fusión de carrito de la regla
+3.2 quedan pendientes de `feature/customer`, porque el registro de clientes todavía no existe — no
+hay con qué probarlo.
+
 ---
 
 ## 1. Resumen
@@ -76,7 +83,13 @@ sirve la cookie.
 Claims del JWT: sujeto, tipo de sujeto, rol si es administrador, emisión y expiración. **Nunca PII**
 (00-security, regla 1): un JWT va en cabeceras y acaba en logs de proxy.
 
-### 3.2 Login de cliente
+**CSRF sigue activo en estos endpoints.** `SameSite=Strict` protege la cookie de refresh frente a que
+otro sitio la envíe, pero el filtro CSRF global de `SecurityConfig` (`CookieCsrfTokenRepository`,
+CLAUDE.md) no hace excepción con `/auth/refresh`, `/auth/logout` ni `/auth/logout-all` por ser
+públicos: toda petición `POST` la necesita, esta también. El frontend debe leer la cookie
+`XSRF-TOKEN` y mandar `X-XSRF-TOKEN` en las tres, igual que en cualquier otra mutación.
+
+### 3.2 Login de cliente (pendiente de `feature/customer`)
 
 `POST /auth/login`. Se rechaza, con respuesta y tiempo uniformes (00-security, regla 7), si:
 
@@ -223,7 +236,7 @@ autenticarse. `logout` y `logout-all` solo hacen algo con una cookie o sesión v
 
 | Método | Ruta | Devuelve |
 |---|---|---|
-| `POST` | `/auth/login` | 200 — cliente; access token + cookie |
+| `POST` | `/auth/login` (pendiente, `feature/customer`) | 200 — cliente; access token + cookie |
 | `POST` | `/auth/admin/login` | 200 — paso 1; `mfaToken` |
 | `POST` | `/auth/admin/totp/enrollment` | 200 — `otpauth://` URI, solo si `totp_enabled = false` |
 | `POST` | `/auth/admin/mfa` | 200 — paso 2; access token + cookie |
@@ -287,7 +300,7 @@ el anterior.
 
 | Use Case | Service | Escritura |
 |---|---|---|
-| `LoginCustomerUseCase` | `LoginCustomerService` | Sí — crea la familia, fusiona el carrito |
+| `LoginCustomerUseCase` (pendiente, `feature/customer`) | `LoginCustomerService` | Sí — crea la familia, fusiona el carrito |
 | `AdminLoginUseCase` | `AdminLoginService` | No — solo emite el `mfaToken` |
 | `EnrollAdminTotpUseCase` | `EnrollAdminTotpService` | Sí — `totp_secret_encrypted` |
 | `VerifyAdminMfaUseCase` | `VerifyAdminMfaService` | Sí — `totp_enabled`, `totp_last_used_step`, familia |
@@ -378,6 +391,6 @@ en un enumerador de cuentas (00-security, regla 7).
 - **Envío de correos** — [`notification.md`](notification.md). Este módulo no registra ninguno: no hay
   correo de "has iniciado sesión".
 - **Valores concretos del límite de peticiones** —
-  [`00-security-validation-integrity.md`](00-security-validation-integrity.md), sección 12.
+  [ADR-016](../architecture/ADR/ADR-016-request-rate-limiting.md).
 - **Purga de `refresh_tokens` caducados** — [`scheduled-tasks.md`](scheduled-tasks.md); pendiente de
   frecuencia, igual que `idempotency_keys`.

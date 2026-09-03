@@ -77,7 +77,7 @@ programada, no una constraint.
 
 **No está diseñada todavía.** Falta decidir frecuencia y ventana de gracia, y es la única tarea de
 este documento sin cerrar
-([`00-security-validation-integrity.md`](00-security-validation-integrity.md), sección 12, punto 5).
+([`00-security-validation-integrity.md`](00-security-validation-integrity.md), sección 12, punto 4).
 No es urgente en el sentido funcional —nada se rompe si la tabla crece— pero sí lo es en el operativo:
 crecimiento sin límite y sin nadie mirándolo.
 
