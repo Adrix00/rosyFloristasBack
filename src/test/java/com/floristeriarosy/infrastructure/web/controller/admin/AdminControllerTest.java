@@ -33,6 +33,8 @@ import com.floristeriarosy.domain.exception.admin.AdminNotFoundException;
 import com.floristeriarosy.domain.exception.admin.InvalidCurrentPasswordException;
 import com.floristeriarosy.domain.exception.admin.LastOwnerCannotBeRemovedException;
 import com.floristeriarosy.domain.model.admin.AdminRole;
+import com.floristeriarosy.application.auth.port.out.AccessTokenPort;
+import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.infrastructure.security.config.SecurityConfig;
 import com.floristeriarosy.infrastructure.web.mapper.admin.AdminWebMapper;
 import java.time.Instant;
@@ -54,6 +56,10 @@ class AdminControllerTest {
   private static final UUID ACTOR_ID = UUID.randomUUID();
 
   @Autowired private MockMvc mockMvc;
+
+  // SecurityConfig's real filter chain now needs RateLimitFilter, which needs these two.
+  @MockitoBean private PiiCryptoPort piiCryptoPort;
+  @MockitoBean private AccessTokenPort accessTokenPort;
 
   @MockitoBean private CreateAdminUseCase createAdminUseCase;
   @MockitoBean private UpdateAdminUseCase updateAdminUseCase;

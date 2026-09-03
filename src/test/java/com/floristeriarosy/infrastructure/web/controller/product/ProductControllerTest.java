@@ -42,6 +42,8 @@ import com.floristeriarosy.domain.exception.product.ProductNotFoundException;
 import com.floristeriarosy.domain.exception.product.ProductStockRequiredException;
 import com.floristeriarosy.domain.exception.product.ProductWithoutCategoryException;
 import com.floristeriarosy.domain.model.product.ProductStatus;
+import com.floristeriarosy.application.auth.port.out.AccessTokenPort;
+import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.infrastructure.security.config.SecurityConfig;
 import com.floristeriarosy.infrastructure.web.mapper.product.ProductWebMapper;
 import java.math.BigDecimal;
@@ -62,6 +64,10 @@ import org.springframework.test.web.servlet.MockMvc;
 class ProductControllerTest {
 
   @Autowired private MockMvc mockMvc;
+
+  // SecurityConfig's real filter chain now needs RateLimitFilter, which needs these two.
+  @MockitoBean private PiiCryptoPort piiCryptoPort;
+  @MockitoBean private AccessTokenPort accessTokenPort;
 
   @MockitoBean private CreateProductUseCase createProductUseCase;
   @MockitoBean private UpdateProductUseCase updateProductUseCase;

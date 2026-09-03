@@ -15,6 +15,8 @@ import com.floristeriarosy.application.product.port.in.SearchProductsUseCase;
 import com.floristeriarosy.application.product.query.GetProductsQuery;
 import com.floristeriarosy.application.product.query.SearchProductsQuery;
 import com.floristeriarosy.domain.exception.product.ProductAttributeUndeclaredException;
+import com.floristeriarosy.application.auth.port.out.AccessTokenPort;
+import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.infrastructure.security.config.SecurityConfig;
 import com.floristeriarosy.infrastructure.web.mapper.product.ProductWebMapper;
 import java.math.BigDecimal;
@@ -31,6 +33,10 @@ import org.springframework.test.web.servlet.MockMvc;
 class ProductSearchControllerTest {
 
   @Autowired private MockMvc mockMvc;
+
+  // SecurityConfig's real filter chain now needs RateLimitFilter, which needs these two.
+  @MockitoBean private PiiCryptoPort piiCryptoPort;
+  @MockitoBean private AccessTokenPort accessTokenPort;
 
   @MockitoBean private SearchProductsUseCase searchProductsUseCase;
   @MockitoBean private AutocompleteProductsUseCase autocompleteProductsUseCase;

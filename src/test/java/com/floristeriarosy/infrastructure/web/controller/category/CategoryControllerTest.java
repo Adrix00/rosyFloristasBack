@@ -23,6 +23,8 @@ import com.floristeriarosy.application.category.port.in.UpdateCategoryUseCase;
 import com.floristeriarosy.application.category.query.GetCategoryQuery;
 import com.floristeriarosy.domain.exception.category.CategoryNotFoundException;
 import com.floristeriarosy.domain.model.category.CategoryStatus;
+import com.floristeriarosy.application.auth.port.out.AccessTokenPort;
+import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.infrastructure.security.config.SecurityConfig;
 import com.floristeriarosy.infrastructure.web.mapper.category.CategoryWebMapper;
 import java.time.Instant;
@@ -40,6 +42,10 @@ import org.springframework.test.web.servlet.MockMvc;
 class CategoryControllerTest {
 
   @Autowired private MockMvc mockMvc;
+
+  // SecurityConfig's real filter chain now needs RateLimitFilter, which needs these two.
+  @MockitoBean private PiiCryptoPort piiCryptoPort;
+  @MockitoBean private AccessTokenPort accessTokenPort;
 
   @MockitoBean private CreateCategoryUseCase createCategoryUseCase;
   @MockitoBean private UpdateCategoryUseCase updateCategoryUseCase;

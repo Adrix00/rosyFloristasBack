@@ -1,6 +1,7 @@
 package com.floristeriarosy.infrastructure.security.config;
 
 import com.floristeriarosy.infrastructure.security.filter.PasswordChangeRequiredFilter;
+import com.floristeriarosy.infrastructure.security.filter.RateLimitFilter;
 import com.floristeriarosy.infrastructure.security.jwt.AccessTokenJwtClaims;
 import com.floristeriarosy.infrastructure.security.jwt.AccessTypeJwtValidator;
 import jakarta.servlet.FilterChain;
@@ -33,6 +34,7 @@ import org.springframework.security.oauth2.server.resource.web.authentication.Be
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -60,6 +62,8 @@ public class SecurityConfig {
    * @param http the HTTP security builder Spring provides
    * @param jwtDecoder verifies signature, expiry and {@code typ} of every {@code Authorization}
    *     bearer token
+   * @param rateLimitFilter enforces ADR-016 on auth.md's three brute-forceable endpoints, before
+   *     CSRF and before any use case runs
    * @param passwordChangeRequiredFilter enforces auth.md rule 3.9 once a JWT is authenticated
    * @param handlerExceptionResolver where a security-layer 401/403 is delegated, so it comes out as
    *     the same {@code ProblemDetail} shape as a domain exception
@@ -70,6 +74,7 @@ public class SecurityConfig {
   public SecurityFilterChain securityFilterChain(
       HttpSecurity http,
       JwtDecoder jwtDecoder,
+      RateLimitFilter rateLimitFilter,
       PasswordChangeRequiredFilter passwordChangeRequiredFilter,
       @Qualifier("handlerExceptionResolver") HandlerExceptionResolver handlerExceptionResolver)
       throws Exception {
@@ -82,6 +87,7 @@ public class SecurityConfig {
             csrf ->
                 csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                     .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
+        .addFilterBefore(rateLimitFilter, CsrfFilter.class)
         .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

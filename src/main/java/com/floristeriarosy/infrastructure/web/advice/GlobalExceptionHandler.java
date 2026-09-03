@@ -4,9 +4,11 @@ import com.floristeriarosy.domain.exception.ConflictException;
 import com.floristeriarosy.domain.exception.ForbiddenException;
 import com.floristeriarosy.domain.exception.HasErrorCode;
 import com.floristeriarosy.domain.exception.NotFoundException;
+import com.floristeriarosy.domain.exception.TooManyRequestsException;
 import com.floristeriarosy.domain.exception.UnauthorizedException;
 import com.floristeriarosy.domain.exception.UnprocessableException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.net.URI;
 import java.util.Locale;
 import org.owasp.encoder.Encode;
@@ -119,6 +121,24 @@ public class GlobalExceptionHandler {
     problem.setTitle(HttpStatus.UNAUTHORIZED.getReasonPhrase());
     problem.setInstance(URI.create(request.getRequestURI()));
     return problem;
+  }
+
+  /**
+   * Maps any {@link TooManyRequestsException} to 429, with a {@code Retry-After} header (ADR-016).
+   * The response is identical whether the bucket's identifier corresponds to a real account or
+   * not — a 429 that only appeared for real accounts would itself be an account enumerator.
+   *
+   * @param exception the domain exception that was thrown
+   * @param request the failed request, for {@code instance}
+   * @param response the response to add the {@code Retry-After} header to
+   * @return the RFC 7807 body
+   */
+  @ExceptionHandler(TooManyRequestsException.class)
+  public ProblemDetail handleTooManyRequests(
+      TooManyRequestsException exception, HttpServletRequest request, HttpServletResponse response) {
+    LOGGER.debug("429 on {}: {}", Encode.forJava(request.getRequestURI()), exception.getMessage());
+    response.setHeader("Retry-After", String.valueOf(exception.retryAfterSeconds()));
+    return problemDetail(HttpStatus.TOO_MANY_REQUESTS, exception, request);
   }
 
   /**
