@@ -6,6 +6,7 @@ import com.floristeriarosy.domain.model.auth.SubjectType;
 import com.floristeriarosy.domain.model.auth.TokenType;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
@@ -14,16 +15,17 @@ import java.util.UUID;
 import javax.crypto.spec.SecretKeySpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
-import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.JwtException;
-import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.stereotype.Component;
@@ -46,16 +48,31 @@ public class NimbusAccessToken implements AccessTokenPort {
 
   private final JwtEncoder jwtEncoder;
   private final JwtDecoder jwtDecoder;
+  private final Clock clock;
 
   /**
    * @param secret {@code app.security.jwt.secret}, the shared HS256 signing key
    */
+  @Autowired
   public NimbusAccessToken(@Value("${app.security.jwt.secret}") String secret) {
+    this(secret, Clock.systemUTC());
+  }
+
+  /**
+   * @param secret {@code app.security.jwt.secret}, the shared HS256 signing key
+   * @param clock the time source both issuance and expiry validation use — fixed in tests so an
+   *     "already expired" token can be reproduced deterministically, without a 60-second-skew-plus
+   *     sleep
+   */
+  NimbusAccessToken(String secret, Clock clock) {
+    this.clock = clock;
     SecretKeySpec key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
     this.jwtEncoder = new NimbusJwtEncoder(new ImmutableSecret<>(key));
     NimbusJwtDecoder decoder =
         NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
-    decoder.setJwtValidator(JwtValidators.createDefault());
+    JwtTimestampValidator timestampValidator = new JwtTimestampValidator();
+    timestampValidator.setClock(clock);
+    decoder.setJwtValidator(timestampValidator);
     this.jwtDecoder = decoder;
   }
 
@@ -67,7 +84,7 @@ public class NimbusAccessToken implements AccessTokenPort {
   @Override
   public String issue(AccessTokenClaims claims, Duration ttl) {
     LOGGER.debug("issue subjectId={} type={}", claims.subjectId(), claims.type());
-    Instant now = Instant.now();
+    Instant now = Instant.now(clock);
     JwtClaimsSet.Builder claimsSet =
         JwtClaimsSet.builder()
             .issuedAt(now)

@@ -17,7 +17,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationTrustResolver;
+import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -31,6 +36,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+  private static final AuthenticationTrustResolver TRUST_RESOLVER = new AuthenticationTrustResolverImpl();
 
   /**
    * Maps any {@link NotFoundException} to 404.
@@ -86,17 +92,32 @@ public class GlobalExceptionHandler {
   }
 
   /**
-   * Maps a Spring Security {@link AccessDeniedException} to 403 — an authenticated caller with the
-   * wrong {@code @PreAuthorize} role, or a CSRF token rejected by the filter chain. Never exposes
-   * the framework's own message: a CSRF failure message can be more specific than 00-security's
-   * "no internal detail" rule wants on the wire.
+   * Maps a Spring Security {@link AccessDeniedException} to 403 — or to 401 when the caller behind
+   * a {@code @PreAuthorize} denial turns out to be anonymous.
    *
-   * @param exception the exception Spring Security's {@code ExceptionTranslationFilter} raised
+   * <p>{@code @PreAuthorize} denial (Spring Security 6.3+'s {@code AuthorizationDeniedException})
+   * is one exception type for two different causes: an anonymous caller and an authenticated
+   * caller with the wrong role. They used to be told apart by {@code ExceptionTranslationFilter}
+   * itself, but a {@code @ExceptionHandler} here intercepts the exception inside
+   * {@code DispatcherServlet}'s own dispatch, before it can ever reach that filter — so this method
+   * re-does the same anonymous check {@code ExceptionTranslationFilter} would have, instead of
+   * always answering 403 (which would leak a role-existence signal to an anonymous caller: auth.md
+   * rule 3.3, 00-security rule 7). A {@link CsrfException} is excluded from that check: an invalid
+   * or missing CSRF token is 403 unconditionally, authenticated or not — CSRF protection is orthogonal
+   * to who the caller is. Never exposes the framework's own message: a CSRF failure message can be
+   * more specific than 00-security's "no internal detail" rule wants on the wire.
+   *
+   * @param exception the exception Spring Security's method security or CSRF filter raised
    * @param request the failed request, for {@code instance}
    * @return the RFC 7807 body
    */
   @ExceptionHandler(AccessDeniedException.class)
   public ProblemDetail handleAccessDenied(AccessDeniedException exception, HttpServletRequest request) {
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    boolean anonymous = authentication == null || TRUST_RESOLVER.isAnonymous(authentication);
+    if (anonymous && !(exception instanceof CsrfException)) {
+      return unauthenticatedProblem(request);
+    }
     LOGGER.debug("403 on {}: access denied", Encode.forJava(request.getRequestURI()));
     ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "Access is denied");
     problem.setTitle(HttpStatus.FORBIDDEN.getReasonPhrase());
@@ -115,6 +136,15 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(AuthenticationException.class)
   public ProblemDetail handleAuthenticationException(
       AuthenticationException exception, HttpServletRequest request) {
+    return unauthenticatedProblem(request);
+  }
+
+  /**
+   * @param request the failed request, for {@code instance}
+   * @return the 401 RFC 7807 body shared by an anonymous caller and an outright authentication
+   *     failure — never the framework's own message, which can describe why decoding failed
+   */
+  private ProblemDetail unauthenticatedProblem(HttpServletRequest request) {
     LOGGER.debug("401 on {}: authentication required", Encode.forJava(request.getRequestURI()));
     ProblemDetail problem =
         ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Authentication is required");

@@ -2,12 +2,12 @@ package com.floristeriarosy.infrastructure.security.totp;
 
 import com.floristeriarosy.application.auth.port.out.TotpPort;
 import java.io.ByteArrayOutputStream;
-import java.net.URLEncoder;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Optional;
@@ -37,6 +37,20 @@ public class HmacTotp implements TotpPort {
   private static final Logger LOGGER = LoggerFactory.getLogger(HmacTotp.class);
 
   private final SecureRandom secureRandom = new SecureRandom();
+  private final Clock clock;
+
+  /** Uses the system clock; production code never needs anything else. */
+  public HmacTotp() {
+    this(Clock.systemUTC());
+  }
+
+  /**
+   * @param clock the time source {@link #verify} steps from — fixed in tests to reproduce RFC
+   *     6238 Appendix B's vectors, which are pinned to specific instants
+   */
+  HmacTotp(Clock clock) {
+    this.clock = clock;
+  }
 
   /**
    * @return a new, random, Base32-encoded secret (20 bytes of entropy)
@@ -60,7 +74,7 @@ public class HmacTotp implements TotpPort {
   @Override
   public Optional<Long> verify(String secret, String code, Long lastUsedStep) {
     byte[] key = base32Decode(secret);
-    long currentStep = Instant.now().getEpochSecond() / TIME_STEP_SECONDS;
+    long currentStep = Instant.now(clock).getEpochSecond() / TIME_STEP_SECONDS;
     for (long delta = -WINDOW_STEPS; delta <= WINDOW_STEPS; delta++) {
       long step = currentStep + delta;
       String candidate = hotp(key, step);
@@ -84,8 +98,8 @@ public class HmacTotp implements TotpPort {
    */
   @Override
   public String otpauthUri(String secret, String email) {
-    String label = urlEncode(ISSUER + ":" + email);
     String issuer = urlEncode(ISSUER);
+    String label = issuer + ':' + urlEncode(email);
     return "otpauth://totp/" + label + "?secret=" + secret + "&issuer=" + issuer;
   }
 
@@ -124,12 +138,14 @@ public class HmacTotp implements TotpPort {
   }
 
   /**
-   * @param value the text to embed in the {@code otpauth://} URI
-   * @return {@code value}, percent-encoded, with spaces as {@code %20} rather than {@code +}
-   *     (correct for a URI path/query, unlike raw {@link URLEncoder} output)
+   * @param value the text to embed in the {@code otpauth://} label or {@code issuer} parameter
+   * @return {@code value} with spaces percent-encoded as {@code %20}; {@code :} and {@code @} stay
+   *     literal, matching the Key URI Format every authenticator app parses ({@code
+   *     issuer:accountname}) — full {@link URLEncoder} output would escape those too and break
+   *     that convention
    */
   private String urlEncode(String value) {
-    return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
+    return value.replace(" ", "%20");
   }
 
   /**
