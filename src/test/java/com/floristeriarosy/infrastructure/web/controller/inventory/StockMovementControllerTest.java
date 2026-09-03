@@ -18,6 +18,8 @@ import com.floristeriarosy.application.product.dto.PageResult;
 import com.floristeriarosy.domain.exception.inventory.InventoryInsufficientStockException;
 import com.floristeriarosy.domain.exception.inventory.InventoryNotManagedException;
 import com.floristeriarosy.domain.model.inventory.StockMovementType;
+import com.floristeriarosy.application.auth.port.out.AccessTokenPort;
+import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.infrastructure.security.config.SecurityConfig;
 import com.floristeriarosy.infrastructure.web.mapper.inventory.StockMovementWebMapper;
 import java.time.Instant;
@@ -39,6 +41,10 @@ import org.springframework.test.web.servlet.MockMvc;
 class StockMovementControllerTest {
 
   @Autowired private MockMvc mockMvc;
+
+  // SecurityConfig's real filter chain now needs RateLimitFilter, which needs these two.
+  @MockitoBean private PiiCryptoPort piiCryptoPort;
+  @MockitoBean private AccessTokenPort accessTokenPort;
 
   @MockitoBean private GetStockMovementsUseCase getStockMovementsUseCase;
   @MockitoBean private RegisterWasteUseCase registerWasteUseCase;

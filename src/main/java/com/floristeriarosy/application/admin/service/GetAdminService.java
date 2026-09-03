@@ -10,11 +10,14 @@ import com.floristeriarosy.domain.model.admin.Admin;
 import com.floristeriarosy.domain.model.admin.valueobject.AdminId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 /**
- * Implements {@link GetAdminUseCase}: lookup by id, shared by {@code GET /admin/users/{id}} (
- * {@code OWNER}) and {@code GET /admin/me} (self).
+ * Implements {@link GetAdminUseCase}: {@code GET /admin/users/{id}} ({@code OWNER}, arbitrary id).
+ * {@code GET /admin/me} uses {@link GetOwnAdminService} instead — split so an arbitrary-id lookup
+ * and a self lookup can carry different {@code @PreAuthorize} (feature/auth, phase 13; ADR-004
+ * correction).
  */
 @Service
 public class GetAdminService implements GetAdminUseCase {
@@ -39,12 +42,15 @@ public class GetAdminService implements GetAdminUseCase {
    * @throws AdminNotFoundException {@code query.id()} does not exist
    */
   @Override
+  @PreAuthorize("hasRole('OWNER')")
   public AdminDto execute(GetAdminQuery query) {
     LOGGER.debug("getAdmin id={}", query.id());
 
     AdminId id = AdminId.of(query.id());
     Admin admin =
-        readPort.findById(id).orElseThrow(() -> new AdminNotFoundException("Admin " + id + " not found"));
+        readPort
+            .findById(id)
+            .orElseThrow(() -> new AdminNotFoundException("Admin " + id + " not found"));
     AdminDto result = mapper.toDto(admin);
 
     LOGGER.debug("getAdmin -> id={}", result.id());

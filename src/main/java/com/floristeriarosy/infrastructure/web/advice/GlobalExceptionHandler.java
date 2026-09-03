@@ -1,11 +1,14 @@
 package com.floristeriarosy.infrastructure.web.advice;
 
 import com.floristeriarosy.domain.exception.ConflictException;
+import com.floristeriarosy.domain.exception.ForbiddenException;
 import com.floristeriarosy.domain.exception.HasErrorCode;
 import com.floristeriarosy.domain.exception.NotFoundException;
+import com.floristeriarosy.domain.exception.TooManyRequestsException;
 import com.floristeriarosy.domain.exception.UnauthorizedException;
 import com.floristeriarosy.domain.exception.UnprocessableException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.net.URI;
 import java.util.Locale;
 import org.owasp.encoder.Encode;
@@ -13,6 +16,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationTrustResolver;
+import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -26,6 +36,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+  private static final AuthenticationTrustResolver TRUST_RESOLVER = new AuthenticationTrustResolverImpl();
 
   /**
    * Maps any {@link NotFoundException} to 404.
@@ -65,6 +76,99 @@ public class GlobalExceptionHandler {
       UnauthorizedException exception, HttpServletRequest request) {
     LOGGER.debug("401 on {}: {}", Encode.forJava(request.getRequestURI()), exception.getMessage());
     return problemDetail(HttpStatus.UNAUTHORIZED, exception, request);
+  }
+
+  /**
+   * Maps any {@link ForbiddenException} to 403.
+   *
+   * @param exception the domain exception that was thrown
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body
+   */
+  @ExceptionHandler(ForbiddenException.class)
+  public ProblemDetail handleForbidden(ForbiddenException exception, HttpServletRequest request) {
+    LOGGER.debug("403 on {}: {}", Encode.forJava(request.getRequestURI()), exception.getMessage());
+    return problemDetail(HttpStatus.FORBIDDEN, exception, request);
+  }
+
+  /**
+   * Maps a Spring Security {@link AccessDeniedException} to 403 — or to 401 when the caller behind
+   * a {@code @PreAuthorize} denial turns out to be anonymous.
+   *
+   * <p>{@code @PreAuthorize} denial (Spring Security 6.3+'s {@code AuthorizationDeniedException})
+   * is one exception type for two different causes: an anonymous caller and an authenticated
+   * caller with the wrong role. They used to be told apart by {@code ExceptionTranslationFilter}
+   * itself, but a {@code @ExceptionHandler} here intercepts the exception inside
+   * {@code DispatcherServlet}'s own dispatch, before it can ever reach that filter — so this method
+   * re-does the same anonymous check {@code ExceptionTranslationFilter} would have, instead of
+   * always answering 403 (which would leak a role-existence signal to an anonymous caller: auth.md
+   * rule 3.3, 00-security rule 7). A {@link CsrfException} is excluded from that check: an invalid
+   * or missing CSRF token is 403 unconditionally, authenticated or not — CSRF protection is orthogonal
+   * to who the caller is. Never exposes the framework's own message: a CSRF failure message can be
+   * more specific than 00-security's "no internal detail" rule wants on the wire.
+   *
+   * @param exception the exception Spring Security's method security or CSRF filter raised
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body
+   */
+  @ExceptionHandler(AccessDeniedException.class)
+  public ProblemDetail handleAccessDenied(AccessDeniedException exception, HttpServletRequest request) {
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    boolean anonymous = authentication == null || TRUST_RESOLVER.isAnonymous(authentication);
+    if (anonymous && !(exception instanceof CsrfException)) {
+      return unauthenticatedProblem(request);
+    }
+    LOGGER.debug("403 on {}: access denied", Encode.forJava(request.getRequestURI()));
+    ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "Access is denied");
+    problem.setTitle(HttpStatus.FORBIDDEN.getReasonPhrase());
+    problem.setInstance(URI.create(request.getRequestURI()));
+    return problem;
+  }
+
+  /**
+   * Maps a Spring Security {@link AuthenticationException} to 401 — a missing, malformed, expired
+   * or wrong-{@code typ} bearer token (ADR-008). Never exposes the decoder's own message.
+   *
+   * @param exception the exception Spring Security's resource server filter raised
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body
+   */
+  @ExceptionHandler(AuthenticationException.class)
+  public ProblemDetail handleAuthenticationException(
+      AuthenticationException exception, HttpServletRequest request) {
+    return unauthenticatedProblem(request);
+  }
+
+  /**
+   * @param request the failed request, for {@code instance}
+   * @return the 401 RFC 7807 body shared by an anonymous caller and an outright authentication
+   *     failure — never the framework's own message, which can describe why decoding failed
+   */
+  private ProblemDetail unauthenticatedProblem(HttpServletRequest request) {
+    LOGGER.debug("401 on {}: authentication required", Encode.forJava(request.getRequestURI()));
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Authentication is required");
+    problem.setTitle(HttpStatus.UNAUTHORIZED.getReasonPhrase());
+    problem.setInstance(URI.create(request.getRequestURI()));
+    return problem;
+  }
+
+  /**
+   * Maps any {@link TooManyRequestsException} to 429, with a {@code Retry-After} header (ADR-016).
+   * The response is identical whether the bucket's identifier corresponds to a real account or
+   * not — a 429 that only appeared for real accounts would itself be an account enumerator.
+   *
+   * @param exception the domain exception that was thrown
+   * @param request the failed request, for {@code instance}
+   * @param response the response to add the {@code Retry-After} header to
+   * @return the RFC 7807 body
+   */
+  @ExceptionHandler(TooManyRequestsException.class)
+  public ProblemDetail handleTooManyRequests(
+      TooManyRequestsException exception, HttpServletRequest request, HttpServletResponse response) {
+    LOGGER.debug("429 on {}: {}", Encode.forJava(request.getRequestURI()), exception.getMessage());
+    response.setHeader("Retry-After", String.valueOf(exception.retryAfterSeconds()));
+    return problemDetail(HttpStatus.TOO_MANY_REQUESTS, exception, request);
   }
 
   /**
@@ -123,7 +227,8 @@ public class GlobalExceptionHandler {
    */
   @ExceptionHandler(Exception.class)
   public ProblemDetail handleUnexpected(Exception exception, HttpServletRequest request) {
-    LOGGER.error("Unexpected error handling {}", Encode.forJava(request.getRequestURI()), exception);
+    LOGGER.error(
+        "Unexpected error handling {}", Encode.forJava(request.getRequestURI()), exception);
     ProblemDetail problem =
         ProblemDetail.forStatusAndDetail(
             HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred");

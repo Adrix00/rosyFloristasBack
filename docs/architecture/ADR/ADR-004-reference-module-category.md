@@ -467,6 +467,16 @@ Architecture evolves intentionally.
 
 For this reason, Category must be reviewed carefully before implementing additional business modules.
 
+**Correction (feature/auth, phase 13):** Category modeled its public and admin listing as one use case
+(`GetCategoriesUseCase`, a query flag `includeInactive`). That mistake propagated exactly as the
+"Negative" consequence above warns: `@PreAuthorize` binds to a service method, not to a parameter
+value, so the shared method could not be locked to `ADMIN` without also blocking the public route.
+`product.md` already avoided it — `SearchProductsUseCase` (public) and `GetProductsUseCase` (admin)
+are two use cases. Category was split the same way: `GetCategoriesUseCase` now always reads active-only,
+and a new `GetAllCategoriesUseCase` carries the `ADMIN` gate. **Rule going forward:** a public/admin
+pair is two use cases, one per authorization boundary, even when the only behavioral difference is a
+visibility filter.
+
 ---
 
 # References

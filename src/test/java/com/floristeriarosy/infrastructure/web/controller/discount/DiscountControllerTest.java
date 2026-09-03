@@ -21,6 +21,8 @@ import com.floristeriarosy.domain.exception.discount.DiscountNotEditableExceptio
 import com.floristeriarosy.domain.exception.discount.DiscountNotFoundException;
 import com.floristeriarosy.domain.exception.discount.DiscountPeriodInvalidException;
 import com.floristeriarosy.domain.model.discount.DiscountState;
+import com.floristeriarosy.application.auth.port.out.AccessTokenPort;
+import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.infrastructure.security.config.SecurityConfig;
 import com.floristeriarosy.infrastructure.web.mapper.discount.DiscountWebMapper;
 import java.math.BigDecimal;
@@ -39,6 +41,10 @@ import org.springframework.test.web.servlet.MockMvc;
 class DiscountControllerTest {
 
   @Autowired private MockMvc mockMvc;
+
+  // SecurityConfig's real filter chain now needs RateLimitFilter, which needs these two.
+  @MockitoBean private PiiCryptoPort piiCryptoPort;
+  @MockitoBean private AccessTokenPort accessTokenPort;
 
   @MockitoBean private UpdateDiscountUseCase updateDiscountUseCase;
   @MockitoBean private EndDiscountUseCase endDiscountUseCase;

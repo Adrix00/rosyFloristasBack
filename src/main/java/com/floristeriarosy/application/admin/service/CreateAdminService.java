@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
  * Implements {@link CreateAdminUseCase}: creates an administrator with a provisional password
  * (admin.md, rule 3.2).
  *
- * <p>{@code OWNER}-only per admin.md rule 3.1; unenforced today (no {@code @PreAuthorize}) since
- * {@code feature/auth} does not exist yet and {@code SecurityConfig} leaves every endpoint open —
- * same tracked gap as {@code category.md} (dev-plan.md).
+ * <p>{@code OWNER}-only per admin.md rule 3.1, enforced via {@code @PreAuthorize} (feature/auth,
+ * phase 13).
  */
 @Service
 @Transactional
@@ -75,14 +75,14 @@ public class CreateAdminService implements CreateAdminUseCase {
    * @throws AdminEmailAlreadyExistsException the email is already used by another admin
    */
   @Override
+  @PreAuthorize("hasRole('OWNER')")
   public AdminDto execute(CreateAdminCommand command) {
     LOGGER.debug("createAdmin actorId={} role={}", command.actorId(), command.role());
 
     String normalizedEmail = normalize(command.email());
     byte[] emailHash = piiCryptoPort.hmac(normalizedEmail);
     if (readPort.findByEmailHash(emailHash).isPresent()) {
-      throw new AdminEmailAlreadyExistsException(
-          "An admin with this email already exists");
+      throw new AdminEmailAlreadyExistsException("An admin with this email already exists");
     }
 
     Admin admin =
@@ -107,8 +107,8 @@ public class CreateAdminService implements CreateAdminUseCase {
 
   /**
    * @param email the raw email from the request
-   * @return {@code email}, trimmed and lower-cased (00-security-validation-integrity.md, section
-   *     4: normalize before hashing so equivalent inputs share one hash)
+   * @return {@code email}, trimmed and lower-cased (00-security-validation-integrity.md, section 4:
+   *     normalize before hashing so equivalent inputs share one hash)
    */
   private String normalize(String email) {
     return email.trim().toLowerCase(Locale.ROOT);

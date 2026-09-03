@@ -17,6 +17,51 @@ app:
   security:
     pii-encryption-key: ${PII_ENCRYPTION_KEY:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
     pii-hmac-pepper: ${PII_HMAC_PEPPER:dev-only-insecure-pepper-change-me}
+    jwt:
+      # Dev-only default, same pattern as pii-encryption-key: never rely on this outside local dev.
+      secret: ${JWT_SECRET:dev-only-insecure-jwt-secret-change-me-before-production-0123456789}
+      access-token-ttl: 5m
+      admin-refresh-ttl: 12h
+      mfa-token-ttl: 5m
   bootstrap:
     owner-email: ${BOOTSTRAP_OWNER_EMAIL:}
     owner-password: ${BOOTSTRAP_OWNER_PASSWORD:}
+  rate-limit:
+    trusted-proxies: []
+    admin-login:
+      identifier-capacity: 5
+      identifier-window: 15m
+      ip-capacity: 20
+      ip-window: 15m
+    admin-mfa:
+      identifier-capacity: 5
+      identifier-window: 5m
+      ip-capacity: 20
+      ip-window: 15m
+    refresh:
+      identifier-capacity: 30
+      identifier-window: 1h
+      ip-capacity: 60
+      ip-window: 1h
+    # No filter reads the rows below yet — customer.md has no endpoints to apply them to until
+    # feature/customer exists. Fixed here (ADR-016) so they are not re-decided in isolation later.
+    customer-login:
+      identifier-capacity: 10
+      identifier-window: 15m
+      ip-capacity: 60
+      ip-window: 15m
+    password-reset:
+      identifier-capacity: 5
+      identifier-window: 1h
+      ip-capacity: 20
+      ip-window: 1h
+    verify-email:
+      identifier-capacity: 10
+      identifier-window: 1h
+      ip-capacity: 40
+      ip-window: 1h
+    resend-verification:
+      identifier-capacity: 5
+      identifier-window: 1h
+      ip-capacity: 20
+      ip-window: 1h

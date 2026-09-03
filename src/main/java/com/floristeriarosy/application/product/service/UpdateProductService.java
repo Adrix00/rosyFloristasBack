@@ -22,10 +22,13 @@ import java.math.BigDecimal;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Implements {@link UpdateProductUseCase}: full replace ({@code PUT}) of a product's own fields. */
+/**
+ * Implements {@link UpdateProductUseCase}: full replace ({@code PUT}) of a product's own fields.
+ */
 @Service
 @Transactional
 public class UpdateProductService implements UpdateProductUseCase {
@@ -39,8 +42,8 @@ public class UpdateProductService implements UpdateProductUseCase {
   private final ProductAttributeValidator attributeValidator;
 
   /**
-   * @param readPort loads the product being updated, checks the new slug for conflicts, and
-   *     checks for an active discount
+   * @param readPort loads the product being updated, checks the new slug for conflicts, and checks
+   *     for an active discount
    * @param writePort persists the updated product
    * @param categoryPort loads the product's categories for the response
    * @param imagePort loads the product's gallery for the response
@@ -72,6 +75,7 @@ public class UpdateProductService implements UpdateProductUseCase {
    *     active (product.md, section 3.8)
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public ProductDto execute(UpdateProductCommand command) {
     LOGGER.debug(
         "updateProduct id={} name={} price={} isExtra={} attributes={}",
@@ -85,7 +89,9 @@ public class UpdateProductService implements UpdateProductUseCase {
 
     ProductId id = ProductId.of(command.id());
     Product product =
-        readPort.findById(id).orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
+        readPort
+            .findById(id)
+            .orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
 
     ProductSlug slug = ProductSlug.generateFrom(command.name());
     if (!slug.equals(product.slug())) {
@@ -105,12 +111,19 @@ public class UpdateProductService implements UpdateProductUseCase {
           .ifPresent(
               price -> {
                 throw new ProductHasActiveDiscountException(
-                    "Product " + id + " has an active discount; end it before changing the base price");
+                    "Product "
+                        + id
+                        + " has an active discount; end it before changing the base price");
               });
     }
 
     product.replace(
-        command.name(), slug, command.description(), command.price(), command.isExtra(), command.attributes());
+        command.name(),
+        slug,
+        command.description(),
+        command.price(),
+        command.isExtra(),
+        command.attributes());
     Product saved = writePort.save(product);
 
     List<ProductCategoryRef> categories = categoryPort.findCategories(id);

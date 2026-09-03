@@ -15,6 +15,7 @@ import com.floristeriarosy.domain.model.admin.valueobject.AdminId;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -63,12 +64,15 @@ public class ChangeOwnPasswordService implements ChangeOwnPasswordUseCase {
    * @throws PasswordUnchangedException {@code newPassword} equals {@code currentPassword}
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public void execute(ChangeOwnPasswordCommand command) {
     LOGGER.debug("changeOwnPassword adminId={}", command.adminId());
 
     AdminId id = AdminId.of(command.adminId());
     Admin admin =
-        readPort.findById(id).orElseThrow(() -> new AdminNotFoundException("Admin " + id + " not found"));
+        readPort
+            .findById(id)
+            .orElseThrow(() -> new AdminNotFoundException("Admin " + id + " not found"));
 
     if (!passwordHasherPort.matches(command.currentPassword(), admin.passwordHash())) {
       throw new InvalidCurrentPasswordException("Current password does not match");

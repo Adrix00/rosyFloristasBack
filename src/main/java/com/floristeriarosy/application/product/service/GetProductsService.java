@@ -8,6 +8,7 @@ import com.floristeriarosy.application.product.port.out.ProductReadPort;
 import com.floristeriarosy.application.product.query.GetProductsQuery;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 /**
@@ -33,6 +34,7 @@ public class GetProductsService implements GetProductsUseCase {
    * @return the matching products, paginated, regardless of visibility
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public PageResult<ProductSummaryDto> execute(GetProductsQuery query) {
     LOGGER.debug(
         "getProducts status={} withoutCategory={} isExtra={} page={} size={}",

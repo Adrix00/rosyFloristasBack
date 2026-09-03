@@ -19,6 +19,8 @@ import com.floristeriarosy.domain.exception.inventory.InventoryAlertNotFoundExce
 import com.floristeriarosy.domain.exception.inventory.InventoryAlertNotOpenException;
 import com.floristeriarosy.domain.model.inventory.InventoryAlertStatus;
 import com.floristeriarosy.domain.model.inventory.InventoryAlertType;
+import com.floristeriarosy.application.auth.port.out.AccessTokenPort;
+import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.infrastructure.security.config.SecurityConfig;
 import com.floristeriarosy.infrastructure.web.mapper.inventory.InventoryAlertWebMapper;
 import java.time.Instant;
@@ -38,6 +40,10 @@ import org.springframework.test.web.servlet.MockMvc;
 class InventoryAlertControllerTest {
 
   @Autowired private MockMvc mockMvc;
+
+  // SecurityConfig's real filter chain now needs RateLimitFilter, which needs these two.
+  @MockitoBean private PiiCryptoPort piiCryptoPort;
+  @MockitoBean private AccessTokenPort accessTokenPort;
 
   @MockitoBean private GetInventoryAlertsUseCase getInventoryAlertsUseCase;
   @MockitoBean private ResolveInventoryAlertUseCase resolveInventoryAlertUseCase;

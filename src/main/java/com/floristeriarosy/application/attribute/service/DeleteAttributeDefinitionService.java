@@ -7,10 +7,13 @@ import com.floristeriarosy.domain.exception.attribute.AttributeDefinitionNotFoun
 import com.floristeriarosy.domain.model.attribute.valueobject.AttributeDefinitionId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Implements {@link DeleteAttributeDefinitionUseCase}: permanently removes an attribute definition. */
+/**
+ * Implements {@link DeleteAttributeDefinitionUseCase}: permanently removes an attribute definition.
+ */
 @Service
 @Transactional
 public class DeleteAttributeDefinitionService implements DeleteAttributeDefinitionUseCase {
@@ -35,6 +38,7 @@ public class DeleteAttributeDefinitionService implements DeleteAttributeDefiniti
    * @throws AttributeDefinitionNotFoundException {@code command.id()} does not exist
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public void execute(DeleteAttributeDefinitionCommand command) {
     LOGGER.debug("deleteAttributeDefinition id={}", command.id());
 

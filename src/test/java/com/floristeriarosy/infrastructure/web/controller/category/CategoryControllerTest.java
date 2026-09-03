@@ -14,6 +14,7 @@ import com.floristeriarosy.application.category.dto.CategoryDto;
 import com.floristeriarosy.application.category.port.in.ChangeCategoryStatusUseCase;
 import com.floristeriarosy.application.category.port.in.CreateCategoryUseCase;
 import com.floristeriarosy.application.category.port.in.DeleteCategoryUseCase;
+import com.floristeriarosy.application.category.port.in.GetAllCategoriesUseCase;
 import com.floristeriarosy.application.category.port.in.GetCategoriesUseCase;
 import com.floristeriarosy.application.category.port.in.GetCategoryImpactUseCase;
 import com.floristeriarosy.application.category.port.in.GetCategoryUseCase;
@@ -22,6 +23,8 @@ import com.floristeriarosy.application.category.port.in.UpdateCategoryUseCase;
 import com.floristeriarosy.application.category.query.GetCategoryQuery;
 import com.floristeriarosy.domain.exception.category.CategoryNotFoundException;
 import com.floristeriarosy.domain.model.category.CategoryStatus;
+import com.floristeriarosy.application.auth.port.out.AccessTokenPort;
+import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.infrastructure.security.config.SecurityConfig;
 import com.floristeriarosy.infrastructure.web.mapper.category.CategoryWebMapper;
 import java.time.Instant;
@@ -40,6 +43,10 @@ class CategoryControllerTest {
 
   @Autowired private MockMvc mockMvc;
 
+  // SecurityConfig's real filter chain now needs RateLimitFilter, which needs these two.
+  @MockitoBean private PiiCryptoPort piiCryptoPort;
+  @MockitoBean private AccessTokenPort accessTokenPort;
+
   @MockitoBean private CreateCategoryUseCase createCategoryUseCase;
   @MockitoBean private UpdateCategoryUseCase updateCategoryUseCase;
   @MockitoBean private ChangeCategoryStatusUseCase changeCategoryStatusUseCase;
@@ -47,6 +54,7 @@ class CategoryControllerTest {
   @MockitoBean private DeleteCategoryUseCase deleteCategoryUseCase;
   @MockitoBean private GetCategoryUseCase getCategoryUseCase;
   @MockitoBean private GetCategoriesUseCase getCategoriesUseCase;
+  @MockitoBean private GetAllCategoriesUseCase getAllCategoriesUseCase;
   @MockitoBean private GetCategoryImpactUseCase getCategoryImpactUseCase;
 
   @Test

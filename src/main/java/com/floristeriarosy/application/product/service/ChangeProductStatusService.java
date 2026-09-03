@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,12 +62,15 @@ public class ChangeProductStatusService implements ChangeProductStatusUseCase {
    *     command.status()} is different
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public ProductDto execute(ChangeProductStatusCommand command) {
     LOGGER.debug("changeProductStatus id={} status={}", command.id(), command.status());
 
     ProductId id = ProductId.of(command.id());
     Product product =
-        readPort.findById(id).orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
+        readPort
+            .findById(id)
+            .orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
 
     product.changeStatus(command.status());
     Product saved = writePort.updateStatus(id, product.status());

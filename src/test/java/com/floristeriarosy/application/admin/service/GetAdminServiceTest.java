@@ -21,7 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/** {@link GetAdminService}: lookup shared by {@code GET /admin/users/{id}} and {@code GET /admin/me}. */
+/** {@link GetAdminService}: {@code GET /admin/users/{id}} ({@code OWNER}, arbitrary id). */
 @ExtendWith(MockitoExtension.class)
 class GetAdminServiceTest {
 

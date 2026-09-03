@@ -17,15 +17,16 @@ import java.util.Base64;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Implements {@link ResetAdminPasswordUseCase}: the {@code OWNER} fixes a new provisional
- * password (admin.md, rule 3.4).
+ * Implements {@link ResetAdminPasswordUseCase}: the {@code OWNER} fixes a new provisional password
+ * (admin.md, rule 3.4).
  *
- * <p>{@code OWNER}-only per admin.md rule 3.1; unenforced today, same tracked gap as {@link
- * CreateAdminService}.
+ * <p>{@code OWNER}-only per admin.md rule 3.1, enforced via {@code @PreAuthorize} (feature/auth,
+ * phase 13).
  */
 @Service
 @Transactional
@@ -73,12 +74,15 @@ public class ResetAdminPasswordService implements ResetAdminPasswordUseCase {
    * @throws AdminNotFoundException {@code command.id()} does not exist
    */
   @Override
+  @PreAuthorize("hasRole('OWNER')")
   public PasswordResetResult execute(ResetAdminPasswordCommand command) {
     LOGGER.debug("resetAdminPassword actorId={} id={}", command.actorId(), command.id());
 
     AdminId id = AdminId.of(command.id());
     Admin admin =
-        readPort.findById(id).orElseThrow(() -> new AdminNotFoundException("Admin " + id + " not found"));
+        readPort
+            .findById(id)
+            .orElseThrow(() -> new AdminNotFoundException("Admin " + id + " not found"));
 
     String temporaryPassword = generateTemporaryPassword();
     admin.resetPassword(passwordHasherPort.hash(temporaryPassword));
@@ -97,8 +101,8 @@ public class ResetAdminPasswordService implements ResetAdminPasswordUseCase {
   }
 
   /**
-   * @return a random, URL-safe password well above {@code ValidPassword}'s minimum length and
-   *     never in its common-password denylist by construction
+   * @return a random, URL-safe password well above {@code ValidPassword}'s minimum length and never
+   *     in its common-password denylist by construction
    */
   private String generateTemporaryPassword() {
     byte[] randomBytes = new byte[GENERATED_PASSWORD_BYTES];

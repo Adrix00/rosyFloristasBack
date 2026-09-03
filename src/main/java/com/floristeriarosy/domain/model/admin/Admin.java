@@ -165,8 +165,8 @@ public final class Admin {
   }
 
   /**
-   * Sets a new provisional password, fixed by the {@code OWNER} (admin.md, rule 3.4). The caller
-   * is responsible for revoking the admin's sessions.
+   * Sets a new provisional password, fixed by the {@code OWNER} (admin.md, rule 3.4). The caller is
+   * responsible for revoking the admin's sessions.
    *
    * @param newPasswordHash the new provisional password, already Argon2id-hashed
    */
@@ -177,8 +177,7 @@ public final class Admin {
   }
 
   /**
-   * Sets a new password chosen by the admin themselves (admin.md, rule 3.4): no longer
-   * provisional.
+   * Sets a new password chosen by the admin themselves (admin.md, rule 3.4): no longer provisional.
    *
    * @param newPasswordHash the new password, already Argon2id-hashed
    */
@@ -186,6 +185,32 @@ public final class Admin {
     LOGGER.debug("changeOwnPassword id={}", id);
     this.passwordHash = newPasswordHash;
     this.passwordChangeRequired = false;
+  }
+
+  /**
+   * Stores a freshly generated TOTP secret pending confirmation (auth.md, rule 3.4). {@code
+   * totpEnabled} stays {@code false} until {@code VerifyAdminMfaService} confirms a valid code.
+   * Calling this again before confirming overwrites the secret — the QR code just scanned stops
+   * working, which is exactly what a lost-phone retry needs.
+   *
+   * @param totpSecretEncrypted the new secret, already encrypted (ADR-005)
+   */
+  public void enrollTotp(byte[] totpSecretEncrypted) {
+    LOGGER.debug("enrollTotp id={}", id);
+    this.totpSecretEncrypted = totpSecretEncrypted.clone();
+  }
+
+  /**
+   * Confirms a pending TOTP enrollment (auth.md, rule 3.4): the admin proved they hold a valid
+   * code, so the second factor is now active.
+   *
+   * @param totpLastUsedStep the step of the code that confirmed enrollment, so it cannot be
+   *     replayed
+   */
+  public void confirmTotp(long totpLastUsedStep) {
+    LOGGER.debug("confirmTotp id={}", id);
+    this.totpEnabled = true;
+    this.totpLastUsedStep = totpLastUsedStep;
   }
 
   /**

@@ -16,6 +16,8 @@ import com.floristeriarosy.application.attribute.port.in.GetAttributeDefinitions
 import com.floristeriarosy.application.attribute.port.in.UpdateAttributeDefinitionUseCase;
 import com.floristeriarosy.domain.exception.attribute.AttributeDefinitionAlreadyExistsException;
 import com.floristeriarosy.domain.model.attribute.AttributeDataType;
+import com.floristeriarosy.application.auth.port.out.AccessTokenPort;
+import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.infrastructure.security.config.SecurityConfig;
 import com.floristeriarosy.infrastructure.web.mapper.attribute.AttributeDefinitionWebMapper;
 import java.time.Instant;
@@ -33,6 +35,10 @@ import org.springframework.test.web.servlet.MockMvc;
 class AttributeDefinitionControllerTest {
 
   @Autowired private MockMvc mockMvc;
+
+  // SecurityConfig's real filter chain now needs RateLimitFilter, which needs these two.
+  @MockitoBean private PiiCryptoPort piiCryptoPort;
+  @MockitoBean private AccessTokenPort accessTokenPort;
 
   @MockitoBean private CreateAttributeDefinitionUseCase createAttributeDefinitionUseCase;
   @MockitoBean private UpdateAttributeDefinitionUseCase updateAttributeDefinitionUseCase;

@@ -17,6 +17,7 @@ import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +55,7 @@ public class CreateDiscountService implements CreateDiscountUseCase {
    *     product
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public DiscountDto execute(CreateDiscountCommand command) {
     LOGGER.debug(
         "createDiscount productId={} salePrice={} startsAt={} endsAt={} quantityLimit={}",

@@ -3,6 +3,7 @@ package com.floristeriarosy.infrastructure.web.controller.category;
 import com.floristeriarosy.application.category.port.in.ChangeCategoryStatusUseCase;
 import com.floristeriarosy.application.category.port.in.CreateCategoryUseCase;
 import com.floristeriarosy.application.category.port.in.DeleteCategoryUseCase;
+import com.floristeriarosy.application.category.port.in.GetAllCategoriesUseCase;
 import com.floristeriarosy.application.category.port.in.GetCategoriesUseCase;
 import com.floristeriarosy.application.category.port.in.GetCategoryImpactUseCase;
 import com.floristeriarosy.application.category.port.in.GetCategoryUseCase;
@@ -49,6 +50,7 @@ public class CategoryController {
   private final DeleteCategoryUseCase deleteCategoryUseCase;
   private final GetCategoryUseCase getCategoryUseCase;
   private final GetCategoriesUseCase getCategoriesUseCase;
+  private final GetAllCategoriesUseCase getAllCategoriesUseCase;
   private final GetCategoryImpactUseCase getCategoryImpactUseCase;
   private final CategoryWebMapper mapper;
 
@@ -59,7 +61,8 @@ public class CategoryController {
    * @param reorderCategoriesUseCase backs {@code PUT /categories/positions}
    * @param deleteCategoryUseCase backs {@code DELETE /categories/{id}}
    * @param getCategoryUseCase backs {@code GET /categories/{idOrSlug}}
-   * @param getCategoriesUseCase backs {@code GET /categories} and {@code GET /categories/all}
+   * @param getCategoriesUseCase backs {@code GET /categories}
+   * @param getAllCategoriesUseCase backs {@code GET /categories/all}
    * @param getCategoryImpactUseCase backs {@code GET /categories/{id}/impact}
    * @param mapper translates Request/Response to/from Command/Query/Dto; the only class in this
    *     controller's call graph allowed to touch a domain type
@@ -72,6 +75,7 @@ public class CategoryController {
       DeleteCategoryUseCase deleteCategoryUseCase,
       GetCategoryUseCase getCategoryUseCase,
       GetCategoriesUseCase getCategoriesUseCase,
+      GetAllCategoriesUseCase getAllCategoriesUseCase,
       GetCategoryImpactUseCase getCategoryImpactUseCase,
       CategoryWebMapper mapper) {
     this.createCategoryUseCase = createCategoryUseCase;
@@ -81,12 +85,13 @@ public class CategoryController {
     this.deleteCategoryUseCase = deleteCategoryUseCase;
     this.getCategoryUseCase = getCategoryUseCase;
     this.getCategoriesUseCase = getCategoriesUseCase;
+    this.getAllCategoriesUseCase = getAllCategoriesUseCase;
     this.getCategoryImpactUseCase = getCategoryImpactUseCase;
     this.mapper = mapper;
   }
 
   /**
-   * {@code POST /categories} (ADMIN — unenforced, dev-plan.md).
+   * {@code POST /categories} (ADMIN).
    *
    * @param request name, description, imageId and position of the category to create
    * @return 201 with the created category
@@ -110,15 +115,13 @@ public class CategoryController {
   public ResponseEntity<List<CategorySummaryResponse>> getActive() {
     LOGGER.debug("GET /categories");
     List<CategorySummaryResponse> response =
-        getCategoriesUseCase.execute(mapper.toQuery(false)).stream()
-            .map(mapper::toSummaryResponse)
-            .toList();
+        getCategoriesUseCase.execute().stream().map(mapper::toSummaryResponse).toList();
     LOGGER.debug("GET /categories -> 200 count={}", response.size());
     return ResponseEntity.ok(response);
   }
 
   /**
-   * {@code GET /categories/all} (ADMIN — unenforced, dev-plan.md): every status.
+   * {@code GET /categories/all} (ADMIN): every status.
    *
    * @return 200 with the full category listing
    */
@@ -126,9 +129,7 @@ public class CategoryController {
   public ResponseEntity<List<CategorySummaryResponse>> getAll() {
     LOGGER.debug("GET /categories/all");
     List<CategorySummaryResponse> response =
-        getCategoriesUseCase.execute(mapper.toQuery(true)).stream()
-            .map(mapper::toSummaryResponse)
-            .toList();
+        getAllCategoriesUseCase.execute().stream().map(mapper::toSummaryResponse).toList();
     LOGGER.debug("GET /categories/all -> 200 count={}", response.size());
     return ResponseEntity.ok(response);
   }
@@ -152,7 +153,7 @@ public class CategoryController {
   }
 
   /**
-   * {@code GET /categories/{id}/impact} (ADMIN — unenforced, dev-plan.md): read-only preview.
+   * {@code GET /categories/{id}/impact} (ADMIN): read-only preview.
    *
    * @param id the category to preview
    * @return 200 with the impact preview
@@ -167,7 +168,7 @@ public class CategoryController {
   }
 
   /**
-   * {@code PUT /categories/{id}} (ADMIN — unenforced, dev-plan.md): full replace.
+   * {@code PUT /categories/{id}} (ADMIN): full replace.
    *
    * @param id the category to update
    * @param request the new field values
@@ -184,7 +185,7 @@ public class CategoryController {
   }
 
   /**
-   * {@code PATCH /categories/{id}/status} (ADMIN — unenforced, dev-plan.md).
+   * {@code PATCH /categories/{id}/status} (ADMIN).
    *
    * @param id the category to change
    * @param request the new status
@@ -201,7 +202,7 @@ public class CategoryController {
   }
 
   /**
-   * {@code PUT /categories/positions} (ADMIN — unenforced, dev-plan.md): full-catalog reorder.
+   * {@code PUT /categories/positions} (ADMIN): full-catalog reorder.
    *
    * @param request every category id, in its new order
    * @return 200, empty body
@@ -215,7 +216,7 @@ public class CategoryController {
   }
 
   /**
-   * {@code DELETE /categories/{id}} (ADMIN — unenforced, dev-plan.md): permanent removal.
+   * {@code DELETE /categories/{id}} (ADMIN): permanent removal.
    *
    * @param id the category to delete
    * @return 204, empty body

@@ -11,6 +11,7 @@ import com.floristeriarosy.domain.model.attribute.valueobject.AttributeDefinitio
 import com.floristeriarosy.shared.util.LogSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,13 +35,13 @@ public class CreateAttributeDefinitionService implements CreateAttributeDefiniti
   /**
    * Creates a new attribute definition.
    *
-   * @param command key, label, data type, filterable flag and position of the definition to
-   *     create
+   * @param command key, label, data type, filterable flag and position of the definition to create
    * @return the created attribute definition
    * @throws AttributeDefinitionAlreadyExistsException {@code command.attributeKey()} is already
    *     declared
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public AttributeDefinitionDto execute(CreateAttributeDefinitionCommand command) {
     LOGGER.debug(
         "createAttributeDefinition attributeKey={} label={} dataType={} filterable={} position={}",
@@ -64,7 +65,8 @@ public class CreateAttributeDefinitionService implements CreateAttributeDefiniti
             command.position());
     AttributeDefinitionDto result = AttributeDefinitionDtoMapper.toDto(port.save(definition));
 
-    LOGGER.debug("createAttributeDefinition -> id={} attributeKey={}", result.id(), result.attributeKey());
+    LOGGER.debug(
+        "createAttributeDefinition -> id={} attributeKey={}", result.id(), result.attributeKey());
     return result;
   }
 }

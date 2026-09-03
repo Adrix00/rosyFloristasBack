@@ -23,13 +23,18 @@ import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-/** Runs the migrations against real PostgreSQL, then exercises the admin adapter (admin.md, ADR-009). */
+/**
+ * Runs the migrations against real PostgreSQL, then exercises the admin adapter (admin.md,
+ * ADR-009).
+ */
 @Testcontainers
 @SpringBootTest
 class AdminPersistenceAdapterTest {
@@ -50,16 +55,21 @@ class AdminPersistenceAdapterTest {
 
   /**
    * Unlike {@link #newAdmin(AdminRole)}, this builds a genuinely decryptable admin — needed only
-   * for the two owners in {@link #rejectsConcurrentDeactivationOfTwoDifferentActiveOwners()},
-   * which goes through {@link ChangeAdminStatusService} and its response mapper actually decrypts
-   * the stored email.
+   * for the two owners in {@link #rejectsConcurrentDeactivationOfTwoDifferentActiveOwners()}, which
+   * goes through {@link ChangeAdminStatusService} and its response mapper actually decrypts the
+   * stored email.
    *
    * @param role the admin's role
    * @return a saved admin with a real, decryptable {@code emailEncrypted}
    */
   private Admin newDecryptableAdmin(AdminRole role) {
     String email = "owner-" + UUID.randomUUID() + "@rosy.test";
-    return Admin.create(AdminId.newId(), piiCryptoPort.encrypt(email), piiCryptoPort.hmac(email), "argon2-hash", role);
+    return Admin.create(
+        AdminId.newId(),
+        piiCryptoPort.encrypt(email),
+        piiCryptoPort.hmac(email),
+        "argon2-hash",
+        role);
   }
 
   private Admin newAdmin(AdminRole role) {
@@ -89,9 +99,14 @@ class AdminPersistenceAdapterTest {
     Admin saved = adapter.save(first);
     Admin duplicate =
         Admin.create(
-            AdminId.newId(), "other-encrypted".getBytes(StandardCharsets.UTF_8), saved.emailHash(), "hash", AdminRole.OWNER);
+            AdminId.newId(),
+            "other-encrypted".getBytes(StandardCharsets.UTF_8),
+            saved.emailHash(),
+            "hash",
+            AdminRole.OWNER);
 
-    assertThatThrownBy(() -> adapter.save(duplicate)).isInstanceOf(AdminEmailAlreadyExistsException.class);
+    assertThatThrownBy(() -> adapter.save(duplicate))
+        .isInstanceOf(AdminEmailAlreadyExistsException.class);
   }
 
   @Test
@@ -141,9 +156,7 @@ class AdminPersistenceAdapterTest {
     ExecutorService executor = Executors.newFixedThreadPool(2);
     try {
       List<Callable<Boolean>> deactivations =
-          List.of(
-              () -> attemptDeactivate(ownerOne.id()),
-              () -> attemptDeactivate(ownerTwo.id()));
+          List.of(() -> attemptDeactivate(ownerOne.id()), () -> attemptDeactivate(ownerTwo.id()));
       List<Future<Boolean>> results = executor.invokeAll(deactivations);
 
       long successCount = 0;
@@ -176,11 +189,18 @@ class AdminPersistenceAdapterTest {
    * @return {@code true} if the deactivation succeeded, {@code false} if it was correctly rejected
    */
   private boolean attemptDeactivate(AdminId id) {
+    // This test calls the @PreAuthorize-guarded service directly from a plain executor thread,
+    // which has no SecurityContext of its own (feature/auth, phase 13) — fake an OWNER caller so
+    // the concurrency race under test, not authorization, is what's being exercised.
+    SecurityContextHolder.getContext()
+        .setAuthentication(new TestingAuthenticationToken(id.value().toString(), null, "ROLE_OWNER"));
     try {
       changeAdminStatusService.execute(new ChangeAdminStatusCommand(id.value(), id.value(), false));
       return true;
     } catch (LastOwnerCannotBeRemovedException rejected) {
       return false;
+    } finally {
+      SecurityContextHolder.clearContext();
     }
   }
 
@@ -219,14 +239,16 @@ class AdminPersistenceAdapterTest {
   }
 
   /**
-   * Each writer sets a distinct, freshly-generated {@code emailEncrypted}: unlike toggling
-   * between the two {@link AdminRole} values, this guarantees the entity is genuinely dirty for
-   * whichever writer applies second, so Hibernate always performs (and can lose) the version
-   * check instead of silently skipping a no-op update.
+   * Each writer sets a distinct, freshly-generated {@code emailEncrypted}: unlike toggling between
+   * the two {@link AdminRole} values, this guarantees the entity is genuinely dirty for whichever
+   * writer applies second, so Hibernate always performs (and can lose) the version check instead of
+   * silently skipping a no-op update.
    */
-  private boolean attemptConcurrentEdit(AdminId id, CyclicBarrier barrier, String newEmailEncrypted) throws Exception {
+  private boolean attemptConcurrentEdit(AdminId id, CyclicBarrier barrier, String newEmailEncrypted)
+      throws Exception {
     Admin loaded = adapter.findById(id).orElseThrow();
-    loaded.replace(newEmailEncrypted.getBytes(StandardCharsets.UTF_8), loaded.emailHash(), loaded.role());
+    loaded.replace(
+        newEmailEncrypted.getBytes(StandardCharsets.UTF_8), loaded.emailHash(), loaded.role());
     barrier.await();
     try {
       adapter.save(loaded);

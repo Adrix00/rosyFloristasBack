@@ -16,6 +16,8 @@ import com.floristeriarosy.application.discount.query.GetProductDiscountsQuery;
 import com.floristeriarosy.domain.exception.discount.DiscountOverlapException;
 import com.floristeriarosy.domain.exception.product.ProductNotFoundException;
 import com.floristeriarosy.domain.model.discount.DiscountState;
+import com.floristeriarosy.application.auth.port.out.AccessTokenPort;
+import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.infrastructure.security.config.SecurityConfig;
 import com.floristeriarosy.infrastructure.web.mapper.discount.DiscountWebMapper;
 import java.math.BigDecimal;
@@ -35,6 +37,10 @@ import org.springframework.test.web.servlet.MockMvc;
 class ProductDiscountControllerTest {
 
   @Autowired private MockMvc mockMvc;
+
+  // SecurityConfig's real filter chain now needs RateLimitFilter, which needs these two.
+  @MockitoBean private PiiCryptoPort piiCryptoPort;
+  @MockitoBean private AccessTokenPort accessTokenPort;
 
   @MockitoBean private CreateDiscountUseCase createDiscountUseCase;
   @MockitoBean private GetProductDiscountsUseCase getProductDiscountsUseCase;

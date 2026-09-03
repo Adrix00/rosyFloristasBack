@@ -8,13 +8,18 @@ import com.floristeriarosy.domain.exception.product.ProductNotFoundException;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
-/** Implements {@link GetProductDeletionImpactUseCase}: previews whether a product can be physically deleted. */
+/**
+ * Implements {@link GetProductDeletionImpactUseCase}: previews whether a product can be physically
+ * deleted.
+ */
 @Service
 public class GetProductDeletionImpactService implements GetProductDeletionImpactUseCase {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(GetProductDeletionImpactService.class);
+  private static final Logger LOGGER =
+      LoggerFactory.getLogger(GetProductDeletionImpactService.class);
 
   private final ProductExistencePort existencePort;
 
@@ -31,6 +36,7 @@ public class GetProductDeletionImpactService implements GetProductDeletionImpact
    * @throws ProductNotFoundException {@code query.id()} does not exist
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public ProductDeletionImpact execute(GetProductDeletionImpactQuery query) {
     LOGGER.debug("getProductDeletionImpact id={}", query.id());
 

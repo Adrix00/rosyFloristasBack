@@ -43,6 +43,17 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+		</dependency>
+		<!-- In-memory rate limiting (ADR-016). JDK17+ artifact; version pinned since the parent
+			does not manage it. -->
+		<dependency>
+			<groupId>com.bucket4j</groupId>
+			<artifactId>bucket4j_jdk17-core</artifactId>
+			<version>8.14.0</version>
+		</dependency>
 		<!-- Runtime-only: Argon2PasswordEncoder needs it, but spring-security-crypto declares it
 			optional so it never arrives transitively. Version 1.84 pinned to match what
 			spring-security-crypto 7.1.0 itself is built and tested against

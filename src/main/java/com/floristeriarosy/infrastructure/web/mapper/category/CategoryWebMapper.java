@@ -8,7 +8,6 @@ import com.floristeriarosy.application.category.command.UpdateCategoryCommand;
 import com.floristeriarosy.application.category.dto.CategoryDto;
 import com.floristeriarosy.application.category.dto.CategoryImpact;
 import com.floristeriarosy.application.category.dto.CategoryProductRef;
-import com.floristeriarosy.application.category.query.GetCategoriesQuery;
 import com.floristeriarosy.application.category.query.GetCategoryImpactQuery;
 import com.floristeriarosy.application.category.query.GetCategoryQuery;
 import com.floristeriarosy.infrastructure.web.request.category.ChangeCategoryStatusRequest;
@@ -84,14 +83,6 @@ public class CategoryWebMapper {
    */
   public GetCategoryQuery toQuery(String idOrSlug) {
     return new GetCategoryQuery(idOrSlug);
-  }
-
-  /**
-   * @param includeInactive {@code false} for the public listing, {@code true} for the admin one
-   * @return the query to hand to {@code GetCategoriesUseCase}
-   */
-  public GetCategoriesQuery toQuery(boolean includeInactive) {
-    return new GetCategoriesQuery(includeInactive);
   }
 
   /**

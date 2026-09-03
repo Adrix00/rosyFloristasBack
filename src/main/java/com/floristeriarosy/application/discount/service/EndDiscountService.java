@@ -12,13 +12,14 @@ import com.floristeriarosy.domain.model.discount.Discount;
 import com.floristeriarosy.domain.model.discount.valueobject.DiscountId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Implements {@link EndDiscountUseCase}: closes a discount now instead of deleting it, so its
- * history and any {@code order_items.discount_id} references survive (product-discounts.md,
- * section 3.4).
+ * history and any {@code order_items.discount_id} references survive (product-discounts.md, section
+ * 3.4).
  */
 @Service
 @Transactional
@@ -46,12 +47,15 @@ public class EndDiscountService implements EndDiscountUseCase {
    *     or has already ended
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public DiscountDto execute(EndDiscountCommand command) {
     LOGGER.debug("endDiscount id={}", command.id());
 
     DiscountId id = DiscountId.of(command.id());
     Discount discount =
-        readPort.findById(id).orElseThrow(() -> new DiscountNotFoundException("Discount " + id + " not found"));
+        readPort
+            .findById(id)
+            .orElseThrow(() -> new DiscountNotFoundException("Discount " + id + " not found"));
 
     discount.end();
     Discount saved = writePort.endNow(id);

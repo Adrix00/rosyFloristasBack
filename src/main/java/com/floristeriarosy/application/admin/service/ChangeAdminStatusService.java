@@ -17,6 +17,7 @@ import com.floristeriarosy.domain.model.admin.valueobject.AdminId;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,8 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
  * Implements {@link ChangeAdminStatusUseCase}: activates or deactivates an admin (admin.md, rule
  * 3.6).
  *
- * <p>{@code OWNER}-only per admin.md rule 3.1; unenforced today, same tracked gap as {@link
- * CreateAdminService}.
+ * <p>{@code OWNER}-only per admin.md rule 3.1, enforced via {@code @PreAuthorize} (feature/auth,
+ * phase 13).
  */
 @Service
 @Transactional
@@ -68,16 +69,23 @@ public class ChangeAdminStatusService implements ChangeAdminStatusUseCase {
    * @param command id of the admin and the status to set
    * @return the admin with its new status
    * @throws AdminNotFoundException {@code command.id()} does not exist
-   * @throws LastOwnerCannotBeRemovedException {@code command.id()} is the last active {@code
-   *     OWNER} and {@code command.active()} is {@code false}
+   * @throws LastOwnerCannotBeRemovedException {@code command.id()} is the last active {@code OWNER}
+   *     and {@code command.active()} is {@code false}
    */
   @Override
+  @PreAuthorize("hasRole('OWNER')")
   public AdminDto execute(ChangeAdminStatusCommand command) {
-    LOGGER.debug("changeAdminStatus actorId={} id={} active={}", command.actorId(), command.id(), command.active());
+    LOGGER.debug(
+        "changeAdminStatus actorId={} id={} active={}",
+        command.actorId(),
+        command.id(),
+        command.active());
 
     AdminId id = AdminId.of(command.id());
     Admin admin =
-        readPort.findById(id).orElseThrow(() -> new AdminNotFoundException("Admin " + id + " not found"));
+        readPort
+            .findById(id)
+            .orElseThrow(() -> new AdminNotFoundException("Admin " + id + " not found"));
 
     if (!command.active()
         && admin.role() == AdminRole.OWNER

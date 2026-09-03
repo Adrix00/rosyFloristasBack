@@ -8,6 +8,7 @@ import com.floristeriarosy.application.inventory.port.in.RegisterStockMovementUs
 import com.floristeriarosy.domain.model.inventory.StockMovementType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 /**
@@ -36,15 +37,22 @@ public class RegisterAdjustmentService implements RegisterAdjustmentUseCase {
    * @return the recorded {@code ADJUSTMENT} movement
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public StockMovementDto execute(RegisterAdjustmentCommand command) {
-    LOGGER.debug("registerAdjustment productId={} quantity={}", command.productId(), command.quantity());
+    LOGGER.debug(
+        "registerAdjustment productId={} quantity={}", command.productId(), command.quantity());
 
     RegisterStockMovementCommand delegateCommand =
         new RegisterStockMovementCommand(
-            command.productId(), StockMovementType.ADJUSTMENT, command.quantity(), null, command.note());
+            command.productId(),
+            StockMovementType.ADJUSTMENT,
+            command.quantity(),
+            null,
+            command.note());
     StockMovementDto result = registerStockMovementUseCase.execute(delegateCommand);
 
-    LOGGER.debug("registerAdjustment -> id={} resultingStock={}", result.id(), result.resultingStock());
+    LOGGER.debug(
+        "registerAdjustment -> id={} resultingStock={}", result.id(), result.resultingStock());
     return result;
   }
 }
