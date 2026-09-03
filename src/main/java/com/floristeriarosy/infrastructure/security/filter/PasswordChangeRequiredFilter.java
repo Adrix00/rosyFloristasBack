@@ -7,6 +7,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import org.owasp.encoder.Encode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -53,7 +54,7 @@ public class PasswordChangeRequiredFilter extends OncePerRequestFilter {
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
     if (requiresPasswordChange() && !isAllowedWhilePasswordChangeRequired(request)) {
-      LOGGER.debug("passwordChangeRequired -> 403 on {}", request.getRequestURI());
+      LOGGER.debug("passwordChangeRequired -> 403 on {}", Encode.forJava(request.getRequestURI()));
       handlerExceptionResolver.resolveException(
           request,
           response,
