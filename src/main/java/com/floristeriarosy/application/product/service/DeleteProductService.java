@@ -9,10 +9,14 @@ import com.floristeriarosy.domain.exception.product.ProductNotFoundException;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Implements {@link DeleteProductUseCase}: permanently removes a product with no commercial history. */
+/**
+ * Implements {@link DeleteProductUseCase}: permanently removes a product with no commercial
+ * history.
+ */
 @Service
 @Transactional
 public class DeleteProductService implements DeleteProductUseCase {
@@ -41,6 +45,7 @@ public class DeleteProductService implements DeleteProductUseCase {
    *     referencing it
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public void execute(DeleteProductCommand command) {
     LOGGER.debug("deleteProduct id={}", command.id());
 

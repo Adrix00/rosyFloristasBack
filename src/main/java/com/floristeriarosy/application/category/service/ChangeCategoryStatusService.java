@@ -11,6 +11,7 @@ import com.floristeriarosy.domain.model.category.Category;
 import com.floristeriarosy.domain.model.category.valueobject.CategoryId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +43,7 @@ public class ChangeCategoryStatusService implements ChangeCategoryStatusUseCase 
    * @throws CategoryNotFoundException {@code command.id()} does not exist
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public CategoryDto execute(ChangeCategoryStatusCommand command) {
     LOGGER.debug("changeCategoryStatus id={} status={}", command.id(), command.status());
 

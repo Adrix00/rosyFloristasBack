@@ -9,6 +9,7 @@ import com.floristeriarosy.domain.exception.category.CategoryNotFoundException;
 import com.floristeriarosy.domain.model.category.valueobject.CategoryId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 /** Implements {@link GetCategoryImpactUseCase}: preview before deactivating or deleting. */
@@ -39,6 +40,7 @@ public class GetCategoryImpactService implements GetCategoryImpactUseCase {
    * @throws CategoryNotFoundException {@code query.id()} does not exist
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public CategoryImpact execute(GetCategoryImpactQuery query) {
     LOGGER.debug("getCategoryImpact id={}", query.id());
 

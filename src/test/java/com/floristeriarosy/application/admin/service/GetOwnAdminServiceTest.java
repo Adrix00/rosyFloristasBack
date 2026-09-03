@@ -21,38 +21,37 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/** {@link GetAdminService}: {@code GET /admin/users/{id}} ({@code OWNER}, arbitrary id). */
+/** {@link GetOwnAdminService}: {@code GET /admin/me} (any authenticated admin, on themselves). */
 @ExtendWith(MockitoExtension.class)
-class GetAdminServiceTest {
+class GetOwnAdminServiceTest {
 
   @Mock private AdminReadPort readPort;
   @Mock private PiiCryptoPort piiCryptoPort;
 
-  private GetAdminService service;
+  private GetOwnAdminService service;
 
   @Test
-  void returnsTheMatchingAdmin() {
-    service = new GetAdminService(readPort, new AdminDtoMapper(piiCryptoPort));
+  void returnsTheCallersOwnRecord() {
+    service = new GetOwnAdminService(readPort, new AdminDtoMapper(piiCryptoPort));
     Admin admin =
         Admin.create(
             AdminId.newId(),
             "encrypted".getBytes(StandardCharsets.UTF_8),
             "hash".getBytes(StandardCharsets.UTF_8),
             "hash",
-            AdminRole.OWNER);
+            AdminRole.ADMIN);
     when(readPort.findById(admin.id())).thenReturn(Optional.of(admin));
-    when(piiCryptoPort.decrypt(admin.emailEncrypted())).thenReturn("owner@rosy.test");
+    when(piiCryptoPort.decrypt(admin.emailEncrypted())).thenReturn("admin@rosy.test");
 
     AdminDto dto = service.execute(new GetAdminQuery(admin.id().value()));
 
     assertThat(dto.id()).isEqualTo(admin.id().value());
-    assertThat(dto.email()).isEqualTo("owner@rosy.test");
-    assertThat(dto.role()).isEqualTo(AdminRole.OWNER);
+    assertThat(dto.email()).isEqualTo("admin@rosy.test");
   }
 
   @Test
   void throwsWhenTheAdminDoesNotExist() {
-    service = new GetAdminService(readPort, new AdminDtoMapper(piiCryptoPort));
+    service = new GetOwnAdminService(readPort, new AdminDtoMapper(piiCryptoPort));
     UUID id = UUID.randomUUID();
     when(readPort.findById(AdminId.of(id))).thenReturn(Optional.empty());
 

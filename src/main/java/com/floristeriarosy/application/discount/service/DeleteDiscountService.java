@@ -10,12 +10,13 @@ import com.floristeriarosy.domain.model.discount.Discount;
 import com.floristeriarosy.domain.model.discount.valueobject.DiscountId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Implements {@link DeleteDiscountUseCase}: permanently removes a discount that has not started
- * yet (product-discounts.md, section 3.4).
+ * Implements {@link DeleteDiscountUseCase}: permanently removes a discount that has not started yet
+ * (product-discounts.md, section 3.4).
  */
 @Service
 @Transactional
@@ -38,16 +39,19 @@ public class DeleteDiscountService implements DeleteDiscountUseCase {
   /**
    * @param command id of the discount to delete
    * @throws DiscountNotFoundException {@code command.id()} does not exist
-   * @throws DiscountAlreadyStartedException the discount has already started; it must be closed
-   *     via {@code POST /discounts/{id}/end} instead
+   * @throws DiscountAlreadyStartedException the discount has already started; it must be closed via
+   *     {@code POST /discounts/{id}/end} instead
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public void execute(DeleteDiscountCommand command) {
     LOGGER.debug("deleteDiscount id={}", command.id());
 
     DiscountId id = DiscountId.of(command.id());
     Discount discount =
-        readPort.findById(id).orElseThrow(() -> new DiscountNotFoundException("Discount " + id + " not found"));
+        readPort
+            .findById(id)
+            .orElseThrow(() -> new DiscountNotFoundException("Discount " + id + " not found"));
 
     discount.requireNotStarted();
     writePort.delete(id);

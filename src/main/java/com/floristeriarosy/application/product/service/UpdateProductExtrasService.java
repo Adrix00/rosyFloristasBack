@@ -20,10 +20,13 @@ import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Implements {@link UpdateProductExtrasUseCase}: replaces a product's full set of suggested extras. */
+/**
+ * Implements {@link UpdateProductExtrasUseCase}: replaces a product's full set of suggested extras.
+ */
 @Service
 @Transactional
 public class UpdateProductExtrasService implements UpdateProductExtrasUseCase {
@@ -60,18 +63,24 @@ public class UpdateProductExtrasService implements UpdateProductExtrasUseCase {
    * @return the updated product
    * @throws ProductNotFoundException {@code command.id()} or one of {@code
    *     command.extraProductIds()} does not exist
-   * @throws ProductNotAnExtraException one of {@code command.extraProductIds()} has {@code
-   *     is_extra = false}
+   * @throws ProductNotAnExtraException one of {@code command.extraProductIds()} has {@code is_extra
+   *     = false}
    * @throws ProductSuggestsItselfException {@code command.id()} is among {@code
    *     command.extraProductIds()}
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public ProductDto execute(UpdateProductExtrasCommand command) {
-    LOGGER.debug("updateProductExtras id={} extraProductIds={}", command.id(), command.extraProductIds().size());
+    LOGGER.debug(
+        "updateProductExtras id={} extraProductIds={}",
+        command.id(),
+        command.extraProductIds().size());
 
     ProductId id = ProductId.of(command.id());
     Product product =
-        readPort.findById(id).orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
+        readPort
+            .findById(id)
+            .orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
 
     for (UUID extraId : command.extraProductIds()) {
       if (extraId.equals(command.id())) {
@@ -81,13 +90,15 @@ public class UpdateProductExtrasService implements UpdateProductExtrasUseCase {
       Product candidate =
           readPort
               .findById(candidateId)
-              .orElseThrow(() -> new ProductNotFoundException("Product " + candidateId + " not found"));
+              .orElseThrow(
+                  () -> new ProductNotFoundException("Product " + candidateId + " not found"));
       if (!candidate.isExtra()) {
         throw new ProductNotAnExtraException("Product " + candidateId + " has is_extra = false");
       }
     }
 
-    suggestionPort.replaceSuggestions(id, command.extraProductIds().stream().map(ProductId::of).toList());
+    suggestionPort.replaceSuggestions(
+        id, command.extraProductIds().stream().map(ProductId::of).toList());
 
     List<ProductCategoryRef> categories = categoryPort.findCategories(id);
     List<ProductImageRef> images = imagePort.findImages(id);

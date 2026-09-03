@@ -5,6 +5,7 @@ import com.floristeriarosy.application.admin.port.in.ChangeOwnPasswordUseCase;
 import com.floristeriarosy.application.admin.port.in.CreateAdminUseCase;
 import com.floristeriarosy.application.admin.port.in.GetAdminUseCase;
 import com.floristeriarosy.application.admin.port.in.GetAdminsUseCase;
+import com.floristeriarosy.application.admin.port.in.GetOwnAdminUseCase;
 import com.floristeriarosy.application.admin.port.in.ResetAdminPasswordUseCase;
 import com.floristeriarosy.application.admin.port.in.ResetAdminTotpUseCase;
 import com.floristeriarosy.application.admin.port.in.UpdateAdminUseCase;
@@ -37,16 +38,12 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * REST API for {@code /api/v1/admin} (admin.md, section 4).
  *
- * <p>Every management endpoint under {@code /admin/users} requires {@code OWNER} (rule 3.1);
- * unenforced today — no {@code @PreAuthorize} — since {@code feature/auth} does not exist yet and
- * {@code SecurityConfig} leaves every endpoint open (same tracked gap as {@code category.md},
- * dev-plan.md).
+ * <p>Every management endpoint under {@code /admin/users} requires {@code OWNER} (rule 3.1),
+ * enforced via {@code @PreAuthorize} on each service (feature/auth, phase 13).
  *
  * <p>The two {@code /admin/me} endpoints, and the audit trail's actor id on every mutating
- * endpoint, resolve the caller from {@link Authentication#getName()} — the JWT subject once
- * {@code feature/auth}'s filter populates it (ADR-008). Until then, an anonymous request has no
- * numeric subject and calling any endpoint here fails; the wiring is shaped correctly for when
- * {@code feature/auth} lands, not a working substitute for it today.
+ * endpoint, resolve the caller from {@link Authentication#getName()} — the JWT subject, populated
+ * by {@code SecurityConfig}'s resource-server filter (ADR-008).
  */
 @RestController
 @RequestMapping("/api/v1/admin")
@@ -61,6 +58,7 @@ public class AdminController {
   private final ResetAdminTotpUseCase resetAdminTotpUseCase;
   private final ChangeOwnPasswordUseCase changeOwnPasswordUseCase;
   private final GetAdminUseCase getAdminUseCase;
+  private final GetOwnAdminUseCase getOwnAdminUseCase;
   private final GetAdminsUseCase getAdminsUseCase;
   private final AdminWebMapper mapper;
 
@@ -71,7 +69,8 @@ public class AdminController {
    * @param resetAdminPasswordUseCase backs {@code POST /admin/users/{id}/password-reset}
    * @param resetAdminTotpUseCase backs {@code POST /admin/users/{id}/totp-reset}
    * @param changeOwnPasswordUseCase backs {@code POST /admin/me/password}
-   * @param getAdminUseCase backs {@code GET /admin/users/{id}} and {@code GET /admin/me}
+   * @param getAdminUseCase backs {@code GET /admin/users/{id}}
+   * @param getOwnAdminUseCase backs {@code GET /admin/me}
    * @param getAdminsUseCase backs {@code GET /admin/users}
    * @param mapper translates Request/Response to/from Command/Query/Dto; the only class in this
    *     controller's call graph allowed to touch a domain type
@@ -84,6 +83,7 @@ public class AdminController {
       ResetAdminTotpUseCase resetAdminTotpUseCase,
       ChangeOwnPasswordUseCase changeOwnPasswordUseCase,
       GetAdminUseCase getAdminUseCase,
+      GetOwnAdminUseCase getOwnAdminUseCase,
       GetAdminsUseCase getAdminsUseCase,
       AdminWebMapper mapper) {
     this.createAdminUseCase = createAdminUseCase;
@@ -93,6 +93,7 @@ public class AdminController {
     this.resetAdminTotpUseCase = resetAdminTotpUseCase;
     this.changeOwnPasswordUseCase = changeOwnPasswordUseCase;
     this.getAdminUseCase = getAdminUseCase;
+    this.getOwnAdminUseCase = getOwnAdminUseCase;
     this.getAdminsUseCase = getAdminsUseCase;
     this.mapper = mapper;
   }
@@ -106,8 +107,7 @@ public class AdminController {
    */
   @GetMapping("/users")
   public ResponseEntity<List<AdminResponse>> getAll(
-      @RequestParam(required = false) Boolean active,
-      @RequestParam(required = false) String role) {
+      @RequestParam(required = false) Boolean active, @RequestParam(required = false) String role) {
     LOGGER.debug(
         "GET /admin/users active={} role={}", active, role == null ? null : Encode.forJava(role));
     List<AdminResponse> response =
@@ -196,8 +196,8 @@ public class AdminController {
   }
 
   /**
-   * {@code POST /admin/users/{id}/password-reset} ({@code OWNER}): fixes a new provisional
-   * password and returns it once (admin.md, section 6).
+   * {@code POST /admin/users/{id}/password-reset} ({@code OWNER}): fixes a new provisional password
+   * and returns it once (admin.md, section 6).
    *
    * @param id the admin whose password is reset
    * @param authentication the calling {@code OWNER}, for the audit trail
@@ -240,7 +240,8 @@ public class AdminController {
   public ResponseEntity<AdminResponse> getMe(Authentication authentication) {
     UUID adminId = resolveActorId(authentication);
     LOGGER.debug("GET /admin/me id={}", adminId);
-    AdminResponse response = mapper.toResponse(getAdminUseCase.execute(mapper.toQuery(adminId)));
+    AdminResponse response =
+        mapper.toResponse(getOwnAdminUseCase.execute(mapper.toQuery(adminId)));
     LOGGER.debug("GET /admin/me -> 200");
     return ResponseEntity.ok(response);
   }
@@ -264,9 +265,9 @@ public class AdminController {
   }
 
   /**
-   * Resolves the calling admin's id from the Spring Security principal name (ADR-008: JWT
-   * subject). See the class-level note — this has no populated value until {@code feature/auth}'s
-   * filter exists.
+   * Resolves the calling admin's id from the Spring Security principal name (ADR-008: JWT subject).
+   * See the class-level note — this has no populated value until {@code feature/auth}'s filter
+   * exists.
    *
    * @param authentication the current request's authentication
    * @return the calling admin's id

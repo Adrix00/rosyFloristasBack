@@ -55,7 +55,8 @@ public class AdminWebMapper {
    * @param request the new status
    * @return the command to hand to {@code ChangeAdminStatusUseCase}
    */
-  public ChangeAdminStatusCommand toCommand(UUID actorId, UUID id, ChangeAdminStatusRequest request) {
+  public ChangeAdminStatusCommand toCommand(
+      UUID actorId, UUID id, ChangeAdminStatusRequest request) {
     return new ChangeAdminStatusCommand(actorId, id, request.active());
   }
 

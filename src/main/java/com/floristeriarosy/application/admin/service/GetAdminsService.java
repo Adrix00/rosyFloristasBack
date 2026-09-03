@@ -9,12 +9,13 @@ import com.floristeriarosy.domain.model.admin.Admin;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 /**
  * Implements {@link GetAdminsUseCase}: lists administrators, optionally filtered by {@code active}
- * and {@code role} (admin.md, section 4). {@code OWNER}-only; unenforced today, same tracked gap
- * as {@link CreateAdminService}.
+ * and {@code role} (admin.md, section 4). {@code OWNER}-only, enforced via {@code @PreAuthorize}
+ * (feature/auth, phase 13).
  */
 @Service
 public class GetAdminsService implements GetAdminsUseCase {
@@ -38,6 +39,7 @@ public class GetAdminsService implements GetAdminsUseCase {
    * @return the matching admins
    */
   @Override
+  @PreAuthorize("hasRole('OWNER')")
   public List<AdminDto> execute(GetAdminsQuery query) {
     LOGGER.debug("getAdmins active={} role={}", query.active(), query.role());
 

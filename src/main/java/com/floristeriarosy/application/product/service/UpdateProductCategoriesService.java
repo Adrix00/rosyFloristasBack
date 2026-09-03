@@ -18,15 +18,19 @@ import java.math.BigDecimal;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Implements {@link UpdateProductCategoriesUseCase}: replaces a product's full set of categories. */
+/**
+ * Implements {@link UpdateProductCategoriesUseCase}: replaces a product's full set of categories.
+ */
 @Service
 @Transactional
 public class UpdateProductCategoriesService implements UpdateProductCategoriesUseCase {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(UpdateProductCategoriesService.class);
+  private static final Logger LOGGER =
+      LoggerFactory.getLogger(UpdateProductCategoriesService.class);
 
   private final ProductReadPort readPort;
   private final ProductCategoryPort categoryPort;
@@ -46,8 +50,8 @@ public class UpdateProductCategoriesService implements UpdateProductCategoriesUs
 
   /**
    * Replaces every category association. The list cannot be emptied through this endpoint — a
-   * product only loses its last category when that category itself is deleted (product.md,
-   * section 3.4).
+   * product only loses its last category when that category itself is deleted (product.md, section
+   * 3.4).
    *
    * @param command id of the product to update, plus its complete new category set
    * @return the updated product
@@ -55,16 +59,21 @@ public class UpdateProductCategoriesService implements UpdateProductCategoriesUs
    * @throws ProductWithoutCategoryException {@code command.categoryIds()} is empty
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public ProductDto execute(UpdateProductCategoriesCommand command) {
-    LOGGER.debug("updateProductCategories id={} categoryIds={}", command.id(), command.categoryIds().size());
+    LOGGER.debug(
+        "updateProductCategories id={} categoryIds={}", command.id(), command.categoryIds().size());
 
     if (command.categoryIds().isEmpty()) {
-      throw new ProductWithoutCategoryException("A product cannot be left without any category through this endpoint");
+      throw new ProductWithoutCategoryException(
+          "A product cannot be left without any category through this endpoint");
     }
 
     ProductId id = ProductId.of(command.id());
     Product product =
-        readPort.findById(id).orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
+        readPort
+            .findById(id)
+            .orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
 
     categoryPort.replaceCategories(id, command.categoryIds().stream().map(CategoryId::of).toList());
 

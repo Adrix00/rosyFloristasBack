@@ -13,15 +13,16 @@ import com.floristeriarosy.domain.model.admin.valueobject.AdminId;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Implements {@link ResetAdminTotpUseCase}: the {@code OWNER} resets an admin's TOTP enrollment
- * to its initial state (admin.md, rule 3.5).
+ * Implements {@link ResetAdminTotpUseCase}: the {@code OWNER} resets an admin's TOTP enrollment to
+ * its initial state (admin.md, rule 3.5).
  *
- * <p>{@code OWNER}-only per admin.md rule 3.1; unenforced today, same tracked gap as {@link
- * CreateAdminService}.
+ * <p>{@code OWNER}-only per admin.md rule 3.1, enforced via {@code @PreAuthorize} (feature/auth,
+ * phase 13).
  */
 @Service
 @Transactional
@@ -62,12 +63,15 @@ public class ResetAdminTotpService implements ResetAdminTotpUseCase {
    * @throws AdminNotFoundException {@code command.id()} does not exist
    */
   @Override
+  @PreAuthorize("hasRole('OWNER')")
   public void execute(ResetAdminTotpCommand command) {
     LOGGER.debug("resetAdminTotp actorId={} id={}", command.actorId(), command.id());
 
     AdminId id = AdminId.of(command.id());
     Admin admin =
-        readPort.findById(id).orElseThrow(() -> new AdminNotFoundException("Admin " + id + " not found"));
+        readPort
+            .findById(id)
+            .orElseThrow(() -> new AdminNotFoundException("Admin " + id + " not found"));
 
     admin.resetTotp();
     Admin saved = writePort.save(admin);

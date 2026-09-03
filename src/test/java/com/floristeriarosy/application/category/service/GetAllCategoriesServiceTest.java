@@ -15,19 +15,19 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class GetCategoriesServiceTest {
+class GetAllCategoriesServiceTest {
 
   @Mock private CategoryReadPort readPort;
 
-  private GetCategoriesService service;
+  private GetAllCategoriesService service;
 
   @Test
-  void publicListingUsesOnlyActiveCategories() {
-    service = new GetCategoriesService(readPort);
+  void adminListingIncludesEveryStatus() {
+    service = new GetAllCategoriesService(readPort);
     Category category =
         Category.create(
             CategoryId.newId(), "Ramos", CategorySlug.generateFrom("Ramos"), null, null, 0);
-    when(readPort.findAllActive()).thenReturn(List.of(category));
+    when(readPort.findAll()).thenReturn(List.of(category));
 
     List<CategoryDto> result = service.execute();
 

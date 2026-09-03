@@ -11,6 +11,7 @@ import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 /** Implements {@link GetProductDiscountsUseCase}: lists a product's complete discount history. */
@@ -26,7 +27,8 @@ public class GetProductDiscountsService implements GetProductDiscountsUseCase {
    * @param productExistencePort checks the source product exists
    * @param readPort lists the product's discount history
    */
-  public GetProductDiscountsService(ProductExistencePort productExistencePort, DiscountReadPort readPort) {
+  public GetProductDiscountsService(
+      ProductExistencePort productExistencePort, DiscountReadPort readPort) {
     this.productExistencePort = productExistencePort;
     this.readPort = readPort;
   }
@@ -37,6 +39,7 @@ public class GetProductDiscountsService implements GetProductDiscountsUseCase {
    * @throws ProductNotFoundException {@code query.productId()} does not exist
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public List<DiscountDto> execute(GetProductDiscountsQuery query) {
     LOGGER.debug("getProductDiscounts productId={}", query.productId());
 

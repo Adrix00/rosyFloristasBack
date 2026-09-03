@@ -14,6 +14,7 @@ import com.floristeriarosy.application.category.dto.CategoryDto;
 import com.floristeriarosy.application.category.port.in.ChangeCategoryStatusUseCase;
 import com.floristeriarosy.application.category.port.in.CreateCategoryUseCase;
 import com.floristeriarosy.application.category.port.in.DeleteCategoryUseCase;
+import com.floristeriarosy.application.category.port.in.GetAllCategoriesUseCase;
 import com.floristeriarosy.application.category.port.in.GetCategoriesUseCase;
 import com.floristeriarosy.application.category.port.in.GetCategoryImpactUseCase;
 import com.floristeriarosy.application.category.port.in.GetCategoryUseCase;
@@ -47,6 +48,7 @@ class CategoryControllerTest {
   @MockitoBean private DeleteCategoryUseCase deleteCategoryUseCase;
   @MockitoBean private GetCategoryUseCase getCategoryUseCase;
   @MockitoBean private GetCategoriesUseCase getCategoriesUseCase;
+  @MockitoBean private GetAllCategoriesUseCase getAllCategoriesUseCase;
   @MockitoBean private GetCategoryImpactUseCase getCategoryImpactUseCase;
 
   @Test

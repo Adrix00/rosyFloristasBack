@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,12 +51,15 @@ public class UpdateProductImagesService implements UpdateProductImagesUseCase {
    * @throws ProductNotFoundException {@code command.id()} does not exist
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public ProductDto execute(UpdateProductImagesCommand command) {
     LOGGER.debug("updateProductImages id={} count={}", command.id(), command.images().size());
 
     ProductId id = ProductId.of(command.id());
     Product product =
-        readPort.findById(id).orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
+        readPort
+            .findById(id)
+            .orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
 
     imagePort.replaceImages(id, command.images());
 

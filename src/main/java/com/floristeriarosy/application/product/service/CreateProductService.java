@@ -24,6 +24,7 @@ import com.floristeriarosy.shared.util.LogSanitizer;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -79,10 +80,11 @@ public class CreateProductService implements CreateProductUseCase {
    * @return the created product
    * @throws ProductWithoutCategoryException {@code command.categoryIds()} is empty (product.md,
    *     section 3.4)
-   * @throws ProductAlreadyExistsException the slug generated from {@code command.name()} is
-   *     already in use
+   * @throws ProductAlreadyExistsException the slug generated from {@code command.name()} is already
+   *     in use
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public ProductDto execute(CreateProductCommand command) {
     LOGGER.debug(
         "createProduct name={} price={} categoryIds={} isExtra={} imageIds={} initialStock={}",
@@ -118,7 +120,10 @@ public class CreateProductService implements CreateProductUseCase {
 
     categoryPort.replaceCategories(id, command.categoryIds().stream().map(CategoryId::of).toList());
     imagePort.replaceImages(
-        id, command.imageIds().stream().map(imageId -> new ProductImageAssignment(imageId, null)).toList());
+        id,
+        command.imageIds().stream()
+            .map(imageId -> new ProductImageAssignment(imageId, null))
+            .toList());
     if (command.initialStock() != null) {
       inventoryPort.initializeStock(id, command.initialStock(), null, null);
       saved = readPort.findById(id).orElseThrow();

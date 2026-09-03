@@ -16,6 +16,7 @@ import com.floristeriarosy.domain.model.discount.Discount;
 import com.floristeriarosy.domain.model.discount.valueobject.DiscountId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,6 +56,7 @@ public class UpdateDiscountService implements UpdateDiscountUseCase {
    *     product
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public DiscountDto execute(UpdateDiscountCommand command) {
     LOGGER.debug(
         "updateDiscount id={} startsAt={} endsAt={} quantityLimit={} salePrice={}",
@@ -66,9 +68,12 @@ public class UpdateDiscountService implements UpdateDiscountUseCase {
 
     DiscountId id = DiscountId.of(command.id());
     Discount discount =
-        readPort.findById(id).orElseThrow(() -> new DiscountNotFoundException("Discount " + id + " not found"));
+        readPort
+            .findById(id)
+            .orElseThrow(() -> new DiscountNotFoundException("Discount " + id + " not found"));
 
-    discount.update(command.startsAt(), command.endsAt(), command.quantityLimit(), command.salePrice());
+    discount.update(
+        command.startsAt(), command.endsAt(), command.quantityLimit(), command.salePrice());
     Discount saved = writePort.save(discount);
 
     DiscountDto result = DiscountDtoMapper.toDto(saved);

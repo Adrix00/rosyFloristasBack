@@ -2,7 +2,7 @@ package com.floristeriarosy.application.admin.service;
 
 import com.floristeriarosy.application.admin.dto.AdminDto;
 import com.floristeriarosy.application.admin.mapper.AdminDtoMapper;
-import com.floristeriarosy.application.admin.port.in.GetAdminUseCase;
+import com.floristeriarosy.application.admin.port.in.GetOwnAdminUseCase;
 import com.floristeriarosy.application.admin.port.out.AdminReadPort;
 import com.floristeriarosy.application.admin.query.GetAdminQuery;
 import com.floristeriarosy.domain.exception.admin.AdminNotFoundException;
@@ -14,15 +14,15 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 /**
- * Implements {@link GetAdminUseCase}: {@code GET /admin/users/{id}} ({@code OWNER}, arbitrary id).
- * {@code GET /admin/me} uses {@link GetOwnAdminService} instead — split so an arbitrary-id lookup
- * and a self lookup can carry different {@code @PreAuthorize} (feature/auth, phase 13; ADR-004
- * correction).
+ * Implements {@link GetOwnAdminUseCase}: {@code GET /admin/me}, any authenticated admin on
+ * themselves — split from {@link GetAdminService} (feature/auth, phase 13; ADR-004 correction) so
+ * {@code @PreAuthorize} can grant this without also opening {@code GET /admin/users/{id}} to a
+ * plain {@code ADMIN} looking up an arbitrary other admin.
  */
 @Service
-public class GetAdminService implements GetAdminUseCase {
+public class GetOwnAdminService implements GetOwnAdminUseCase {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(GetAdminService.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(GetOwnAdminService.class);
 
   private final AdminReadPort readPort;
   private final AdminDtoMapper mapper;
@@ -31,20 +31,20 @@ public class GetAdminService implements GetAdminUseCase {
    * @param readPort loads the admin by id
    * @param mapper builds the response DTO
    */
-  public GetAdminService(AdminReadPort readPort, AdminDtoMapper mapper) {
+  public GetOwnAdminService(AdminReadPort readPort, AdminDtoMapper mapper) {
     this.readPort = readPort;
     this.mapper = mapper;
   }
 
   /**
-   * @param query the admin to look up
-   * @return the matching admin
+   * @param query the caller's own id, resolved from the JWT
+   * @return the caller's own admin record
    * @throws AdminNotFoundException {@code query.id()} does not exist
    */
   @Override
-  @PreAuthorize("hasRole('OWNER')")
+  @PreAuthorize("hasRole('ADMIN')")
   public AdminDto execute(GetAdminQuery query) {
-    LOGGER.debug("getAdmin id={}", query.id());
+    LOGGER.debug("getOwnAdmin id={}", query.id());
 
     AdminId id = AdminId.of(query.id());
     Admin admin =
@@ -53,7 +53,7 @@ public class GetAdminService implements GetAdminUseCase {
             .orElseThrow(() -> new AdminNotFoundException("Admin " + id + " not found"));
     AdminDto result = mapper.toDto(admin);
 
-    LOGGER.debug("getAdmin -> id={}", result.id());
+    LOGGER.debug("getOwnAdmin -> id={}", result.id());
     return result;
   }
 }

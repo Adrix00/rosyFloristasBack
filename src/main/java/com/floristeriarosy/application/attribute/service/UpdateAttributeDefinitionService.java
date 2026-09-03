@@ -11,6 +11,7 @@ import com.floristeriarosy.domain.model.attribute.valueobject.AttributeDefinitio
 import com.floristeriarosy.shared.util.LogSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,12 +39,12 @@ public class UpdateAttributeDefinitionService implements UpdateAttributeDefiniti
    * Renames an existing attribute definition. {@code attributeKey} and {@code dataType} cannot
    * change (product.md, section 3.5).
    *
-   * @param command id of the definition to update, plus its new label, filterable flag and
-   *     position
+   * @param command id of the definition to update, plus its new label, filterable flag and position
    * @return the updated attribute definition
    * @throws AttributeDefinitionNotFoundException {@code command.id()} does not exist
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public AttributeDefinitionDto execute(UpdateAttributeDefinitionCommand command) {
     LOGGER.debug(
         "updateAttributeDefinition id={} label={} filterable={} position={}",
@@ -56,13 +57,17 @@ public class UpdateAttributeDefinitionService implements UpdateAttributeDefiniti
     AttributeDefinition definition =
         port.findById(id)
             .orElseThrow(
-                () -> new AttributeDefinitionNotFoundException(
-                    "Attribute definition " + id + " not found"));
+                () ->
+                    new AttributeDefinitionNotFoundException(
+                        "Attribute definition " + id + " not found"));
 
     definition.relabel(command.label(), command.filterable(), command.position());
     AttributeDefinitionDto result = AttributeDefinitionDtoMapper.toDto(port.save(definition));
 
-    LOGGER.debug("updateAttributeDefinition -> id={} label={}", result.id(), LogSanitizer.sanitize(result.label()));
+    LOGGER.debug(
+        "updateAttributeDefinition -> id={} label={}",
+        result.id(),
+        LogSanitizer.sanitize(result.label()));
     return result;
   }
 }

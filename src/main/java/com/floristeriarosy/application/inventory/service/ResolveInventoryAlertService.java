@@ -13,6 +13,7 @@ import com.floristeriarosy.domain.model.product.Product;
 import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,7 +37,8 @@ public class ResolveInventoryAlertService implements ResolveInventoryAlertUseCas
    * @param alertPort loads and persists the alert being resolved
    * @param productReadPort resolves the product's current name for the response
    */
-  public ResolveInventoryAlertService(InventoryAlertPort alertPort, ProductReadPort productReadPort) {
+  public ResolveInventoryAlertService(
+      InventoryAlertPort alertPort, ProductReadPort productReadPort) {
     this.alertPort = alertPort;
     this.productReadPort = productReadPort;
   }
@@ -47,6 +49,7 @@ public class ResolveInventoryAlertService implements ResolveInventoryAlertUseCas
    * @throws InventoryAlertNotFoundException {@code command.id()} does not exist
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public InventoryAlertDto execute(ResolveInventoryAlertCommand command) {
     LOGGER.debug("resolveInventoryAlert id={}", command.id());
 
@@ -54,12 +57,14 @@ public class ResolveInventoryAlertService implements ResolveInventoryAlertUseCas
     InventoryAlert alert =
         alertPort
             .findById(id)
-            .orElseThrow(() -> new InventoryAlertNotFoundException("Inventory alert " + id + " not found"));
+            .orElseThrow(
+                () -> new InventoryAlertNotFoundException("Inventory alert " + id + " not found"));
 
     alert.resolve(null, command.note(), Instant.now());
     InventoryAlert saved = alertPort.resolve(alert);
 
-    String productName = productReadPort.findById(saved.productId()).map(Product::name).orElse(null);
+    String productName =
+        productReadPort.findById(saved.productId()).map(Product::name).orElse(null);
     InventoryAlertDto result = InventoryAlertDtoMapper.toDto(saved, productName);
     LOGGER.debug("resolveInventoryAlert -> id={} status={}", result.id(), result.status());
     return result;

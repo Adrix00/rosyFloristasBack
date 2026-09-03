@@ -23,6 +23,7 @@ import com.floristeriarosy.application.admin.port.in.ChangeAdminStatusUseCase;
 import com.floristeriarosy.application.admin.port.in.ChangeOwnPasswordUseCase;
 import com.floristeriarosy.application.admin.port.in.CreateAdminUseCase;
 import com.floristeriarosy.application.admin.port.in.GetAdminUseCase;
+import com.floristeriarosy.application.admin.port.in.GetOwnAdminUseCase;
 import com.floristeriarosy.application.admin.port.in.GetAdminsUseCase;
 import com.floristeriarosy.application.admin.port.in.ResetAdminPasswordUseCase;
 import com.floristeriarosy.application.admin.port.in.ResetAdminTotpUseCase;
@@ -61,10 +62,12 @@ class AdminControllerTest {
   @MockitoBean private ResetAdminTotpUseCase resetAdminTotpUseCase;
   @MockitoBean private ChangeOwnPasswordUseCase changeOwnPasswordUseCase;
   @MockitoBean private GetAdminUseCase getAdminUseCase;
+  @MockitoBean private GetOwnAdminUseCase getOwnAdminUseCase;
   @MockitoBean private GetAdminsUseCase getAdminsUseCase;
 
   private AdminDto adminDto(UUID id, AdminRole role) {
-    return new AdminDto(id, "admin@rosy.test", role, true, false, true, Instant.now(), Instant.now());
+    return new AdminDto(
+        id, "admin@rosy.test", role, true, false, true, Instant.now(), Instant.now());
   }
 
   @Test
@@ -101,7 +104,8 @@ class AdminControllerTest {
                 .with(csrf())
                 .with(user(ACTOR_ID.toString()))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"new@rosy.test\",\"password\":\"Provisional!234\",\"role\":\"ADMIN\"}"))
+                .content(
+                    "{\"email\":\"new@rosy.test\",\"password\":\"Provisional!234\",\"role\":\"ADMIN\"}"))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.role").value("ADMIN"));
   }
@@ -192,7 +196,7 @@ class AdminControllerTest {
   @Test
   void getMeReturns200WithTheCallersOwnRecord() throws Exception {
     AdminDto dto = adminDto(ACTOR_ID, AdminRole.OWNER);
-    when(getAdminUseCase.execute(any(GetAdminQuery.class))).thenReturn(dto);
+    when(getOwnAdminUseCase.execute(any(GetAdminQuery.class))).thenReturn(dto);
 
     mockMvc
         .perform(get("/api/v1/admin/me").with(user(ACTOR_ID.toString())))
@@ -212,7 +216,8 @@ class AdminControllerTest {
                 .with(csrf())
                 .with(user(ACTOR_ID.toString()))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"currentPassword\":\"wrong-current-pass\",\"newPassword\":\"NewPassword!234\"}"))
+                .content(
+                    "{\"currentPassword\":\"wrong-current-pass\",\"newPassword\":\"NewPassword!234\"}"))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value("INVALID_CURRENT_PASSWORD"));
   }
@@ -225,7 +230,8 @@ class AdminControllerTest {
                 .with(csrf())
                 .with(user(ACTOR_ID.toString()))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"currentPassword\":\"current-password-1\",\"newPassword\":\"NewPassword!234\"}"))
+                .content(
+                    "{\"currentPassword\":\"current-password-1\",\"newPassword\":\"NewPassword!234\"}"))
         .andExpect(status().isNoContent());
   }
 }

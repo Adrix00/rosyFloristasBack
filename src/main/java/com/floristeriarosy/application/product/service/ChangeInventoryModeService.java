@@ -18,10 +18,14 @@ import java.math.BigDecimal;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Implements {@link ChangeInventoryModeUseCase}: switches a product's inventory mode (product.md, section 3.7). */
+/**
+ * Implements {@link ChangeInventoryModeUseCase}: switches a product's inventory mode (product.md,
+ * section 3.7).
+ */
 @Service
 @Transactional
 public class ChangeInventoryModeService implements ChangeInventoryModeUseCase {
@@ -57,10 +61,11 @@ public class ChangeInventoryModeService implements ChangeInventoryModeUseCase {
    * @param command id of the product to change, plus the new mode and, if managed, its stock
    * @return the updated product
    * @throws ProductNotFoundException {@code command.id()} does not exist
-   * @throws ProductStockRequiredException {@code command.managed()} is {@code true} without a
-   *     stock value
+   * @throws ProductStockRequiredException {@code command.managed()} is {@code true} without a stock
+   *     value
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public ProductDto execute(ChangeInventoryModeCommand command) {
     LOGGER.debug(
         "changeInventoryMode id={} managed={} stock={} lowStockThreshold={}",
@@ -71,14 +76,18 @@ public class ChangeInventoryModeService implements ChangeInventoryModeUseCase {
 
     ProductId id = ProductId.of(command.id());
     Product product =
-        readPort.findById(id).orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
+        readPort
+            .findById(id)
+            .orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
 
     if (command.managed()) {
       if (command.stock() == null) {
-        throw new ProductStockRequiredException("Activating inventory management requires an initial stock");
+        throw new ProductStockRequiredException(
+            "Activating inventory management requires an initial stock");
       }
       if (product.stock() == null) {
-        inventoryPort.initializeStock(id, command.stock(), command.lowStockThreshold(), command.note());
+        inventoryPort.initializeStock(
+            id, command.stock(), command.lowStockThreshold(), command.note());
       } else {
         inventoryPort.adjustStock(id, command.stock(), command.lowStockThreshold(), command.note());
       }

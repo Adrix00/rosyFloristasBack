@@ -10,6 +10,7 @@ import com.floristeriarosy.domain.exception.product.ProductNotFoundException;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 /** Implements {@link GetStockMovementsUseCase}: a product's complete stock movement history. */
@@ -25,7 +26,8 @@ public class GetStockMovementsService implements GetStockMovementsUseCase {
    * @param productExistencePort checks the source product exists
    * @param readPort lists the product's movement history
    */
-  public GetStockMovementsService(ProductExistencePort productExistencePort, StockMovementReadPort readPort) {
+  public GetStockMovementsService(
+      ProductExistencePort productExistencePort, StockMovementReadPort readPort) {
     this.productExistencePort = productExistencePort;
     this.readPort = readPort;
   }
@@ -36,17 +38,23 @@ public class GetStockMovementsService implements GetStockMovementsUseCase {
    * @throws ProductNotFoundException {@code query.productId()} does not exist
    */
   @Override
+  @PreAuthorize("hasRole('ADMIN')")
   public PageResult<StockMovementDto> execute(GetStockMovementsQuery query) {
     LOGGER.debug(
-        "getStockMovements productId={} page={} size={}", query.productId(), query.page(), query.size());
+        "getStockMovements productId={} page={} size={}",
+        query.productId(),
+        query.page(),
+        query.size());
 
     ProductId productId = ProductId.of(query.productId());
     if (!productExistencePort.existsById(productId)) {
       throw new ProductNotFoundException("Product " + productId + " not found");
     }
-    PageResult<StockMovementDto> result = readPort.findByProduct(productId, query.page(), query.size());
+    PageResult<StockMovementDto> result =
+        readPort.findByProduct(productId, query.page(), query.size());
 
-    LOGGER.debug("getStockMovements productId={} -> totalElements={}", productId, result.totalElements());
+    LOGGER.debug(
+        "getStockMovements productId={} -> totalElements={}", productId, result.totalElements());
     return result;
   }
 }
