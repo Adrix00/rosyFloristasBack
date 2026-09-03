@@ -114,6 +114,21 @@ class VerifyAdminMfaServiceTest {
   }
 
   @Test
+  void rejectsADeactivatedAdminEvenWithAValidMfaTokenAndCode() {
+    newService();
+    Admin admin = enrolledAdmin();
+    admin.deactivate();
+    AccessTokenClaims mfaClaims =
+        new AccessTokenClaims(admin.id().value(), TokenType.MFA, null, null, false);
+    when(accessTokenPort.parse("mfa-token")).thenReturn(Optional.of(mfaClaims));
+    when(adminReadPort.findById(admin.id())).thenReturn(Optional.of(admin));
+
+    assertThatThrownBy(() -> service.execute(new VerifyAdminMfaCommand("mfa-token", "123456")))
+        .isInstanceOf(InvalidMfaTokenException.class);
+    verify(refreshTokenWritePort, never()).save(any());
+  }
+
+  @Test
   void rejectsWhenTotpHasNeverBeenEnrolled() {
     newService();
     Admin admin =

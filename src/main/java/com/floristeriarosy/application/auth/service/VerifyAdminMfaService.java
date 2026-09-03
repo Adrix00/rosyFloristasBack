@@ -151,8 +151,9 @@ public class VerifyAdminMfaService implements VerifyAdminMfaUseCase {
   /**
    * @param mfaToken the token presented by the caller
    * @return the admin it identifies
-   * @throws InvalidMfaTokenException the token is missing, expired, not a {@code mfa} token, or
-   *     identifies an admin that no longer exists
+   * @throws InvalidMfaTokenException the token is missing, expired, not a {@code mfa} token,
+   *     identifies an admin that no longer exists, or that was deactivated after step 1 (auth.md,
+   *     rule 3.3 — a deactivated admin must not be able to complete a login already in flight)
    */
   private Admin resolveAdmin(String mfaToken) {
     AccessTokenClaims claims =
@@ -160,8 +161,13 @@ public class VerifyAdminMfaService implements VerifyAdminMfaUseCase {
             .parse(mfaToken)
             .filter(candidate -> candidate.type() == TokenType.MFA)
             .orElseThrow(() -> new InvalidMfaTokenException("Invalid or expired mfaToken"));
-    return adminReadPort
-        .findById(AdminId.of(claims.subjectId()))
-        .orElseThrow(() -> new InvalidMfaTokenException("Invalid or expired mfaToken"));
+    Admin admin =
+        adminReadPort
+            .findById(AdminId.of(claims.subjectId()))
+            .orElseThrow(() -> new InvalidMfaTokenException("Invalid or expired mfaToken"));
+    if (!admin.active()) {
+      throw new InvalidMfaTokenException("Invalid or expired mfaToken");
+    }
+    return admin;
   }
 }

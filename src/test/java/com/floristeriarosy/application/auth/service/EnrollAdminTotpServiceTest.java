@@ -106,6 +106,21 @@ class EnrollAdminTotpServiceTest {
   }
 
   @Test
+  void rejectsADeactivatedAdminEvenWithAValidMfaToken() {
+    service = new EnrollAdminTotpService(accessTokenPort, adminReadPort, adminWritePort, piiCryptoPort, totpPort);
+    Admin admin = freshAdmin();
+    admin.deactivate();
+    AccessTokenClaims mfaClaims =
+        new AccessTokenClaims(admin.id().value(), TokenType.MFA, null, null, false);
+    when(accessTokenPort.parse("mfa-token")).thenReturn(Optional.of(mfaClaims));
+    when(adminReadPort.findById(admin.id())).thenReturn(Optional.of(admin));
+
+    assertThatThrownBy(() -> service.execute(new EnrollAdminTotpCommand("mfa-token")))
+        .isInstanceOf(InvalidMfaTokenException.class);
+    verify(adminWritePort, never()).save(any());
+  }
+
+  @Test
   void rejectsEnrollmentWhenTotpIsAlreadyEnabled() {
     service = new EnrollAdminTotpService(accessTokenPort, adminReadPort, adminWritePort, piiCryptoPort, totpPort);
     Admin admin = freshAdmin();
