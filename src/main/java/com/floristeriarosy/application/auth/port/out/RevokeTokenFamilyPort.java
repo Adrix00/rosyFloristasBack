@@ -14,4 +14,12 @@ public interface RevokeTokenFamilyPort {
    * @param subjectId the customer or admin user whose refresh token families are revoked
    */
   void revokeAllForSubject(UUID subjectId);
+
+  /**
+   * Revokes every live row of a single rotation family (auth.md, rules 3.6 and 3.7: reuse
+   * detection, and a plain {@code logout} that only closes one device).
+   *
+   * @param familyId the rotation family to revoke
+   */
+  void revokeFamily(UUID familyId);
 }

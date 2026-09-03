@@ -1,6 +1,7 @@
 package com.floristeriarosy.infrastructure.web.advice;
 
 import com.floristeriarosy.domain.exception.ConflictException;
+import com.floristeriarosy.domain.exception.ForbiddenException;
 import com.floristeriarosy.domain.exception.HasErrorCode;
 import com.floristeriarosy.domain.exception.NotFoundException;
 import com.floristeriarosy.domain.exception.UnauthorizedException;
@@ -13,6 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -65,6 +68,57 @@ public class GlobalExceptionHandler {
       UnauthorizedException exception, HttpServletRequest request) {
     LOGGER.debug("401 on {}: {}", Encode.forJava(request.getRequestURI()), exception.getMessage());
     return problemDetail(HttpStatus.UNAUTHORIZED, exception, request);
+  }
+
+  /**
+   * Maps any {@link ForbiddenException} to 403.
+   *
+   * @param exception the domain exception that was thrown
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body
+   */
+  @ExceptionHandler(ForbiddenException.class)
+  public ProblemDetail handleForbidden(ForbiddenException exception, HttpServletRequest request) {
+    LOGGER.debug("403 on {}: {}", Encode.forJava(request.getRequestURI()), exception.getMessage());
+    return problemDetail(HttpStatus.FORBIDDEN, exception, request);
+  }
+
+  /**
+   * Maps a Spring Security {@link AccessDeniedException} to 403 — an authenticated caller with the
+   * wrong {@code @PreAuthorize} role, or a CSRF token rejected by the filter chain. Never exposes
+   * the framework's own message: a CSRF failure message can be more specific than 00-security's
+   * "no internal detail" rule wants on the wire.
+   *
+   * @param exception the exception Spring Security's {@code ExceptionTranslationFilter} raised
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body
+   */
+  @ExceptionHandler(AccessDeniedException.class)
+  public ProblemDetail handleAccessDenied(AccessDeniedException exception, HttpServletRequest request) {
+    LOGGER.debug("403 on {}: access denied", Encode.forJava(request.getRequestURI()));
+    ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "Access is denied");
+    problem.setTitle(HttpStatus.FORBIDDEN.getReasonPhrase());
+    problem.setInstance(URI.create(request.getRequestURI()));
+    return problem;
+  }
+
+  /**
+   * Maps a Spring Security {@link AuthenticationException} to 401 — a missing, malformed, expired
+   * or wrong-{@code typ} bearer token (ADR-008). Never exposes the decoder's own message.
+   *
+   * @param exception the exception Spring Security's resource server filter raised
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body
+   */
+  @ExceptionHandler(AuthenticationException.class)
+  public ProblemDetail handleAuthenticationException(
+      AuthenticationException exception, HttpServletRequest request) {
+    LOGGER.debug("401 on {}: authentication required", Encode.forJava(request.getRequestURI()));
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Authentication is required");
+    problem.setTitle(HttpStatus.UNAUTHORIZED.getReasonPhrase());
+    problem.setInstance(URI.create(request.getRequestURI()));
+    return problem;
   }
 
   /**
@@ -123,7 +177,8 @@ public class GlobalExceptionHandler {
    */
   @ExceptionHandler(Exception.class)
   public ProblemDetail handleUnexpected(Exception exception, HttpServletRequest request) {
-    LOGGER.error("Unexpected error handling {}", Encode.forJava(request.getRequestURI()), exception);
+    LOGGER.error(
+        "Unexpected error handling {}", Encode.forJava(request.getRequestURI()), exception);
     ProblemDetail problem =
         ProblemDetail.forStatusAndDetail(
             HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred");
