@@ -6,15 +6,17 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * JPA mapping of the {@code carts} table. No {@code version} column, deliberately: this aggregate
- * is excluded from ADR-009's optimistic-locking list (cart.md, section 2) — a cart is never edited
- * by two administrators at once, only ever by its own owner.
+ * JPA mapping of the {@code carts} table. Carries {@code @Version} (ADR-009 amendment,
+ * 2026-09-06): a signed-in customer's own cart is reachable from two devices at once, so two
+ * concurrent writes to the same row are plausible, unlike the "one admin, one form" shape the
+ * ADR's original aggregates assume.
  */
 @Entity
 @Table(name = "carts")
@@ -32,6 +34,10 @@ public class CartEntity {
 
   @Column(name = "expires_at", nullable = false)
   private Instant expiresAt;
+
+  @Version
+  @Column(nullable = false)
+  private long version;
 
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
@@ -80,6 +86,31 @@ public class CartEntity {
   void onUpdate() {
     updatedAt = Instant.now();
     LOGGER.debug("onUpdate id={} updatedAt={}", id, updatedAt);
+  }
+
+  /**
+   * Copies the fields a reassignment or a merge owns onto this managed instance, so the adapter's
+   * save updates the row Hibernate already loaded instead of building a detached one with a stale
+   * {@code @Version} (ADR-009) — a fresh, unloaded instance would always carry {@code version = 0}
+   * and be mistaken for a new row. {@code sessionToken} is immutable once set (cart.md §2).
+   *
+   * @param customerId the owning customer, or {@code null} for a guest cart
+   * @param expiresAt the new expiry
+   */
+  public void applyChanges(UUID customerId, Instant expiresAt) {
+    this.customerId = customerId;
+    this.expiresAt = expiresAt;
+  }
+
+  /**
+   * Renews {@code expiresAt} on this managed instance, for the same reason {@link #applyChanges}
+   * mutates in place: going through the managed entity, rather than a bare {@code UPDATE}, is what
+   * makes this write participate in the {@code @Version} check (ADR-009 amendment).
+   *
+   * @param expiresAt the new expiry
+   */
+  public void renewExpiry(Instant expiresAt) {
+    this.expiresAt = expiresAt;
   }
 
   /**

@@ -15,6 +15,7 @@ import com.floristeriarosy.application.cart.port.out.CartReadPort;
 import com.floristeriarosy.application.cart.port.out.CartWritePort;
 import com.floristeriarosy.domain.model.cart.Cart;
 import com.floristeriarosy.domain.model.cart.valueobject.CartId;
+import com.floristeriarosy.domain.model.product.ProductStatus;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -46,7 +47,7 @@ class ValidateCartServiceTest {
     service = new ValidateCartService(cartReadPort, cartWritePort, cartItemWritePort, cartPricingPort);
   }
 
-  private CartCatalogEntryDto entry(ProductId productId, String status, Integer stock) {
+  private CartCatalogEntryDto entry(ProductId productId, ProductStatus status, Integer stock) {
     return new CartCatalogEntryDto(
         productId.value(), "Ramo", "ramo", null, BigDecimal.TEN, BigDecimal.TEN, false, status, stock);
   }
@@ -64,7 +65,7 @@ class ValidateCartServiceTest {
             null,
             null);
     when(cartReadPort.findByCustomer(any())).thenReturn(Optional.of(cart));
-    when(cartPricingPort.catalogEntriesFor(any())).thenReturn(List.of(entry(productId, "INACTIVE", null)));
+    when(cartPricingPort.catalogEntriesFor(any())).thenReturn(List.of(entry(productId, ProductStatus.INACTIVE, null)));
 
     CartValidationDto result = service.execute(new ValidateCartCommand(UUID.randomUUID(), null));
 
@@ -88,7 +89,7 @@ class ValidateCartServiceTest {
             null,
             null);
     when(cartReadPort.findByCustomer(any())).thenReturn(Optional.of(cart));
-    when(cartPricingPort.catalogEntriesFor(any())).thenReturn(List.of(entry(productId, "DISCONTINUED", null)));
+    when(cartPricingPort.catalogEntriesFor(any())).thenReturn(List.of(entry(productId, ProductStatus.DISCONTINUED, null)));
 
     CartValidationDto result = service.execute(new ValidateCartCommand(UUID.randomUUID(), null));
 
@@ -109,7 +110,7 @@ class ValidateCartServiceTest {
             null,
             null);
     when(cartReadPort.findByCustomer(any())).thenReturn(Optional.of(cart));
-    when(cartPricingPort.catalogEntriesFor(any())).thenReturn(List.of(entry(productId, "ACTIVE", 2)));
+    when(cartPricingPort.catalogEntriesFor(any())).thenReturn(List.of(entry(productId, ProductStatus.ACTIVE, 2)));
 
     CartValidationDto result = service.execute(new ValidateCartCommand(UUID.randomUUID(), null));
 
@@ -135,7 +136,7 @@ class ValidateCartServiceTest {
             null,
             null);
     when(cartReadPort.findByCustomer(any())).thenReturn(Optional.of(cart));
-    when(cartPricingPort.catalogEntriesFor(any())).thenReturn(List.of(entry(productId, "ACTIVE", 10)));
+    when(cartPricingPort.catalogEntriesFor(any())).thenReturn(List.of(entry(productId, ProductStatus.ACTIVE, 10)));
 
     CartValidationDto result = service.execute(new ValidateCartCommand(UUID.randomUUID(), null));
 
@@ -157,7 +158,7 @@ class ValidateCartServiceTest {
     when(cartReadPort.findByCustomer(any())).thenReturn(Optional.of(cart));
     when(cartPricingPort.catalogEntriesFor(any()))
         .thenReturn(
-            List.of(entry(removedProduct, "INACTIVE", null), entry(shortStockProduct, "ACTIVE", 1)));
+            List.of(entry(removedProduct, ProductStatus.INACTIVE, null), entry(shortStockProduct, ProductStatus.ACTIVE, 1)));
 
     CartValidationDto result = service.execute(new ValidateCartCommand(UUID.randomUUID(), null));
 

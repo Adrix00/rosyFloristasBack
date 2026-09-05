@@ -16,8 +16,10 @@ import java.util.UUID;
  * @param observedValue the observed number
  * @param expectedValue the number it was compared against
  * @param status the current lifecycle state
- * @param resolvedByAdminId the admin who closed it, or {@code null} — always {@code null} today
- *     (known gap, no {@code auth}/{@code admin} module yet)
+ * @param resolvedByAdminId the admin who closed it, or {@code null} while still {@code OPEN}
+ * @param resolvedByAdminName the admin's email, resolved separately from {@code
+ *     resolvedByAdminId} (ADR-005: decrypted only for display, never logged) — {@code null}
+ *     whenever {@code resolvedByAdminId} is
  * @param resolvedAt when it was closed, or {@code null} if still {@code OPEN}
  * @param createdAt when the row was created
  */
@@ -30,5 +32,6 @@ public record InventoryAlertDto(
     int expectedValue,
     InventoryAlertStatus status,
     UUID resolvedByAdminId,
+    String resolvedByAdminName,
     Instant resolvedAt,
     Instant createdAt) {}

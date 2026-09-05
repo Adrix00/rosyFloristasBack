@@ -1,6 +1,7 @@
 package com.floristeriarosy.application.product.service;
 
 import com.floristeriarosy.application.product.command.DeleteProductCommand;
+import com.floristeriarosy.application.product.dto.ProductDeletionImpact;
 import com.floristeriarosy.application.product.port.in.DeleteProductUseCase;
 import com.floristeriarosy.application.product.port.out.ProductExistencePort;
 import com.floristeriarosy.application.product.port.out.ProductWritePort;
@@ -39,6 +40,11 @@ public class DeleteProductService implements DeleteProductUseCase {
    * Deletes the product. {@code product_categories}, {@code product_images} and {@code
    * product_suggestions} rows cascade (product.md, section 3.10).
    *
+   * <p>Asks {@code deletionImpact} first rather than letting the {@code RESTRICT} foreign keys
+   * fail: product.md section 3.10 requires the 409 to name the concrete reason, and the impact
+   * query already computes it. The adapter's own constraint translation stays as the backstop for
+   * a row that gains history between this check and the delete.
+   *
    * @param command id of the product to delete
    * @throws ProductNotFoundException {@code command.id()} does not exist
    * @throws ProductHasHistoryException the product has orders, stock movements or purchases
@@ -52,6 +58,12 @@ public class DeleteProductService implements DeleteProductUseCase {
     ProductId id = ProductId.of(command.id());
     if (!existencePort.existsById(id)) {
       throw new ProductNotFoundException("Product " + id + " not found");
+    }
+    ProductDeletionImpact impact = existencePort.deletionImpact(id);
+    if (!impact.deletable()) {
+      LOGGER.debug("deleteProduct id={} -> blocked by {}", id, impact.blockedBy());
+      throw new ProductHasHistoryException(
+          "Product " + id + " is referenced by " + String.join(", ", impact.blockedBy()));
     }
     writePort.delete(id);
 

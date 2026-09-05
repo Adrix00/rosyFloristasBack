@@ -215,9 +215,14 @@ public final class Product {
   }
 
   /**
+   * Guards any edit this aggregate does not otherwise validate itself — categories, images,
+   * suggested extras, inventory mode — against product.md section 9/10's rule that {@code
+   * DISCONTINUED} is terminal: every write path on a discontinued product answers 409, not just
+   * the ones {@link #replace} and {@link #changeStatus} already cover.
+   *
    * @throws ProductDiscontinuedException this product is {@code DISCONTINUED}
    */
-  private void requireNotDiscontinued() {
+  public void requireNotDiscontinued() {
     if (status == ProductStatus.DISCONTINUED) {
       throw new ProductDiscontinuedException("Product " + id + " is DISCONTINUED");
     }

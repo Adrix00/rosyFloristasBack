@@ -14,9 +14,6 @@ import org.springframework.stereotype.Service;
 /**
  * Implements {@link RegisterWasteUseCase}: orchestrates over {@link RegisterStockMovementUseCase},
  * applying the negative sign {@code WASTE} always carries (inventory.md, section 3.5).
- *
- * <p>{@code adminUserId} is always {@code null}: no {@code auth}/{@code admin} module exists yet to
- * resolve a principal from (known gap, dev-plan.md, pending {@code feature/auth}).
  */
 @Service
 public class RegisterWasteService implements RegisterWasteUseCase {
@@ -46,7 +43,7 @@ public class RegisterWasteService implements RegisterWasteUseCase {
             command.productId(),
             StockMovementType.WASTE,
             -Math.abs(command.quantity()),
-            null,
+            command.adminUserId(),
             command.note());
     StockMovementDto result = registerStockMovementUseCase.execute(delegateCommand);
 

@@ -6,6 +6,7 @@ import com.floristeriarosy.application.cart.port.out.CartPricingPort;
 import com.floristeriarosy.application.cart.port.out.CartProductAvailabilityPort;
 import com.floristeriarosy.application.cart.port.out.CartReadPort;
 import com.floristeriarosy.application.cart.port.out.CartWritePort;
+import com.floristeriarosy.domain.exception.ResourceModifiedException;
 import com.floristeriarosy.domain.model.cart.Cart;
 import com.floristeriarosy.domain.model.cart.valueobject.CartId;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
@@ -23,6 +24,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -83,27 +85,59 @@ public class CartPersistenceAdapter
   }
 
   /**
+   * Updates the managed entity in place when {@code cart.id()} already exists, so the {@code
+   * @Version} Hibernate loaded is what gets checked (ADR-009 amendment) — a freshly built detached
+   * entity would always carry {@code version = 0} and be mistaken for a new row. Builds a fresh
+   * entity only for a genuinely new cart. Flushes inside the {@code try} for the reason {@code
+   * ProductPersistenceAdapter.save} documents: the id is application-assigned, so Hibernate would
+   * otherwise defer the check to the enclosing transaction's commit, after this method's {@code
+   * catch} has already returned.
+   *
    * @param cart the cart to insert or update
    * @return the saved cart, with its lines reloaded (a save never touches them, see {@link
    *     CartItemWritePort})
+   * @throws ResourceModifiedException the cart was changed concurrently
    */
   @Override
   public Cart save(Cart cart) {
     LOGGER.debug("save id={}", cart.id());
-    CartEntity saved = cartJpaRepository.save(mapper.toEntity(cart));
-    Cart result = toDomainWithItems(saved);
-    LOGGER.debug("save id={} -> saved", result.id());
-    return result;
+    CartEntity entity = cartJpaRepository.findById(cart.id().value()).orElse(null);
+    if (entity != null) {
+      entity.applyChanges(cart.customerId(), cart.expiresAt());
+    } else {
+      entity = mapper.toEntity(cart);
+    }
+    try {
+      Cart result = toDomainWithItems(cartJpaRepository.saveAndFlush(entity));
+      LOGGER.debug("save id={} -> saved", result.id());
+      return result;
+    } catch (ObjectOptimisticLockingFailureException conflict) {
+      throw new ResourceModifiedException("Cart " + cart.id() + " was modified concurrently");
+    }
   }
 
   /**
+   * Goes through the managed entity rather than a bare {@code UPDATE}, so this renewal
+   * participates in the {@code @Version} check (ADR-009 amendment) like {@link #save(Cart)} does —
+   * a raw JPQL {@code UPDATE} would bypass it entirely.
+   *
    * @param id the cart to renew
    * @param expiresAt the new expiry, already computed by the domain
+   * @throws ResourceModifiedException the cart was changed concurrently
    */
   @Override
   public void touch(CartId id, Instant expiresAt) {
     LOGGER.debug("touch id={} expiresAt={}", id, expiresAt);
-    cartJpaRepository.touch(id.value(), expiresAt, Instant.now());
+    CartEntity entity =
+        cartJpaRepository
+            .findById(id.value())
+            .orElseThrow(() -> new IllegalStateException("Cart " + id + " not found"));
+    entity.renewExpiry(expiresAt);
+    try {
+      cartJpaRepository.saveAndFlush(entity);
+    } catch (ObjectOptimisticLockingFailureException conflict) {
+      throw new ResourceModifiedException("Cart " + id + " was modified concurrently");
+    }
     LOGGER.debug("touch id={} -> touched", id);
   }
 
@@ -118,6 +152,11 @@ public class CartPersistenceAdapter
   }
 
   /**
+   * An atomic {@code INSERT ... ON CONFLICT DO UPDATE}, not a find-then-insert: two concurrent
+   * {@code POST}s of the same product into the same cart would otherwise both see no existing row
+   * and both attempt an insert, one of them hitting {@code uq_cart_items_cart_product} as an
+   * untranslated 500.
+   *
    * @param cartId the owning cart
    * @param productId the product whose line to write
    * @param quantity the quantity to persist
@@ -125,15 +164,7 @@ public class CartPersistenceAdapter
   @Override
   public void save(CartId cartId, ProductId productId, int quantity) {
     LOGGER.debug("save cartId={} productId={} quantity={}", cartId, productId, quantity);
-    Optional<CartItemEntity> existing =
-        cartItemJpaRepository.findByCartIdAndProductId(cartId.value(), productId.value());
-    if (existing.isPresent()) {
-      existing.get().changeQuantity(quantity);
-      cartItemJpaRepository.save(existing.get());
-    } else {
-      cartItemJpaRepository.save(
-          new CartItemEntity(UUID.randomUUID(), cartId.value(), productId.value(), quantity, null, null));
-    }
+    cartItemJpaRepository.upsert(UUID.randomUUID(), cartId.value(), productId.value(), quantity);
     LOGGER.debug("save cartId={} productId={} -> saved", cartId, productId);
   }
 

@@ -31,6 +31,11 @@ public class ProductJdbcRepository {
           + ProductVisibilitySql.CORRELATED_SUBQUERY
           + "))";
 
+  // Deliberately not ProductActiveSalePriceSql.CORRELATED_SUBQUERY: that form is correlated to an
+  // aliased "products p" row and always returns exactly one row (NULL when there is no active
+  // discount), which would make findActiveSalePrice's rows.stream().findFirst() below throw NPE on
+  // a null element instead of returning Optional.empty(). This standalone SELECT returns zero rows
+  // when there is no active discount, which is what that Optional-returning method needs.
   private static final String ACTIVE_SALE_PRICE_SQL =
       """
       SELECT sale_price FROM product_discounts

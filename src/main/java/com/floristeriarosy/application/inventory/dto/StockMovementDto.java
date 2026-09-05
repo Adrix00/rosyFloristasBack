@@ -14,7 +14,8 @@ import java.util.UUID;
  * @param quantity the signed quantity
  * @param resultingStock the product's stock immediately after this movement
  * @param adminUserId the admin who triggered it, or {@code null} for a system-generated movement
- *     — always {@code null} today (known gap, no {@code auth}/{@code admin} module yet)
+ * @param adminUserName the admin's email, resolved separately from {@code adminUserId} (ADR-005:
+ *     decrypted only for display, never logged) — {@code null} when {@code adminUserId} is
  * @param note the optional note, or {@code null}
  * @param createdAt when the row was created
  */
@@ -25,5 +26,6 @@ public record StockMovementDto(
     int quantity,
     int resultingStock,
     UUID adminUserId,
+    String adminUserName,
     String note,
     Instant createdAt) {}

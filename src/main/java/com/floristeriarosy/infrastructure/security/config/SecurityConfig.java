@@ -15,6 +15,7 @@ import java.util.List;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -158,6 +159,41 @@ public class SecurityConfig {
           new SimpleGrantedAuthority("ROLE_OWNER"), new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
     return List.of(new SimpleGrantedAuthority("ROLE_" + role));
+  }
+
+  /**
+   * Stops Spring Boot's own {@code FilterRegistrationBean} auto-configuration from registering
+   * {@link RateLimitFilter} a second time as a plain servlet filter — every {@code @Component} bean
+   * of type {@link jakarta.servlet.Filter} gets that treatment automatically, in addition to
+   * whatever this class wires into the security chain above. Both registrations would run for
+   * every request today only because the filter extends {@link OncePerRequestFilter}; if it ever
+   * stopped, the rate limiter would silently start consuming two tokens per request.
+   *
+   * @param rateLimitFilter the bean to keep out of the plain servlet chain
+   * @return a disabled registration, so only {@link #securityFilterChain} runs it
+   */
+  @Bean
+  public FilterRegistrationBean<RateLimitFilter> rateLimitFilterRegistration(
+      RateLimitFilter rateLimitFilter) {
+    FilterRegistrationBean<RateLimitFilter> registration = new FilterRegistrationBean<>(rateLimitFilter);
+    registration.setEnabled(false);
+    return registration;
+  }
+
+  /**
+   * The same double-registration guard as {@link #rateLimitFilterRegistration}, for {@link
+   * PasswordChangeRequiredFilter}.
+   *
+   * @param passwordChangeRequiredFilter the bean to keep out of the plain servlet chain
+   * @return a disabled registration, so only {@link #securityFilterChain} runs it
+   */
+  @Bean
+  public FilterRegistrationBean<PasswordChangeRequiredFilter> passwordChangeRequiredFilterRegistration(
+      PasswordChangeRequiredFilter passwordChangeRequiredFilter) {
+    FilterRegistrationBean<PasswordChangeRequiredFilter> registration =
+        new FilterRegistrationBean<>(passwordChangeRequiredFilter);
+    registration.setEnabled(false);
+    return registration;
   }
 
   /**

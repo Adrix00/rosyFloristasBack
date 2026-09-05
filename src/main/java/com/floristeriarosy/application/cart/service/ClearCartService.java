@@ -9,6 +9,7 @@ import com.floristeriarosy.application.cart.port.out.CartReadPort;
 import com.floristeriarosy.application.cart.port.out.CartWritePort;
 import com.floristeriarosy.application.cart.support.CartDtoAssembler;
 import com.floristeriarosy.application.cart.support.CartFinder;
+import com.floristeriarosy.application.cart.support.CartOptimisticRetry;
 import com.floristeriarosy.domain.model.cart.Cart;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -56,6 +57,14 @@ public class ClearCartService implements ClearCartUseCase {
   public CartDto execute(ClearCartCommand command) {
     LOGGER.debug("clearCart hasCustomer={}", command.customerId() != null);
 
+    return CartOptimisticRetry.withRetry(() -> doExecute(command));
+  }
+
+  /**
+   * @param command the caller's identity
+   * @return the resulting, empty cart
+   */
+  private CartDto doExecute(ClearCartCommand command) {
     Optional<Cart> existing = CartFinder.find(cartReadPort, command.customerId(), command.sessionToken());
     if (existing.isEmpty() || existing.get().items().isEmpty()) {
       CartDto result = existing.map(cart -> CartDtoAssembler.assemble(cart, cartPricingPort)).orElseGet(CartDto::empty);
@@ -65,9 +74,10 @@ public class ClearCartService implements ClearCartUseCase {
 
     Cart cart = existing.get();
     cart.clear();
-    cartItemWritePort.deleteAll(cart.id());
     cart.renewExpiry();
+    // Version-guarded write first (ADR-009 amendment): see AddCartItemService.doExecute.
     cartWritePort.touch(cart.id(), cart.expiresAt());
+    cartItemWritePort.deleteAll(cart.id());
 
     CartDto result = CartDtoAssembler.assemble(cart, cartPricingPort);
     LOGGER.debug("clearCart -> cartId={} emptied", result.id());

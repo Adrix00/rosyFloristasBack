@@ -1,6 +1,7 @@
 package com.floristeriarosy.infrastructure.persistence.jdbc.cart.repository;
 
 import com.floristeriarosy.application.cart.dto.CartCatalogEntryDto;
+import com.floristeriarosy.domain.model.product.ProductStatus;
 import com.floristeriarosy.infrastructure.persistence.support.product.ProductActiveSalePriceSql;
 import com.floristeriarosy.infrastructure.persistence.support.product.ProductVisibilitySql;
 import java.math.BigDecimal;
@@ -75,6 +76,10 @@ public class CartProjectionJdbcRepository {
    */
   public List<CartCatalogEntryDto> findCatalogEntries(Set<UUID> productIds) {
     LOGGER.debug("findCatalogEntries count={}", productIds.size());
+    if (productIds.isEmpty()) {
+      LOGGER.debug("findCatalogEntries -> count=0");
+      return List.of();
+    }
     String sql =
         "SELECT p.id, p.name, p.slug, p.price, p.status, p.stock, ("
             + ProductActiveSalePriceSql.CORRELATED_SUBQUERY
@@ -106,7 +111,7 @@ public class CartProjectionJdbcRepository {
         price,
         effectivePrice,
         activeSalePrice != null,
-        rs.getString("status"),
+        ProductStatus.valueOf(rs.getString("status")),
         stock);
   }
 

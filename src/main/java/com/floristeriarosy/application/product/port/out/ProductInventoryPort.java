@@ -31,12 +31,17 @@ public interface ProductInventoryPort {
    * without writing a movement row ({@code chk_stock_movements_quantity_nonzero} forbids a
    * zero-quantity non-{@code INITIAL} movement).
    *
+   * <p>Takes the stock the caller already read: the write is conditional on the product still
+   * holding it, so two concurrent adjustments cannot compound (ADR-009). The caller gets a 409
+   * rather than a silently merged third value.
+   *
    * @param id the product to adjust
+   * @param expectedStock the stock the caller read before deciding
    * @param newStock the new stock value
    * @param lowStockThreshold the low-stock alert threshold, or {@code null} to leave it unset
    * @param note optional note for the movement
    */
-  void adjustStock(ProductId id, int newStock, Integer lowStockThreshold, String note);
+  void adjustStock(ProductId id, int expectedStock, int newStock, Integer lowStockThreshold, String note);
 
   /**
    * Switches a product back to unmanaged inventory: {@code stock} becomes {@code null}: the

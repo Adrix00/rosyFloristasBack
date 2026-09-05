@@ -6,6 +6,7 @@ import com.floristeriarosy.application.cart.port.out.CartItemWritePort;
 import com.floristeriarosy.application.cart.port.out.CartReadPort;
 import com.floristeriarosy.application.cart.port.out.CartWritePort;
 import com.floristeriarosy.application.cart.support.CartFinder;
+import com.floristeriarosy.application.cart.support.CartOptimisticRetry;
 import com.floristeriarosy.domain.model.cart.Cart;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 import java.util.Map;
@@ -49,7 +50,13 @@ public class MergeCartService implements MergeCartUseCase {
   @Override
   public void execute(MergeCartCommand command) {
     LOGGER.debug("mergeCart customerId={}", command.customerId());
+    CartOptimisticRetry.withRetry(() -> doExecute(command));
+  }
 
+  /**
+   * @param command the customer who just logged in, and the guest session token present at login
+   */
+  private void doExecute(MergeCartCommand command) {
     if (command.guestSessionToken() == null || command.guestSessionToken().isBlank()) {
       LOGGER.debug("mergeCart -> no guest session token, nothing to merge");
       return;
@@ -70,6 +77,13 @@ public class MergeCartService implements MergeCartUseCase {
       LOGGER.debug("mergeCart -> guest cart reassigned, cartId={}", cart.id());
       return;
     }
+    if (customerCart.get().id().equals(guestCart.get().id())) {
+      // The same session_token cookie can resolve as both the guest cart and the customer's own
+      // (e.g. a second login without clearing cookies): merging a cart into itself would double
+      // every line via mergeInto, then delete(guestCart.id()) would erase what it just doubled.
+      LOGGER.debug("mergeCart -> guest cart is already the customer's own, nothing to merge");
+      return;
+    }
 
     mergeInto(customerCart.get(), guestCart.get());
   }
@@ -82,11 +96,13 @@ public class MergeCartService implements MergeCartUseCase {
     for (Map.Entry<ProductId, Integer> line : guestCart.items().entrySet()) {
       customerCart.mergeItem(line.getKey(), line.getValue());
     }
+    customerCart.renewExpiry();
+    // Version-guarded write first (ADR-009 amendment): if this loses the race, nothing below has
+    // run yet, so the retry in execute() cannot double-apply the line writes or the guest delete.
+    cartWritePort.touch(customerCart.id(), customerCart.expiresAt());
     for (ProductId productId : guestCart.items().keySet()) {
       cartItemWritePort.save(customerCart.id(), productId, customerCart.items().get(productId));
     }
-    customerCart.renewExpiry();
-    cartWritePort.touch(customerCart.id(), customerCart.expiresAt());
     cartWritePort.delete(guestCart.id());
     LOGGER.debug("mergeCart -> merged into cartId={}, guest cartId={} deleted", customerCart.id(), guestCart.id());
   }

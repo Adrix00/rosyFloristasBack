@@ -82,13 +82,22 @@ producto sin precio aplicable.
 
 ### 3.2 El precio base no se toca mientras hay promoción
 
-Cambiar `products.price` con un descuento vigente se rechaza con 409
-`PRODUCT_HAS_ACTIVE_DISCOUNT`. El administrador cierra la promoción y luego cambia el precio.
+Cambiar `products.price` con un descuento **aplicable** — no meramente vigente en el tiempo — se
+rechaza con 409 `PRODUCT_HAS_ACTIVE_DISCOUNT`. El administrador cierra la promoción y luego cambia el
+precio. La distinción con la regla 3.1 importa aquí: un descuento `SOLD_OUT` sigue vigente en el
+tiempo pero no se está aplicando ahora mismo, así que esta guarda no lo bloquea — el precio base
+puede cambiar con un descuento agotado sin que nadie vea un tachado en ese momento.
 
 Sin esta regla la web mostraría un tachado falso: `original_price` seguiría anunciando un "antes" que
 ya no existe. Actualizar `original_price` junto al precio tampoco vale — reescribiría una promoción
 ya anunciada, y podría violar `chk_product_discounts_price` si el precio nuevo bajara del
 `sale_price`.
+
+Caso borde aceptado: si más tarde una devolución libera unidades de un descuento `SOLD_OUT` y vuelve
+a ser aplicable, `original_price` queda apuntando al precio base de cuando se congeló, no al que
+tenga el producto en ese momento — un tachado que ya no compara contra el precio real. Se acepta
+porque el escenario (recuento de una promoción ya agotada, más una devolución posterior) es raro y el
+coste de evitarlo (invalidar el descuento en cada cambio de precio) sería mayor que el problema.
 
 ### 3.3 Qué se puede editar
 
@@ -105,10 +114,21 @@ El criterio: **nunca se cambia el precio que alguien ya pagó o vio anunciado**.
 comprado, el precio es todavía una intención y puede corregirse. En cuanto hay una venta, ese precio
 es parte de una transacción real y se congela.
 
+**Ventana de carrera aceptada:** "vigente, con ventas" se decide con el `quantity_sold` leído al
+inicio de la transacción de edición; una reserva que confirma su venta entre esa lectura y el guardado
+del cambio de precio puede colar una edición de `sale_price` sobre un descuento que, para cuando el
+`UPDATE` llega a la base de datos, ya tiene ventas. A diferencia de `quantity_limit` — protegido
+también por `chk_product_discounts_sold` como respaldo — no hay restricción de base de datos que
+cierre este hueco para `sale_price`; la ventana es de milisegundos y se acepta como es.
+
 Límites de las ediciones permitidas:
 
-- `ends_at` no puede quedar por debajo de `now()`. Adelantarlo hasta `now()` es exactamente terminar
-  la promoción (regla 3.4).
+- `ends_at` debe quedar estrictamente después de `now()` en esta edición genérica — `now()` exacto
+  también se rechaza (422 `DISCOUNT_PERIOD_INVALID`), porque terminar la promoción tiene su propia
+  acción dedicada, `POST /discounts/{id}/end` (regla 3.4), que sí fija `ends_at = now()` sin pasar
+  por esta validación. El `now()` que un cliente calcula para un `PUT` genérico ya es pasado en el
+  momento en que el servidor lo evalúa de todas formas, así que en la práctica esta frontera nunca
+  se cruza de forma útil por esta vía.
 - `quantity_limit` no puede bajar de `quantity_sold`: lo impide `chk_product_discounts_sold`, y se
   traduce a 422 `DISCOUNT_LIMIT_BELOW_SOLD`.
 - Alargar `ends_at` puede chocar con otra promoción ya programada para ese producto. Lo rechaza el

@@ -29,7 +29,7 @@ class RegisterAdjustmentServiceTest {
 
   private StockMovementDto anyDto() {
     return new StockMovementDto(
-        UUID.randomUUID(), UUID.randomUUID(), StockMovementType.ADJUSTMENT, 3, 13, null, null, Instant.now());
+        UUID.randomUUID(), UUID.randomUUID(), StockMovementType.ADJUSTMENT, 3, 13, null, null, null, Instant.now());
   }
 
   @Test
@@ -37,12 +37,13 @@ class RegisterAdjustmentServiceTest {
     service = new RegisterAdjustmentService(registerStockMovementUseCase);
     ArgumentCaptor<RegisterStockMovementCommand> captor = ArgumentCaptor.forClass(RegisterStockMovementCommand.class);
     when(registerStockMovementUseCase.execute(captor.capture())).thenReturn(anyDto());
+    UUID adminId = UUID.randomUUID();
 
-    service.execute(new RegisterAdjustmentCommand(UUID.randomUUID(), 3, "recuento"));
+    service.execute(new RegisterAdjustmentCommand(UUID.randomUUID(), 3, "recuento", adminId));
 
     assertThat(captor.getValue().type()).isEqualTo(StockMovementType.ADJUSTMENT);
     assertThat(captor.getValue().quantity()).isEqualTo(3);
-    assertThat(captor.getValue().adminUserId()).isNull();
+    assertThat(captor.getValue().adminUserId()).isEqualTo(adminId);
   }
 
   @Test
@@ -51,7 +52,7 @@ class RegisterAdjustmentServiceTest {
     ArgumentCaptor<RegisterStockMovementCommand> captor = ArgumentCaptor.forClass(RegisterStockMovementCommand.class);
     when(registerStockMovementUseCase.execute(captor.capture())).thenReturn(anyDto());
 
-    service.execute(new RegisterAdjustmentCommand(UUID.randomUUID(), -3, "recuento"));
+    service.execute(new RegisterAdjustmentCommand(UUID.randomUUID(), -3, "recuento", UUID.randomUUID()));
 
     assertThat(captor.getValue().quantity()).isEqualTo(-3);
   }

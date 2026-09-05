@@ -19,6 +19,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -45,6 +47,7 @@ class AuditLogPersistenceAdapterTest {
   @Autowired private AuditLogPersistenceAdapter adapter;
   @Autowired private AdminPersistenceAdapter adminAdapter;
   @Autowired private JdbcTemplate jdbcTemplate;
+  @Autowired private PlatformTransactionManager transactionManager;
 
   @Test
   void recordsAnAdminUserActionWithChangesAlwaysNull() throws SQLException {
@@ -72,5 +75,31 @@ class AuditLogPersistenceAdapterTest {
     assertThat(row.get("changes")).isNull();
     Array changedFields = (Array) row.get("changed_fields");
     assertThat((String[]) changedFields.getArray()).containsExactly("email", "role");
+  }
+
+  @Test
+  void recordSurvivesTheCallersTransactionRollingBack() {
+    // Reproduces AdminLoginService/VerifyAdminMfaService: audit a failed attempt, then the
+    // enclosing @Transactional service rolls back when it throws the domain exception that denies
+    // the request. ADR-010 requires the audit row to survive that rollback (REQUIRES_NEW).
+    UUID entityId = UUID.randomUUID();
+    TransactionTemplate outerTransaction = new TransactionTemplate(transactionManager);
+
+    try {
+      outerTransaction.executeWithoutResult(
+          status -> {
+            adapter.record(null, AuditAction.LOGIN_FAILED, "admin_user", entityId, List.of());
+            throw new RuntimeException("simulated denial after the failed login attempt");
+          });
+    } catch (RuntimeException expected) {
+      // the outer transaction's own rollback, not the audit row's
+    }
+
+    Long count =
+        jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM audit_log WHERE entity_type = 'admin_user' AND entity_id = ?",
+            Long.class,
+            entityId);
+    assertThat(count).isEqualTo(1L);
   }
 }

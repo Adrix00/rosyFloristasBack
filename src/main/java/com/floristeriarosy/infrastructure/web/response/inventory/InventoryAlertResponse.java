@@ -13,8 +13,8 @@ import java.util.UUID;
  * @param observedValue the observed number, labeled per {@code type} by the presentation layer
  * @param expectedValue the number it was compared against, labeled per {@code type}
  * @param status the current lifecycle state
- * @param resolvedByAdminName who closed it, or {@code null} — always {@code null} today (no {@code
- *     auth}/{@code admin} module yet)
+ * @param resolvedByAdminName who closed it (their email, {@code admin_users} has no name column),
+ *     or {@code null} while still {@code OPEN}
  * @param resolvedAt when it was closed, or {@code null} if still {@code OPEN}
  * @param createdAt when the row was created
  */

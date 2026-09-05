@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.floristeriarosy.application.product.command.ChangeInventoryModeCommand;
@@ -14,6 +15,7 @@ import com.floristeriarosy.application.product.port.out.ProductCategoryPort;
 import com.floristeriarosy.application.product.port.out.ProductImagePort;
 import com.floristeriarosy.application.product.port.out.ProductInventoryPort;
 import com.floristeriarosy.application.product.port.out.ProductReadPort;
+import com.floristeriarosy.domain.exception.product.ProductDiscontinuedException;
 import com.floristeriarosy.domain.exception.product.ProductNotFoundException;
 import com.floristeriarosy.domain.exception.product.ProductStockRequiredException;
 import com.floristeriarosy.domain.model.product.Product;
@@ -42,6 +44,10 @@ class ChangeInventoryModeServiceTest {
   private ChangeInventoryModeService service;
 
   private Product product(UUID id, Integer stock) {
+    return product(id, stock, ProductStatus.ACTIVE);
+  }
+
+  private Product product(UUID id, Integer stock, ProductStatus status) {
     return Product.reconstitute(
         ProductId.of(id),
         "Ramo",
@@ -50,7 +56,7 @@ class ChangeInventoryModeServiceTest {
         BigDecimal.TEN,
         stock,
         null,
-        ProductStatus.ACTIVE,
+        status,
         false,
         Map.of(),
         Instant.now(),
@@ -82,7 +88,7 @@ class ChangeInventoryModeServiceTest {
 
     assertThat(dto.stock()).isEqualTo(10);
     verify(inventoryPort).initializeStock(ProductId.of(id), 10, null, null);
-    verify(inventoryPort, never()).adjustStock(any(), anyInt(), any(), any());
+    verify(inventoryPort, never()).adjustStock(any(), anyInt(), anyInt(), any(), any());
   }
 
   @Test
@@ -97,7 +103,7 @@ class ChangeInventoryModeServiceTest {
 
     service.execute(new ChangeInventoryModeCommand(id, true, 12, null, null));
 
-    verify(inventoryPort).adjustStock(ProductId.of(id), 12, null, null);
+    verify(inventoryPort).adjustStock(ProductId.of(id), 5, 12, null, null);
     verify(inventoryPort, never()).initializeStock(any(), anyInt(), any(), any());
   }
 
@@ -139,5 +145,17 @@ class ChangeInventoryModeServiceTest {
     assertThatThrownBy(
             () -> service.execute(new ChangeInventoryModeCommand(id, false, null, null, null)))
         .isInstanceOf(ProductNotFoundException.class);
+  }
+
+  @Test
+  void rejectsChangingInventoryOfADiscontinuedProduct() {
+    service = new ChangeInventoryModeService(readPort, inventoryPort, categoryPort, imagePort);
+    UUID id = UUID.randomUUID();
+    when(readPort.findById(ProductId.of(id))).thenReturn(Optional.of(product(id, 5, ProductStatus.DISCONTINUED)));
+
+    assertThatThrownBy(
+            () -> service.execute(new ChangeInventoryModeCommand(id, true, 10, null, null)))
+        .isInstanceOf(ProductDiscontinuedException.class);
+    verifyNoInteractions(inventoryPort);
   }
 }

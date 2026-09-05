@@ -14,9 +14,6 @@ import org.springframework.stereotype.Service;
 /**
  * Implements {@link RegisterAdjustmentUseCase}: orchestrates over {@link
  * RegisterStockMovementUseCase} for a manual correction (inventory.md, section 3.6).
- *
- * <p>{@code adminUserId} is always {@code null}: no {@code auth}/{@code admin} module exists yet to
- * resolve a principal from (known gap, dev-plan.md, pending {@code feature/auth}).
  */
 @Service
 public class RegisterAdjustmentService implements RegisterAdjustmentUseCase {
@@ -47,7 +44,7 @@ public class RegisterAdjustmentService implements RegisterAdjustmentUseCase {
             command.productId(),
             StockMovementType.ADJUSTMENT,
             command.quantity(),
-            null,
+            command.adminUserId(),
             command.note());
     StockMovementDto result = registerStockMovementUseCase.execute(delegateCommand);
 

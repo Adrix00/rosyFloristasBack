@@ -9,6 +9,7 @@ import com.floristeriarosy.application.cart.port.out.CartReadPort;
 import com.floristeriarosy.application.cart.port.out.CartWritePort;
 import com.floristeriarosy.application.cart.support.CartDtoAssembler;
 import com.floristeriarosy.application.cart.support.CartFinder;
+import com.floristeriarosy.application.cart.support.CartOptimisticRetry;
 import com.floristeriarosy.domain.exception.cart.CartItemNotFoundException;
 import com.floristeriarosy.domain.model.cart.Cart;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
@@ -57,15 +58,26 @@ public class RemoveCartItemService implements RemoveCartItemUseCase {
         "removeCartItem hasCustomer={} productId={}", command.customerId() != null, command.productId());
 
     ProductId productId = ProductId.of(command.productId());
+    return CartOptimisticRetry.withRetry(() -> doExecute(command, productId));
+  }
+
+  /**
+   * @param command the product to remove, plus the caller's identity
+   * @param productId {@code command.productId()}, already parsed
+   * @return the resulting, fully priced cart
+   * @throws CartItemNotFoundException the product has no line in the cart
+   */
+  private CartDto doExecute(RemoveCartItemCommand command, ProductId productId) {
     Cart cart =
         CartFinder.find(cartReadPort, command.customerId(), command.sessionToken())
             .orElseThrow(
                 () -> new CartItemNotFoundException("No cart line for product " + productId));
 
     cart.removeItem(productId);
-    cartItemWritePort.delete(cart.id(), productId);
     cart.renewExpiry();
+    // Version-guarded write first (ADR-009 amendment): see AddCartItemService.doExecute.
     cartWritePort.touch(cart.id(), cart.expiresAt());
+    cartItemWritePort.delete(cart.id(), productId);
 
     CartDto result = CartDtoAssembler.assemble(cart, cartPricingPort);
     LOGGER.debug("removeCartItem -> cartId={} itemCount={}", result.id(), result.itemCount());

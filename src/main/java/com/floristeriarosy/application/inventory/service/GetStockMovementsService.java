@@ -1,11 +1,14 @@
 package com.floristeriarosy.application.inventory.service;
 
+import com.floristeriarosy.application.admin.port.out.AdminReadPort;
 import com.floristeriarosy.application.inventory.dto.StockMovementDto;
 import com.floristeriarosy.application.inventory.port.in.GetStockMovementsUseCase;
 import com.floristeriarosy.application.inventory.port.out.StockMovementReadPort;
 import com.floristeriarosy.application.inventory.query.GetStockMovementsQuery;
 import com.floristeriarosy.application.product.dto.PageResult;
 import com.floristeriarosy.application.product.port.out.ProductExistencePort;
+import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
+import com.floristeriarosy.application.shared.support.AdminDisplayNameResolver;
 import com.floristeriarosy.domain.exception.product.ProductNotFoundException;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 import org.slf4j.Logger;
@@ -21,15 +24,25 @@ public class GetStockMovementsService implements GetStockMovementsUseCase {
 
   private final ProductExistencePort productExistencePort;
   private final StockMovementReadPort readPort;
+  private final AdminReadPort adminReadPort;
+  private final PiiCryptoPort piiCryptoPort;
 
   /**
    * @param productExistencePort checks the source product exists
    * @param readPort lists the product's movement history
+   * @param adminReadPort resolves a triggering admin's encrypted email, for {@code
+   *     adminUserName} (inventory.md, section 6)
+   * @param piiCryptoPort decrypts it (ADR-005)
    */
   public GetStockMovementsService(
-      ProductExistencePort productExistencePort, StockMovementReadPort readPort) {
+      ProductExistencePort productExistencePort,
+      StockMovementReadPort readPort,
+      AdminReadPort adminReadPort,
+      PiiCryptoPort piiCryptoPort) {
     this.productExistencePort = productExistencePort;
     this.readPort = readPort;
+    this.adminReadPort = adminReadPort;
+    this.piiCryptoPort = piiCryptoPort;
   }
 
   /**
@@ -52,9 +65,37 @@ public class GetStockMovementsService implements GetStockMovementsUseCase {
     }
     PageResult<StockMovementDto> result =
         readPort.findByProduct(productId, query.page(), query.size());
+    PageResult<StockMovementDto> withNames =
+        new PageResult<>(
+            result.items().stream().map(this::withAdminUserName).toList(),
+            result.totalElements(),
+            result.page(),
+            result.size());
 
     LOGGER.debug(
-        "getStockMovements productId={} -> totalElements={}", productId, result.totalElements());
-    return result;
+        "getStockMovements productId={} -> totalElements={}", productId, withNames.totalElements());
+    return withNames;
+  }
+
+  /**
+   * @param dto a movement fetched from persistence, with {@code adminUserName} always {@code
+   *     null} (the row mapper cannot decrypt PII)
+   * @return the same movement with {@code adminUserName} resolved, if it has one
+   */
+  private StockMovementDto withAdminUserName(StockMovementDto dto) {
+    if (dto.adminUserId() == null) {
+      return dto;
+    }
+    String adminUserName = AdminDisplayNameResolver.resolve(adminReadPort, piiCryptoPort, dto.adminUserId());
+    return new StockMovementDto(
+        dto.id(),
+        dto.productId(),
+        dto.type(),
+        dto.quantity(),
+        dto.resultingStock(),
+        dto.adminUserId(),
+        adminUserName,
+        dto.note(),
+        dto.createdAt());
   }
 }

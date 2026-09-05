@@ -10,6 +10,7 @@ import com.floristeriarosy.application.cart.port.out.CartReadPort;
 import com.floristeriarosy.application.cart.port.out.CartWritePort;
 import com.floristeriarosy.application.cart.support.CartDtoAssembler;
 import com.floristeriarosy.application.cart.support.CartFinder;
+import com.floristeriarosy.application.cart.support.CartOptimisticRetry;
 import com.floristeriarosy.domain.exception.cart.CartInsufficientStockException;
 import com.floristeriarosy.domain.exception.cart.CartItemNotFoundException;
 import com.floristeriarosy.domain.model.cart.Cart;
@@ -67,6 +68,18 @@ public class UpdateCartItemService implements UpdateCartItemUseCase {
         command.quantity());
 
     ProductId productId = ProductId.of(command.productId());
+    requireEnoughStock(productId, command.quantity());
+
+    return CartOptimisticRetry.withRetry(() -> doExecute(command, productId));
+  }
+
+  /**
+   * @param command the product and the exact quantity to set, plus the caller's identity
+   * @param productId {@code command.productId()}, already parsed
+   * @return the resulting, fully priced cart
+   * @throws CartItemNotFoundException the product has no line in the cart
+   */
+  private CartDto doExecute(UpdateCartItemCommand command, ProductId productId) {
     Cart cart =
         CartFinder.find(cartReadPort, command.customerId(), command.sessionToken())
             .orElseThrow(
@@ -75,12 +88,12 @@ public class UpdateCartItemService implements UpdateCartItemUseCase {
     if (!cart.items().containsKey(productId)) {
       throw new CartItemNotFoundException("No cart line for product " + productId);
     }
-    requireEnoughStock(productId, command.quantity());
 
     cart.setItemQuantity(productId, command.quantity());
-    cartItemWritePort.save(cart.id(), productId, command.quantity());
     cart.renewExpiry();
+    // Version-guarded write first (ADR-009 amendment): see AddCartItemService.doExecute.
     cartWritePort.touch(cart.id(), cart.expiresAt());
+    cartItemWritePort.save(cart.id(), productId, command.quantity());
 
     CartDto result = CartDtoAssembler.assemble(cart, cartPricingPort);
     LOGGER.debug("updateCartItem -> cartId={} itemCount={}", result.id(), result.itemCount());

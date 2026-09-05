@@ -141,7 +141,7 @@ public class ProductSearchJdbcRepository {
   private void appendFullTextFilter(StringBuilder sql, List<Object> params, String q) {
     if (q != null && !q.isBlank()) {
       sql.append(" AND p.search_vector @@ plainto_tsquery('spanish', ?)");
-      params.add(q);
+      params.add(ProductSearchTextBuilder.normalize(q));
     }
   }
 
@@ -232,6 +232,7 @@ public class ProductSearchJdbcRepository {
     }
     return value.toString();
   }
+
 
   /**
    * @param value the raw text to embed in a JSON string

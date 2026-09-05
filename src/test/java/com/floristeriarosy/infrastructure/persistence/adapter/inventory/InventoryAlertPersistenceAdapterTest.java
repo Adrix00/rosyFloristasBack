@@ -118,20 +118,6 @@ class InventoryAlertPersistenceAdapterTest {
   }
 
   @Test
-  void findOpenListsOnlyAlertsStillOpen() {
-    ProductId productId = newProduct();
-    InventoryAlert alert = openLowStockAlert(productId);
-    adapter.save(alert);
-
-    assertThat(adapter.findOpen()).extracting(a -> a.id().value()).contains(alert.id().value());
-
-    alert.dismiss(null, null, Instant.now());
-    adapter.dismiss(alert);
-
-    assertThat(adapter.findOpen()).extracting(a -> a.id().value()).doesNotContain(alert.id().value());
-  }
-
-  @Test
   void findAllFiltersByStatus() {
     ProductId productId = newProduct();
     InventoryAlert alert = openLowStockAlert(productId);

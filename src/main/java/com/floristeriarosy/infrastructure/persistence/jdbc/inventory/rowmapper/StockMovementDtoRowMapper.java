@@ -13,7 +13,9 @@ public class StockMovementDtoRowMapper implements RowMapper<StockMovementDto> {
   /**
    * @param rs the current row
    * @param rowNum the row's index, unused
-   * @return the row mapped to a stock movement read shape
+   * @return the row mapped to a stock movement read shape; {@code adminUserName} is always {@code
+   *     null} here — resolving and decrypting it (ADR-005) is the calling service's job, not a
+   *     pure row mapper's
    * @throws SQLException propagated from a column read
    */
   @Override
@@ -25,6 +27,7 @@ public class StockMovementDtoRowMapper implements RowMapper<StockMovementDto> {
         rs.getInt("quantity"),
         rs.getInt("resulting_stock"),
         (UUID) rs.getObject("admin_user_id"),
+        null,
         rs.getString("note"),
         rs.getTimestamp("created_at").toInstant());
   }

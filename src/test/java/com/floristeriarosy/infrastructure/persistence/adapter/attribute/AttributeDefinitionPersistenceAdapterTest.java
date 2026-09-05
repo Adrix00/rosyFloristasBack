@@ -7,6 +7,7 @@ import com.floristeriarosy.domain.exception.attribute.AttributeDefinitionAlready
 import com.floristeriarosy.domain.model.attribute.AttributeDataType;
 import com.floristeriarosy.domain.model.attribute.AttributeDefinition;
 import com.floristeriarosy.domain.model.attribute.valueobject.AttributeDefinitionId;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -73,24 +74,30 @@ class AttributeDefinitionPersistenceAdapterTest {
 
   @Test
   void listsOrderedByPositionThenLabel() {
+    // No cleanup runs between tests in this shared-container suite, so findAll() returns rows
+    // from every other test too — asserting on relative order of these four keys, not the full
+    // list, is what makes this assertion meaningful without requiring isolation.
     String suffix = UUID.randomUUID().toString().substring(0, 8);
+    String higherPositionKey = "higher-position-" + suffix;
+    String lowerPositionKey = "lower-position-" + suffix;
+    String labelBetaKey = "label-beta-" + suffix;
+    String labelAlphaKey = "label-alpha-" + suffix;
     adapter.save(
         AttributeDefinition.create(
-            AttributeDefinitionId.newId(),
-            "z-" + suffix,
-            "AAA " + suffix,
-            AttributeDataType.TEXT,
-            true,
-            0));
+            AttributeDefinitionId.newId(), higherPositionKey, "Z", AttributeDataType.TEXT, true, 1));
     adapter.save(
         AttributeDefinition.create(
-            AttributeDefinitionId.newId(),
-            "a-" + suffix,
-            "ZZZ " + suffix,
-            AttributeDataType.TEXT,
-            true,
-            0));
+            AttributeDefinitionId.newId(), lowerPositionKey, "A", AttributeDataType.TEXT, true, 0));
+    adapter.save(
+        AttributeDefinition.create(
+            AttributeDefinitionId.newId(), labelBetaKey, "Beta", AttributeDataType.TEXT, true, 5));
+    adapter.save(
+        AttributeDefinition.create(
+            AttributeDefinitionId.newId(), labelAlphaKey, "Alpha", AttributeDataType.TEXT, true, 5));
 
-    assertThat(adapter.findAll()).isNotEmpty();
+    List<String> keysInOrder = adapter.findAll().stream().map(AttributeDefinition::attributeKey).toList();
+
+    assertThat(keysInOrder.indexOf(lowerPositionKey)).isLessThan(keysInOrder.indexOf(higherPositionKey));
+    assertThat(keysInOrder.indexOf(labelAlphaKey)).isLessThan(keysInOrder.indexOf(labelBetaKey));
   }
 }

@@ -1,5 +1,6 @@
 package com.floristeriarosy.application.cart.dto;
 
+import com.floristeriarosy.domain.model.product.ProductStatus;
 import java.math.BigDecimal;
 import java.util.UUID;
 
@@ -15,7 +16,7 @@ import java.util.UUID;
  * @param unitPrice the product's base price
  * @param effectivePrice the current price, with an active discount applied if any
  * @param onSale whether {@code effectivePrice} reflects an active discount
- * @param status the product's status, e.g. {@code "ACTIVE"} (product.md §3.2)
+ * @param status the product's status (product.md §3.2)
  * @param availableQuantity the current stock, or {@code null} if inventory is unmanaged
  */
 public record CartCatalogEntryDto(
@@ -26,5 +27,5 @@ public record CartCatalogEntryDto(
     BigDecimal unitPrice,
     BigDecimal effectivePrice,
     boolean onSale,
-    String status,
+    ProductStatus status,
     Integer availableQuantity) {}

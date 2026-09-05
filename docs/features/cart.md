@@ -31,6 +31,7 @@ regla 3.2). Un invitado que nunca se registra puede completar un pedido igualmen
 | `customer_id` | `REFERENCES customers ON DELETE CASCADE`, **nullable** — `NULL` es un carrito de invitado |
 | `session_token` | `NOT NULL`, `UNIQUE` — identifica el carrito en ambos casos, invitado o cliente |
 | `expires_at` | `NOT NULL` |
+| `version` | `NOT NULL DEFAULT 0` — bloqueo optimista (ADR-009, enmienda 2026-09-06); ver sección 3.3 |
 
 | Columna de `cart_items` | Restricción |
 |---|---|
@@ -78,7 +79,11 @@ el `UNIQUE (cart_id, product_id)`: una fila por producto.
 
 Límites de carga útil, defensivos y sin significado de negocio (
 [`00-security-validation-integrity.md`](00-security-validation-integrity.md), sección 4): máximo 99
-unidades por línea, máximo 50 líneas distintas por carrito.
+unidades por línea, máximo 50 líneas distintas por carrito. Se comprueban **antes** que el stock: si
+una línea a 90 unidades recibe otras 20, el resultado (110) excede tanto el tope de 99 como un stock
+de 100 — responder con el tope de línea es lo accionable, porque es el límite que de verdad se aplica
+aquí; devolver `availableQuantity: 100` invitaría a un reintento con 100 que fallaría igual, contra un
+código de error distinto.
 
 **Comprobación de stock al añadir o actualizar cantidad.** Es la primera de tres comprobaciones — la
 selección de cantidad en el frontend, que limita al stock visible, es la primera y no es
@@ -86,12 +91,24 @@ responsabilidad de este backend. Si aun así llega una cantidad mayor que el sto
 disponible, se rechaza con el número real disponible en el mensaje: pedir 5 con solo 3 en stock
 responde 422 con `availableQuantity: 3`, no un simple "sin stock".
 
-Esta comprobación es **blanda**: no reserva nada. El único bloqueo real de concurrencia es el
-`UPDATE` condicional del checkout ([`inventory.md`](inventory.md), regla 3.1). Entre que se añade al
-carrito y se paga, otra persona puede agotar el producto — por eso existe la tercera comprobación
-(regla 3.4).
+Esta comprobación es **blanda**: no reserva nada. El único bloqueo real de concurrencia sobre el stock
+en sí es el `UPDATE` condicional del checkout ([`inventory.md`](inventory.md), regla 3.1). Entre que
+se añade al carrito y se paga, otra persona puede agotar el producto — por eso existe la tercera
+comprobación (regla 3.4).
 
 Un producto sin gestión de inventario (`stock IS NULL`) no tiene límite que comprobar aquí.
+
+**Concurrencia sobre la fila del propio carrito** (distinta de la anterior, que es sobre el stock del
+producto): `carts.version` (ADR-009, enmienda 2026-09-06) protege la fila `carts` — no `cart_items`,
+que se escribe con un upsert atómico (`INSERT ... ON CONFLICT`) inmune a condiciones de carrera por
+construcción — de dos escrituras concurrentes desde dos dispositivos de la misma cuenta. A diferencia
+de `products` o `admin_users`, un conflicto de versión aquí **no** se expone al cliente como 409: se
+reintenta una vez, de forma transparente, releyendo el carrito y reaplicando la misma operación
+(añadir, fijar cantidad, quitar, vaciar o fusionar) — seguro porque cada una de esas operaciones
+produce el mismo resultado final se aplique una vez o dos, a diferencia de la edición arbitraria de un
+campo que sí exige que el segundo escritor decida. Cada caso de uso escribe primero la fila `carts`
+(la que lleva `version`) y solo después la línea en `cart_items`, para que un conflicto no deje nada a
+medio aplicar antes de reintentar.
 
 ### 3.4 Validación antes de pagar
 

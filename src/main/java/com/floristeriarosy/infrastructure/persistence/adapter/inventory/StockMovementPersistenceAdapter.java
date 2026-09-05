@@ -13,6 +13,7 @@ import com.floristeriarosy.infrastructure.persistence.jdbc.inventory.repository.
 import com.floristeriarosy.infrastructure.persistence.jpa.inventory.repository.StockMovementJpaRepository;
 import com.floristeriarosy.infrastructure.persistence.mapper.inventory.StockMovementPersistenceMapper;
 import java.util.List;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -70,6 +71,18 @@ public class StockMovementPersistenceAdapter implements StockMovementWritePort, 
     } catch (DataIntegrityViolationException violation) {
       throw translateSave(violation, movement);
     }
+  }
+
+  /**
+   * @param productId the product whose history to total
+   * @return the sum of its movements, or empty if it has no movement history
+   */
+  @Override
+  public Optional<Integer> movementsTotal(ProductId productId) {
+    LOGGER.debug("movementsTotal productId={}", productId);
+    Optional<Integer> result = jdbcRepository.movementsTotal(productId.value());
+    LOGGER.debug("movementsTotal productId={} -> {}", productId, result.orElse(null));
+    return result;
   }
 
   /**

@@ -9,6 +9,7 @@ import com.floristeriarosy.application.product.port.in.UpdateProductImagesUseCas
 import com.floristeriarosy.application.product.port.out.ProductCategoryPort;
 import com.floristeriarosy.application.product.port.out.ProductImagePort;
 import com.floristeriarosy.application.product.port.out.ProductReadPort;
+import com.floristeriarosy.domain.exception.product.ProductDiscontinuedException;
 import com.floristeriarosy.domain.exception.product.ProductNotFoundException;
 import com.floristeriarosy.domain.model.product.Product;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
@@ -49,6 +50,8 @@ public class UpdateProductImagesService implements UpdateProductImagesUseCase {
    * @param command id of the product to update, plus its complete new gallery
    * @return the updated product
    * @throws ProductNotFoundException {@code command.id()} does not exist
+   * @throws ProductDiscontinuedException the product is {@code DISCONTINUED} (product.md, section
+   *     9/10)
    */
   @Override
   @PreAuthorize("hasRole('ADMIN')")
@@ -60,6 +63,7 @@ public class UpdateProductImagesService implements UpdateProductImagesUseCase {
         readPort
             .findById(id)
             .orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
+    product.requireNotDiscontinued();
 
     imagePort.replaceImages(id, command.images());
 

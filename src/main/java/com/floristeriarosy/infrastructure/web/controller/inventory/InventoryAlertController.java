@@ -3,6 +3,7 @@ package com.floristeriarosy.infrastructure.web.controller.inventory;
 import com.floristeriarosy.application.inventory.port.in.DismissInventoryAlertUseCase;
 import com.floristeriarosy.application.inventory.port.in.GetInventoryAlertsUseCase;
 import com.floristeriarosy.application.inventory.port.in.ResolveInventoryAlertUseCase;
+import com.floristeriarosy.infrastructure.security.jwt.CurrentAdminResolver;
 import com.floristeriarosy.infrastructure.web.mapper.inventory.InventoryAlertWebMapper;
 import com.floristeriarosy.infrastructure.web.request.inventory.DismissAlertRequest;
 import com.floristeriarosy.infrastructure.web.request.inventory.ResolveAlertRequest;
@@ -56,7 +57,8 @@ public class InventoryAlertController {
   }
 
   /**
-   * {@code GET /inventory/alerts} (ADMIN — unenforced, dev-plan.md): filtered, paginated history.
+   * {@code GET /inventory/alerts} ({@code ADMIN}, {@code @PreAuthorize} on the service): filtered,
+   * paginated history.
    *
    * @param type only alerts of this type, or {@code null} for every type
    * @param status only alerts with this status, or {@code null} for every status
@@ -86,8 +88,8 @@ public class InventoryAlertController {
   }
 
   /**
-   * {@code PATCH /inventory/alerts/{id}/resolve} (ADMIN — unenforced, dev-plan.md): closes the
-   * alert as fixed.
+   * {@code PATCH /inventory/alerts/{id}/resolve} ({@code ADMIN}, {@code @PreAuthorize} on the
+   * service): closes the alert as fixed.
    *
    * @param id the alert to resolve
    * @param request the optional closing note
@@ -98,14 +100,15 @@ public class InventoryAlertController {
       @PathVariable UUID id, @Valid @RequestBody ResolveAlertRequest request) {
     LOGGER.debug("PATCH /inventory/alerts/{}/resolve", id);
     InventoryAlertResponse response =
-        mapper.toResponse(resolveInventoryAlertUseCase.execute(mapper.toResolveCommand(id, request)));
+        mapper.toResponse(
+            resolveInventoryAlertUseCase.execute(mapper.toResolveCommand(id, request, CurrentAdminResolver.resolve())));
     LOGGER.debug("PATCH /inventory/alerts/{}/resolve -> 200", id);
     return ResponseEntity.ok(response);
   }
 
   /**
-   * {@code PATCH /inventory/alerts/{id}/dismiss} (ADMIN — unenforced, dev-plan.md): closes the
-   * alert as acknowledged, no action needed.
+   * {@code PATCH /inventory/alerts/{id}/dismiss} ({@code ADMIN}, {@code @PreAuthorize} on the
+   * service): closes the alert as acknowledged, no action needed.
    *
    * @param id the alert to dismiss
    * @param request the optional closing note
@@ -116,7 +119,8 @@ public class InventoryAlertController {
       @PathVariable UUID id, @Valid @RequestBody DismissAlertRequest request) {
     LOGGER.debug("PATCH /inventory/alerts/{}/dismiss", id);
     InventoryAlertResponse response =
-        mapper.toResponse(dismissInventoryAlertUseCase.execute(mapper.toDismissCommand(id, request)));
+        mapper.toResponse(
+            dismissInventoryAlertUseCase.execute(mapper.toDismissCommand(id, request, CurrentAdminResolver.resolve())));
     LOGGER.debug("PATCH /inventory/alerts/{}/dismiss -> 200", id);
     return ResponseEntity.ok(response);
   }

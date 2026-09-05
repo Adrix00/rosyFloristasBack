@@ -55,7 +55,7 @@ public class DiscountController {
   }
 
   /**
-   * {@code PUT /discounts/{id}} (ADMIN — unenforced, dev-plan.md): partial edit, per the
+   * {@code PUT /discounts/{id}} ({@code ADMIN}, {@code @PreAuthorize} on the service): partial edit, per the
    * editability rules of product-discounts.md, section 3.3.
    *
    * @param id the discount to update
@@ -72,7 +72,7 @@ public class DiscountController {
   }
 
   /**
-   * {@code POST /discounts/{id}/end} (ADMIN — unenforced, dev-plan.md): closes the discount now.
+   * {@code POST /discounts/{id}/end} ({@code ADMIN}, {@code @PreAuthorize} on the service): closes the discount now.
    *
    * @param id the discount to close
    * @return 200 with the closed discount
@@ -86,7 +86,7 @@ public class DiscountController {
   }
 
   /**
-   * {@code DELETE /discounts/{id}} (ADMIN — unenforced, dev-plan.md): permanent removal, only if
+   * {@code DELETE /discounts/{id}} ({@code ADMIN}, {@code @PreAuthorize} on the service): permanent removal, only if
    * the discount has not started yet.
    *
    * @param id the discount to delete

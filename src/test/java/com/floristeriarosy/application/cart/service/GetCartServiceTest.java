@@ -11,6 +11,7 @@ import com.floristeriarosy.application.cart.port.out.CartReadPort;
 import com.floristeriarosy.application.cart.query.GetCartQuery;
 import com.floristeriarosy.domain.model.cart.Cart;
 import com.floristeriarosy.domain.model.cart.valueobject.CartId;
+import com.floristeriarosy.domain.model.product.ProductStatus;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -76,6 +77,7 @@ class GetCartServiceTest {
   }
 
   private CartCatalogEntryDto entry(ProductId productId, BigDecimal price) {
-    return new CartCatalogEntryDto(productId.value(), "Ramo", "ramo", null, price, price, false, "ACTIVE", null);
+    return new CartCatalogEntryDto(
+        productId.value(), "Ramo", "ramo", null, price, price, false, ProductStatus.ACTIVE, null);
   }
 }

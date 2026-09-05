@@ -46,24 +46,26 @@ public class InventoryAlertWebMapper {
   /**
    * @param id the alert to resolve, from the path
    * @param request the optional closing note
+   * @param adminUserId the caller, resolved from the JWT
    * @return the command to hand to {@code ResolveInventoryAlertUseCase}
    */
-  public ResolveInventoryAlertCommand toResolveCommand(UUID id, ResolveAlertRequest request) {
-    return new ResolveInventoryAlertCommand(id, request.note());
+  public ResolveInventoryAlertCommand toResolveCommand(UUID id, ResolveAlertRequest request, UUID adminUserId) {
+    return new ResolveInventoryAlertCommand(id, request.note(), adminUserId);
   }
 
   /**
    * @param id the alert to dismiss, from the path
    * @param request the optional closing note
+   * @param adminUserId the caller, resolved from the JWT
    * @return the command to hand to {@code DismissInventoryAlertUseCase}
    */
-  public DismissInventoryAlertCommand toDismissCommand(UUID id, DismissAlertRequest request) {
-    return new DismissInventoryAlertCommand(id, request.note());
+  public DismissInventoryAlertCommand toDismissCommand(UUID id, DismissAlertRequest request, UUID adminUserId) {
+    return new DismissInventoryAlertCommand(id, request.note(), adminUserId);
   }
 
   /**
    * @param dto the alert to expose
-   * @return its API representation; {@code resolvedByAdminName} is always {@code null} (known gap)
+   * @return its API representation
    */
   public InventoryAlertResponse toResponse(InventoryAlertDto dto) {
     return new InventoryAlertResponse(
@@ -74,7 +76,7 @@ public class InventoryAlertWebMapper {
         dto.observedValue(),
         dto.expectedValue(),
         dto.status(),
-        null,
+        dto.resolvedByAdminName(),
         dto.resolvedAt(),
         dto.createdAt());
   }

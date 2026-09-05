@@ -63,6 +63,22 @@ public class ProductStockPersistenceAdapter implements ProductStockPort {
   }
 
   /**
+   * @param productId the product to set
+   * @param expectedStock the stock the caller believes the product currently has
+   * @param newStock the stock to set it to
+   * @return the resulting stock, or empty if the product no longer holds {@code expectedStock}
+   */
+  @Override
+  public Optional<Integer> compareAndSetStock(ProductId productId, int expectedStock, int newStock) {
+    LOGGER.debug(
+        "compareAndSetStock productId={} expectedStock={} newStock={}", productId, expectedStock, newStock);
+    Optional<Integer> result =
+        jdbcRepository.compareAndSetStock(productId.value(), expectedStock, newStock);
+    LOGGER.debug("compareAndSetStock productId={} -> present={}", productId, result.isPresent());
+    return result;
+  }
+
+  /**
    * @param productId the product to deactivate
    */
   @Override

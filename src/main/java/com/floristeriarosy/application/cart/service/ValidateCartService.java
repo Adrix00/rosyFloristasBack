@@ -88,7 +88,7 @@ public class ValidateCartService implements ValidateCartUseCase {
       if (entry == null) {
         continue; // defensive: ON DELETE CASCADE guarantees the product row always exists
       }
-      if (!ProductStatus.ACTIVE.name().equals(entry.status())) {
+      if (entry.status() != ProductStatus.ACTIVE) {
         removed.add(new RemovedCartItemDto(entry.productId(), entry.productName()));
         toRemove.add(line.getKey());
         continue;

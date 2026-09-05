@@ -52,7 +52,7 @@ class InventoryAlertControllerTest {
   private InventoryAlertDto dto(UUID id, InventoryAlertStatus status) {
     Instant now = Instant.now();
     return new InventoryAlertDto(
-        id, InventoryAlertType.LOW_STOCK, UUID.randomUUID(), "Ramo", 2, 5, status, null, null, now);
+        id, InventoryAlertType.LOW_STOCK, UUID.randomUUID(), "Ramo", 2, 5, status, null, null, null, now);
   }
 
   @Test

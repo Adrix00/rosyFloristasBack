@@ -64,11 +64,13 @@ public class RefreshTokenPersistenceAdapter implements RefreshTokenReadPort, Ref
   /**
    * @param id the row to revoke
    * @param revokedAt the revocation instant
+   * @return whether this call is the one that revoked it
    */
   @Override
-  public void revoke(RefreshTokenId id, Instant revokedAt) {
+  public boolean revoke(RefreshTokenId id, Instant revokedAt) {
     LOGGER.debug("revoke id={}", id);
     int updated = jpaRepository.revoke(id.value(), revokedAt);
     LOGGER.debug("revoke id={} -> {} row(s) updated", id, updated);
+    return updated > 0;
   }
 }

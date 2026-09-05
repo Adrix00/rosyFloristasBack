@@ -3,6 +3,7 @@ package com.floristeriarosy.infrastructure.web.controller.inventory;
 import com.floristeriarosy.application.inventory.port.in.GetStockMovementsUseCase;
 import com.floristeriarosy.application.inventory.port.in.RegisterAdjustmentUseCase;
 import com.floristeriarosy.application.inventory.port.in.RegisterWasteUseCase;
+import com.floristeriarosy.infrastructure.security.jwt.CurrentAdminResolver;
 import com.floristeriarosy.infrastructure.web.mapper.inventory.StockMovementWebMapper;
 import com.floristeriarosy.infrastructure.web.request.inventory.RegisterAdjustmentRequest;
 import com.floristeriarosy.infrastructure.web.request.inventory.RegisterWasteRequest;
@@ -59,8 +60,8 @@ public class StockMovementController {
   }
 
   /**
-   * {@code GET /products/{id}/stock-movements} (ADMIN — unenforced, dev-plan.md): complete
-   * movement history, paginated.
+   * {@code GET /products/{id}/stock-movements} ({@code ADMIN}, {@code @PreAuthorize} on the
+   * service): complete movement history, paginated.
    *
    * @param id the product whose history to list
    * @param page requested page, zero-based
@@ -80,8 +81,8 @@ public class StockMovementController {
   }
 
   /**
-   * {@code POST /products/{id}/stock-movements/waste} (ADMIN — unenforced, dev-plan.md): registers
-   * an explicit write-off (inventory.md, section 3.5).
+   * {@code POST /products/{id}/stock-movements/waste} ({@code ADMIN}, {@code @PreAuthorize} on the
+   * service): registers an explicit write-off (inventory.md, section 3.5).
    *
    * @param id the product being written off
    * @param request the wasted quantity and required note
@@ -91,14 +92,15 @@ public class StockMovementController {
   public ResponseEntity<StockMovementResponse> registerWaste(
       @PathVariable UUID id, @Valid @RequestBody RegisterWasteRequest request) {
     LOGGER.debug("POST /products/{}/stock-movements/waste quantity={}", id, request.quantity());
-    StockMovementResponse response = mapper.toResponse(registerWasteUseCase.execute(mapper.toCommand(id, request)));
+    StockMovementResponse response =
+        mapper.toResponse(registerWasteUseCase.execute(mapper.toCommand(id, request, CurrentAdminResolver.resolve())));
     LOGGER.debug("POST /products/{}/stock-movements/waste -> 201 id={}", id, response.id());
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
 
   /**
-   * {@code POST /products/{id}/stock-movements/adjustment} (ADMIN — unenforced, dev-plan.md):
-   * registers a manual correction (inventory.md, section 3.6).
+   * {@code POST /products/{id}/stock-movements/adjustment} ({@code ADMIN}, {@code @PreAuthorize}
+   * on the service): registers a manual correction (inventory.md, section 3.6).
    *
    * @param id the product being corrected
    * @param request the signed delta and required note
@@ -109,7 +111,8 @@ public class StockMovementController {
       @PathVariable UUID id, @Valid @RequestBody RegisterAdjustmentRequest request) {
     LOGGER.debug("POST /products/{}/stock-movements/adjustment quantity={}", id, request.quantity());
     StockMovementResponse response =
-        mapper.toResponse(registerAdjustmentUseCase.execute(mapper.toCommand(id, request)));
+        mapper.toResponse(
+            registerAdjustmentUseCase.execute(mapper.toCommand(id, request, CurrentAdminResolver.resolve())));
     LOGGER.debug("POST /products/{}/stock-movements/adjustment -> 201 id={}", id, response.id());
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }

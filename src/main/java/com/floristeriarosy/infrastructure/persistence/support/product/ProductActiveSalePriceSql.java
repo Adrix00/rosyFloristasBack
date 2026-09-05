@@ -4,8 +4,10 @@ package com.floristeriarosy.infrastructure.persistence.support.product;
  * The correlated subquery every product listing/search query embeds to compute a product's
  * effective price (product.md, section 3.1: vigency window and, when limited, unsold units
  * remaining). Shared as one constant so the four JDBC repositories that need it — {@code
- * ProductJdbcRepository}, {@code ProductSearchJdbcRepository}, {@code
- * ProductSuggestionJdbcRepository} — don't each carry their own copy to drift out of sync.
+ * ProductJdbcRepository} (its listing/search paths, not {@code findActiveSalePrice}, which needs a
+ * non-correlated form — see that class), {@code ProductSearchJdbcRepository}, {@code
+ * ProductSuggestionJdbcRepository}, {@code CartProjectionJdbcRepository} — don't each carry their
+ * own copy to drift out of sync.
  *
  * <p>Expects the enclosing query to alias {@code products} as {@code p}; a caller embeds it as
  * {@code "(" + ProductActiveSalePriceSql.CORRELATED_SUBQUERY + ") AS active_sale_price"}.

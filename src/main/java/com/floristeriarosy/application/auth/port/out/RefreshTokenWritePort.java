@@ -14,8 +14,13 @@ public interface RefreshTokenWritePort {
   RefreshToken save(RefreshToken refreshToken);
 
   /**
+   * Conditional on the row not already being revoked (ADR-009's conditional-write pattern): two
+   * concurrent rotations of the same token can both read it as live, but only one revoke wins.
+   *
    * @param id the row to revoke
    * @param revokedAt the revocation instant
+   * @return whether this call is the one that revoked it — {@code false} means it was already
+   *     revoked, the signal {@code RefreshTokenService} treats as reuse
    */
-  void revoke(RefreshTokenId id, Instant revokedAt);
+  boolean revoke(RefreshTokenId id, Instant revokedAt);
 }

@@ -46,6 +46,23 @@ public interface ProductStockPort {
   int setInitial(ProductId productId, int quantity);
 
   /**
+   * {@code UPDATE products SET stock = :newStock WHERE id = :productId AND stock = :expectedStock
+   * RETURNING stock} — the absolute counterpart of the conditional increment/decrement, for an
+   * administrative adjustment that states the stock it wants rather than a delta.
+   *
+   * <p>Predicating on {@code expectedStock} is what stops two concurrent adjustments from
+   * compounding: without it, "set to 10" and "set to 12" issued together against a stock of 5
+   * become deltas of +5 and +7 and land on 17, a number neither administrator asked for
+   * (ADR-009 — the second writer is told, never silently merged).
+   *
+   * @param productId the product to set
+   * @param expectedStock the stock the caller believes the product currently has
+   * @param newStock the stock to set it to
+   * @return the resulting stock, or empty if the product no longer holds {@code expectedStock}
+   */
+  Optional<Integer> compareAndSetStock(ProductId productId, int expectedStock, int newStock);
+
+  /**
    * Sets {@code products.stock} back to {@code NULL}: deactivates managed inventory, movement
    * history left intact (product.md, section 3.7).
    *

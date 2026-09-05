@@ -114,6 +114,19 @@ class ProductSearchPersistenceAdapterTest {
   }
 
   @Test
+  void searchByFullTextMatchesAnAccentedQueryAgainstAnAccentedName() {
+    // search_text is indexed with diacritics stripped (ADR-006); the query must be normalized
+    // the same way, or "caña" (with the tilde) fails to match "Caña" even though "cana" does.
+    CategoryId categoryId = newActiveCategory();
+    String suffix = UUID.randomUUID().toString().substring(0, 8);
+    ProductId matching = newVisibleProduct("Caña de azucar " + suffix, BigDecimal.TEN, Map.of(), categoryId);
+
+    PageResult<ProductSummaryDto> page = adapter.search(criteria("caña", null, null, null, false, Map.of()));
+
+    assertThat(page.items()).extracting(ProductSummaryDto::id).containsExactly(matching.value());
+  }
+
+  @Test
   void searchByCategoryFiltersToThatCategoryOnly() {
     CategoryId categoryA = newActiveCategory();
     CategoryId categoryB = newActiveCategory();

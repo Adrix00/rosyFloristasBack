@@ -2,6 +2,7 @@ package com.floristeriarosy.application.cart.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -74,6 +75,24 @@ class MergeCartServiceTest {
     service.execute(new MergeCartCommand(customerId, "guest-token"));
 
     assertThat(customerCart.items()).containsEntry(onlyInGuestCart, 3);
+  }
+
+  @Test
+  void findingTheSameCartAsBothGuestAndCustomerNeitherDoublesNorDeletesIt() {
+    // The same session_token cookie can resolve as both the guest cart and the customer's own
+    // (e.g. a second login without clearing cookies). Merging a cart into itself would double
+    // every line via mergeInto and then delete what it just doubled.
+    UUID customerId = UUID.randomUUID();
+    ProductId productId = ProductId.newId();
+    Cart sameCart = cartWith(customerId, mapOf(productId, 3));
+    when(cartReadPort.findBySessionToken("guest-token")).thenReturn(Optional.of(sameCart));
+    when(cartReadPort.findByCustomer(customerId)).thenReturn(Optional.of(sameCart));
+
+    service.execute(new MergeCartCommand(customerId, "guest-token"));
+
+    assertThat(sameCart.items()).containsEntry(productId, 3);
+    verify(cartWritePort, never()).delete(any(CartId.class));
+    verify(cartItemWritePort, never()).save(any(), any(), anyInt());
   }
 
   @Test

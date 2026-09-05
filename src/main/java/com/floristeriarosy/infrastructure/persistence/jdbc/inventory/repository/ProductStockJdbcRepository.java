@@ -36,6 +36,13 @@ public class ProductStockJdbcRepository {
   private static final String SET_INITIAL_SQL =
       "UPDATE products SET stock = ?, updated_at = ? WHERE id = ? RETURNING stock";
 
+  private static final String COMPARE_AND_SET_SQL =
+      """
+      UPDATE products SET stock = ?, updated_at = ?
+      WHERE id = ? AND stock = ?
+      RETURNING stock
+      """;
+
   private static final String CLEAR_SQL = "UPDATE products SET stock = NULL, updated_at = ? WHERE id = ?";
 
   private final JdbcTemplate jdbcTemplate;
@@ -83,6 +90,21 @@ public class ProductStockJdbcRepository {
         firstRow(SET_INITIAL_SQL, quantity, Timestamp.from(Instant.now()), productId)
             .orElseThrow(() -> new IllegalStateException("Product " + productId + " not found"));
     LOGGER.debug("setInitial productId={} -> {}", productId, result);
+    return result;
+  }
+
+  /**
+   * @param productId the product to set
+   * @param expectedStock the stock the caller believes the product currently has
+   * @param newStock the stock to set it to
+   * @return the resulting stock, or empty if the row no longer holds {@code expectedStock}
+   */
+  public Optional<Integer> compareAndSetStock(UUID productId, int expectedStock, int newStock) {
+    LOGGER.debug(
+        "compareAndSetStock productId={} expectedStock={} newStock={}", productId, expectedStock, newStock);
+    Optional<Integer> result =
+        firstRow(COMPARE_AND_SET_SQL, newStock, Timestamp.from(Instant.now()), productId, expectedStock);
+    LOGGER.debug("compareAndSetStock productId={} -> present={}", productId, result.isPresent());
     return result;
   }
 

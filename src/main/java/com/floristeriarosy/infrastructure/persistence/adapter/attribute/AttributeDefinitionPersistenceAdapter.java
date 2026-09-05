@@ -10,6 +10,7 @@ import com.floristeriarosy.infrastructure.persistence.jpa.attribute.repository.A
 import com.floristeriarosy.infrastructure.persistence.mapper.attribute.AttributeDefinitionPersistenceMapper;
 import java.util.List;
 import java.util.Optional;
+import org.owasp.encoder.Encode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -72,10 +73,10 @@ public class AttributeDefinitionPersistenceAdapter implements AttributeDefinitio
    */
   @Override
   public Optional<AttributeDefinition> findByKey(String attributeKey) {
-    LOGGER.debug("findByKey attributeKey={}", attributeKey);
+    LOGGER.debug("findByKey attributeKey={}", Encode.forJava(attributeKey));
     Optional<AttributeDefinition> result =
         jpaRepository.findByAttributeKey(attributeKey).map(mapper::toDomain);
-    LOGGER.debug("findByKey attributeKey={} -> found={}", attributeKey, result.isPresent());
+    LOGGER.debug("findByKey attributeKey={} -> found={}", Encode.forJava(attributeKey), result.isPresent());
     return result;
   }
 
@@ -86,7 +87,7 @@ public class AttributeDefinitionPersistenceAdapter implements AttributeDefinitio
    */
   @Override
   public AttributeDefinition save(AttributeDefinition definition) {
-    LOGGER.debug("save id={} attributeKey={}", definition.id(), definition.attributeKey());
+    LOGGER.debug("save id={} attributeKey={}", definition.id(), Encode.forJava(definition.attributeKey()));
     AttributeDefinitionEntity entity = mapper.toEntity(definition);
     try {
       AttributeDefinition result = mapper.toDomain(jpaRepository.save(entity));
@@ -119,7 +120,7 @@ public class AttributeDefinitionPersistenceAdapter implements AttributeDefinitio
   private RuntimeException translate(
       DataIntegrityViolationException violation, AttributeDefinition definition) {
     String message = String.valueOf(violation.getMostSpecificCause().getMessage());
-    LOGGER.debug("save id={} -> constraint violation: {}", definition.id(), message);
+    LOGGER.debug("save id={} -> constraint violation: {}", definition.id(), Encode.forJava(message));
     if (message.contains("uq_product_attribute_definitions_key")) {
       return new AttributeDefinitionAlreadyExistsException(
           "An attribute definition with key '" + definition.attributeKey() + "' already exists");

@@ -9,6 +9,7 @@ import com.floristeriarosy.application.product.port.in.UpdateProductCategoriesUs
 import com.floristeriarosy.application.product.port.out.ProductCategoryPort;
 import com.floristeriarosy.application.product.port.out.ProductImagePort;
 import com.floristeriarosy.application.product.port.out.ProductReadPort;
+import com.floristeriarosy.domain.exception.product.ProductDiscontinuedException;
 import com.floristeriarosy.domain.exception.product.ProductNotFoundException;
 import com.floristeriarosy.domain.exception.product.ProductWithoutCategoryException;
 import com.floristeriarosy.domain.model.category.valueobject.CategoryId;
@@ -57,6 +58,8 @@ public class UpdateProductCategoriesService implements UpdateProductCategoriesUs
    * @return the updated product
    * @throws ProductNotFoundException {@code command.id()} does not exist
    * @throws ProductWithoutCategoryException {@code command.categoryIds()} is empty
+   * @throws ProductDiscontinuedException the product is {@code DISCONTINUED} (product.md, section
+   *     9/10)
    */
   @Override
   @PreAuthorize("hasRole('ADMIN')")
@@ -74,6 +77,7 @@ public class UpdateProductCategoriesService implements UpdateProductCategoriesUs
         readPort
             .findById(id)
             .orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
+    product.requireNotDiscontinued();
 
     categoryPort.replaceCategories(id, command.categoryIds().stream().map(CategoryId::of).toList());
 

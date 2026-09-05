@@ -96,8 +96,6 @@ class UpdateCartItemServiceTest {
   @Test
   void settingAQuantityAboveRealStockIsRejectedWithTheRealAvailableQuantity() {
     ProductId productId = ProductId.newId();
-    Cart cart = cartWith(productId, 2);
-    when(cartReadPort.findByCustomer(any())).thenReturn(Optional.of(cart));
     when(availabilityPort.availableStock(productId)).thenReturn(Optional.of(4));
 
     assertThatThrownBy(

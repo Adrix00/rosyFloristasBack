@@ -10,6 +10,7 @@ import com.floristeriarosy.application.cart.port.out.CartReadPort;
 import com.floristeriarosy.application.cart.port.out.CartWritePort;
 import com.floristeriarosy.application.cart.support.CartDtoAssembler;
 import com.floristeriarosy.application.cart.support.CartFinder;
+import com.floristeriarosy.application.cart.support.CartOptimisticRetry;
 import com.floristeriarosy.domain.exception.cart.CartInsufficientStockException;
 import com.floristeriarosy.domain.exception.cart.CartProductNotFoundException;
 import com.floristeriarosy.domain.model.cart.Cart;
@@ -62,7 +63,12 @@ public class AddCartItemService implements AddCartItemUseCase {
    * @param command the product and quantity to add, plus the caller's identity
    * @return the resulting, fully priced cart
    * @throws CartProductNotFoundException the product does not exist or is not visible (rule 3.6)
-   * @throws CartInsufficientStockException the resulting quantity exceeds real stock (rule 3.3)
+   * @throws com.floristeriarosy.domain.exception.cart.CartItemLimitExceededException the
+   *     resulting quantity exceeds the 99-per-line cap (checked first: it is the binding limit
+   *     whenever it is lower than real stock, so the client never has to retry against a second,
+   *     different ceiling)
+   * @throws CartInsufficientStockException the resulting quantity is within the per-line cap but
+   *     exceeds real stock (rule 3.3)
    */
   @Override
   public CartDto execute(AddCartItemCommand command) {
@@ -77,23 +83,41 @@ public class AddCartItemService implements AddCartItemUseCase {
       throw new CartProductNotFoundException("Product " + productId + " is not visible");
     }
 
-    Optional<Cart> existing = CartFinder.find(cartReadPort, command.customerId(), command.sessionToken());
-    int existingQuantity = existing.map(cart -> cart.items().getOrDefault(productId, 0)).orElse(0);
-    int requestedTotal = existingQuantity + command.quantity();
-    requireEnoughStock(productId, requestedTotal);
+    return CartOptimisticRetry.withRetry(() -> doExecute(command, productId));
+  }
 
+  /**
+   * @param command the product and quantity to add, plus the caller's identity
+   * @param productId {@code command.productId()}, already parsed and confirmed visible
+   * @return the resulting, fully priced cart
+   * @throws com.floristeriarosy.domain.exception.cart.CartItemLimitExceededException the
+   *     resulting quantity exceeds the 99-per-line cap (checked first: it is the binding limit
+   *     whenever it is lower than real stock, so the client never has to retry against a second,
+   *     different ceiling)
+   * @throws CartInsufficientStockException the resulting quantity is within the per-line cap but
+   *     exceeds real stock (rule 3.3)
+   */
+  private CartDto doExecute(AddCartItemCommand command, ProductId productId) {
+    Optional<Cart> existing = CartFinder.find(cartReadPort, command.customerId(), command.sessionToken());
     boolean isNewCart = existing.isEmpty();
     Cart cart =
         existing.orElseGet(
             () -> Cart.createEmpty(CartId.newId(), command.customerId(), newSessionToken()));
+    // Validates the 99-per-line and 50-line caps before any stock is checked or persisted; the
+    // in-memory cart is simply discarded if this throws, no write has happened yet.
     cart.addOrIncrementItem(productId, command.quantity());
+    requireEnoughStock(productId, cart.items().get(productId));
+    cart.renewExpiry();
 
+    // The @Version-guarded write goes first (ADR-009 amendment): if it loses the race, nothing
+    // below has run yet, so CartOptimisticRetry's whole-method retry cannot double-apply the line
+    // write below it.
     if (isNewCart) {
       cartWritePort.save(cart);
+    } else {
+      cartWritePort.touch(cart.id(), cart.expiresAt());
     }
     cartItemWritePort.save(cart.id(), productId, cart.items().get(productId));
-    cart.renewExpiry();
-    cartWritePort.touch(cart.id(), cart.expiresAt());
 
     CartDto result = CartDtoAssembler.assemble(cart, cartPricingPort);
     LOGGER.debug("addCartItem -> cartId={} itemCount={}", result.id(), result.itemCount());
