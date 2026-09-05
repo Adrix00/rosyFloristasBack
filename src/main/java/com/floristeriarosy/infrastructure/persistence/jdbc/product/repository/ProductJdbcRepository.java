@@ -6,6 +6,7 @@ import com.floristeriarosy.application.product.dto.ProductSummaryDto;
 import com.floristeriarosy.domain.model.product.ProductStatus;
 import com.floristeriarosy.infrastructure.persistence.jdbc.product.rowmapper.ProductSummaryRowMapper;
 import com.floristeriarosy.infrastructure.persistence.support.product.ProductActiveSalePriceSql;
+import com.floristeriarosy.infrastructure.persistence.support.product.ProductVisibilitySql;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,17 +27,9 @@ public class ProductJdbcRepository {
   private static final Logger LOGGER = LoggerFactory.getLogger(ProductJdbcRepository.class);
 
   private static final String IS_VISIBLE_SQL =
-      """
-      SELECT EXISTS (
-        SELECT 1 FROM products p
-        WHERE p.id = ? AND p.status = 'ACTIVE'
-          AND EXISTS (
-            SELECT 1 FROM product_categories pc
-            JOIN categories c ON c.id = pc.category_id AND c.status = 'ACTIVE'
-            WHERE pc.product_id = p.id
-          )
-      )
-      """;
+      "SELECT EXISTS (SELECT 1 FROM products p WHERE p.id = ? AND ("
+          + ProductVisibilitySql.CORRELATED_SUBQUERY
+          + "))";
 
   private static final String ACTIVE_SALE_PRICE_SQL =
       """

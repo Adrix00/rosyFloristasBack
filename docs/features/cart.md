@@ -200,7 +200,8 @@ próxima visita.
 `id`, `items`, `subtotal`, `itemCount`.
 
 `subtotal` es la suma de `effectivePrice * quantity` de cada línea, calculada en la respuesta — no
-existe columna que la guarde (regla 3.5).
+existe columna que la guarde (regla 3.5). `itemCount` es la suma de `quantity` de todas las líneas
+(total de unidades, no número de líneas distintas): es el número que un badge de carrito muestra.
 
 ### `CartItemResponse`
 
@@ -247,17 +248,19 @@ toca la cantidad de una línea con stock insuficiente — eso lo decide el clien
 
 | Port | Capacidad |
 |---|---|
-| `CartReadPort` | `findByCustomer`, `findBySessionToken` |
-| `CartWritePort` | `save`, `touch` (renueva `expires_at`) |
-| `CartItemWritePort` | `save`, `delete`, `deleteAll` |
-| `CartPricingPort` | `priceFor` — precio vigente de un producto, delegado a [`product.md`](product.md) |
+| `CartReadPort` | `findByCustomer`, `findBySessionToken` — agregado de dominio, sin precio |
+| `CartWritePort` | `save`, `touch` (renueva `expires_at`), `delete` (fila `carts`, usado solo por la fusión de la regla 3.2) |
+| `CartItemWritePort` | `save` (upsert), `delete`, `deleteAll` (todo el carrito o un subconjunto) sobre líneas individuales |
+| `CartPricingPort` | `catalogEntriesFor` — proyección completa (nombre, slug, imagen, precio, `onSale`, estado, stock) por lote, delegada a [`product.md`](product.md), para `GET /cart` y la respuesta de cada caso de uso de escritura, en una sola consulta |
+| `CartProductAvailabilityPort` | `isVisible` (regla 3.6, al añadir), `availableStock` (regla 3.3, comprobación blanda de stock) — no está en la tabla original de esta sección; se añadió porque las reglas 3.3/3.6 lo exigen, mismo espíritu que `ProductInventoryPort` |
 
 `CartPricingPort` no reimplementa el cálculo de `effectivePrice`: lo pide a `product`. Este módulo no
 sabe cómo se calcula un descuento, solo que existe un precio vigente que preguntar.
 
 Persistencia ([ADR-002](../architecture/ADR/ADR-002-jpa-and-jdbc.md)): JPA para añadir, actualizar y
-eliminar líneas; JDBC para `GET /cart`, que es un join con `products` y `product_discounts` para
-resolver el precio vigente de cada línea en una sola consulta.
+eliminar líneas; JDBC (`CartProjectionJdbcRepository`) para `GET /cart` y la respuesta de todo caso de
+uso de escritura, que hace un join con `products` y `product_discounts` para resolver en una sola
+consulta el precio vigente, el estado y el stock disponible de cada línea.
 
 ---
 

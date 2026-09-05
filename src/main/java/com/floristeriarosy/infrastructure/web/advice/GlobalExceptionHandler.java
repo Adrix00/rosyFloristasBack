@@ -3,6 +3,7 @@ package com.floristeriarosy.infrastructure.web.advice;
 import com.floristeriarosy.domain.exception.ConflictException;
 import com.floristeriarosy.domain.exception.ForbiddenException;
 import com.floristeriarosy.domain.exception.HasErrorCode;
+import com.floristeriarosy.domain.exception.HasErrorDetails;
 import com.floristeriarosy.domain.exception.NotFoundException;
 import com.floristeriarosy.domain.exception.TooManyRequestsException;
 import com.floristeriarosy.domain.exception.UnauthorizedException;
@@ -254,6 +255,9 @@ public class GlobalExceptionHandler {
     problem.setInstance(URI.create(request.getRequestURI()));
     if (exception instanceof HasErrorCode hasErrorCode) {
       problem.setProperty("code", hasErrorCode.errorCode());
+    }
+    if (exception instanceof HasErrorDetails hasErrorDetails) {
+      hasErrorDetails.errorDetails().forEach(problem::setProperty);
     }
     return problem;
   }
