@@ -76,13 +76,11 @@ public class GlobalExceptionHandler {
    * into {@link ResourceModifiedException} itself; this handler exists so that an adapter which
    * forgets to answers 409 anyway, never a 500 with an internal message on the wire.
    *
-   * @param exception the optimistic-locking failure Hibernate raised
    * @param request the failed request, for {@code instance}
    * @return the RFC 7807 body, with {@code code=RESOURCE_MODIFIED}
    */
   @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
-  public ProblemDetail handleOptimisticLocking(
-      ObjectOptimisticLockingFailureException exception, HttpServletRequest request) {
+  public ProblemDetail handleOptimisticLocking(HttpServletRequest request) {
     LOGGER.debug("409 on {}: optimistic locking conflict", Encode.forJava(request.getRequestURI()));
     return problemDetail(
         HttpStatus.CONFLICT,
