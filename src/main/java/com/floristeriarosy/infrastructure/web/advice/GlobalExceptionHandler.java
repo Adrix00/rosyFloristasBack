@@ -207,13 +207,11 @@ public class GlobalExceptionHandler {
    * Maps a Spring Security {@link AuthenticationException} to 401 — a missing, malformed, expired
    * or wrong-{@code typ} bearer token (ADR-008). Never exposes the decoder's own message.
    *
-   * @param exception the exception Spring Security's resource server filter raised
    * @param request the failed request, for {@code instance}
    * @return the RFC 7807 body
    */
   @ExceptionHandler(AuthenticationException.class)
-  public ProblemDetail handleAuthenticationException(
-      AuthenticationException exception, HttpServletRequest request) {
+  public ProblemDetail handleAuthenticationException(HttpServletRequest request) {
     return unauthenticatedProblem(request);
   }
 
