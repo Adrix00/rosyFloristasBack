@@ -1,10 +1,10 @@
 package com.floristeriarosy.infrastructure.persistence.adapter.cart;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
 import com.floristeriarosy.application.cart.dto.CartCatalogEntryDto;
-import com.floristeriarosy.domain.exception.ResourceModifiedException;
 import com.floristeriarosy.domain.model.cart.Cart;
 import com.floristeriarosy.domain.model.cart.valueobject.CartId;
 import com.floristeriarosy.domain.model.category.Category;
@@ -21,6 +21,8 @@ import com.floristeriarosy.infrastructure.persistence.adapter.discount.DiscountP
 import com.floristeriarosy.infrastructure.persistence.adapter.inventory.ProductStockPersistenceAdapter;
 import com.floristeriarosy.infrastructure.persistence.adapter.product.ProductCategoryPersistenceAdapter;
 import com.floristeriarosy.infrastructure.persistence.adapter.product.ProductPersistenceAdapter;
+import com.floristeriarosy.infrastructure.persistence.entity.cart.CartEntity;
+import com.floristeriarosy.infrastructure.persistence.jpa.cart.repository.CartJpaRepository;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
@@ -38,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -73,6 +76,7 @@ class CartPersistenceAdapterTest {
   }
 
   @Autowired private CartPersistenceAdapter adapter;
+  @Autowired private CartJpaRepository cartJpaRepository;
   @Autowired private ProductPersistenceAdapter productAdapter;
   @Autowired private CategoryPersistenceAdapter categoryAdapter;
   @Autowired private ProductCategoryPersistenceAdapter productCategoryAdapter;
@@ -150,50 +154,26 @@ class CartPersistenceAdapterTest {
   /**
    * ADR-009 amendment (2026-09-06): two devices renewing the same cart's expiry at once — the
    * second writer must be told, not silently overwritten or, worse, silently compounded.
+   *
+   * <p>Simulates the race deterministically instead of racing real threads: two devices each hold
+   * their own snapshot of the same {@code @Version 0} row; the first to write it back wins and
+   * bumps it to {@code @Version 1}, and the second's write of its now-stale snapshot must be
+   * rejected. A thread-based race on the same assertion was flaky in CI — nothing guarantees both
+   * threads' reads land before either one's write commits, so they sometimes ran fully
+   * sequentially and both "won".
    */
   @Test
-  void twoConcurrentTouchesOfTheSameCartRaceAndOneLoses() throws Exception {
+  void twoConcurrentTouchesOfTheSameCartRaceAndOneLoses() {
     Cart cart = adapter.save(newCart(null));
-    CyclicBarrier barrier = new CyclicBarrier(2);
-    ExecutorService executor = Executors.newFixedThreadPool(2);
-    try {
-      List<Callable<Boolean>> touches =
-          List.of(
-              () -> attemptConcurrentTouch(cart.id(), barrier, Instant.now().plusSeconds(100)),
-              () -> attemptConcurrentTouch(cart.id(), barrier, Instant.now().plusSeconds(200)));
-      List<Future<Boolean>> results = executor.invokeAll(touches);
+    CartEntity firstDeviceSnapshot = cartJpaRepository.findById(cart.id().value()).orElseThrow();
+    CartEntity secondDeviceSnapshot = cartJpaRepository.findById(cart.id().value()).orElseThrow();
 
-      long successCount = 0;
-      long conflictCount = 0;
-      for (Future<Boolean> result : results) {
-        if (result.get()) {
-          successCount++;
-        } else {
-          conflictCount++;
-        }
-      }
-      assertThat(successCount).isEqualTo(1);
-      assertThat(conflictCount).isEqualTo(1);
-    } finally {
-      executor.shutdown();
-    }
-  }
+    firstDeviceSnapshot.renewExpiry(Instant.now().plusSeconds(100));
+    inTransaction(() -> cartJpaRepository.saveAndFlush(firstDeviceSnapshot));
 
-  /**
-   * @param id the cart both writers touch
-   * @param barrier synchronizes both writers so their internal reads race
-   * @param newExpiry this writer's new expiry
-   * @return {@code true} if the write succeeded, {@code false} if it hit {@link
-   *     ResourceModifiedException}
-   */
-  private boolean attemptConcurrentTouch(CartId id, CyclicBarrier barrier, Instant newExpiry) throws Exception {
-    barrier.await();
-    try {
-      inTransaction(() -> adapter.touch(id, newExpiry));
-      return true;
-    } catch (ResourceModifiedException conflict) {
-      return false;
-    }
+    secondDeviceSnapshot.renewExpiry(Instant.now().plusSeconds(200));
+    assertThatThrownBy(() -> inTransaction(() -> cartJpaRepository.saveAndFlush(secondDeviceSnapshot)))
+        .isInstanceOf(ObjectOptimisticLockingFailureException.class);
   }
 
   @Test
