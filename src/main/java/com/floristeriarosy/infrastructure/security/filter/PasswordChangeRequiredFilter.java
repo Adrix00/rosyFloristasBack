@@ -21,15 +21,21 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 
 /**
  * Enforces auth.md rule 3.9: a session whose access token carries {@code pwd_change_required} may
- * only reach {@code POST /api/v1/admin/me/password} or {@code POST /api/v1/auth/logout}; every
- * other request gets 403 {@code PASSWORD_CHANGE_REQUIRED}. One rule, in one filter, instead of a
- * repeated check in every use case.
+ * only reach {@code POST /api/v1/admin/me/password}, {@code POST /api/v1/auth/logout} or {@code
+ * POST /api/v1/auth/refresh}; every other request gets 403 {@code PASSWORD_CHANGE_REQUIRED}. One
+ * rule, in one filter, instead of a repeated check in every use case.
+ *
+ * <p>{@code /auth/refresh} is allowed because the access token this filter reads is the one issued
+ * before the password change — it still carries the old claim for up to its own TTL, so refreshing
+ * the session right after a password change would otherwise 403 on the very call meant to hand
+ * back a token without the claim.
  */
 @Component
 public class PasswordChangeRequiredFilter extends OncePerRequestFilter {
 
   private static final String ALLOWED_PASSWORD_CHANGE_PATH = "/api/v1/admin/me/password";
   private static final String ALLOWED_LOGOUT_PATH = "/api/v1/auth/logout";
+  private static final String ALLOWED_REFRESH_PATH = "/api/v1/auth/refresh";
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PasswordChangeRequiredFilter.class);
 
@@ -78,7 +84,7 @@ public class PasswordChangeRequiredFilter extends OncePerRequestFilter {
 
   /**
    * @param request the incoming request
-   * @return whether {@code request} is one of the two endpoints reachable during a
+   * @return whether {@code request} is one of the endpoints reachable during a
    *     password-change-required session
    */
   private boolean isAllowedWhilePasswordChangeRequired(HttpServletRequest request) {
@@ -86,6 +92,8 @@ public class PasswordChangeRequiredFilter extends OncePerRequestFilter {
       return false;
     }
     String path = request.getRequestURI();
-    return ALLOWED_PASSWORD_CHANGE_PATH.equals(path) || ALLOWED_LOGOUT_PATH.equals(path);
+    return ALLOWED_PASSWORD_CHANGE_PATH.equals(path)
+        || ALLOWED_LOGOUT_PATH.equals(path)
+        || ALLOWED_REFRESH_PATH.equals(path);
   }
 }

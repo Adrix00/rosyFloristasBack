@@ -29,7 +29,7 @@ class RegisterWasteServiceTest {
 
   private StockMovementDto anyDto() {
     return new StockMovementDto(
-        UUID.randomUUID(), UUID.randomUUID(), StockMovementType.WASTE, -3, 7, null, null, Instant.now());
+        UUID.randomUUID(), UUID.randomUUID(), StockMovementType.WASTE, -3, 7, null, null, null, Instant.now());
   }
 
   @Test
@@ -38,13 +38,14 @@ class RegisterWasteServiceTest {
     UUID productId = UUID.randomUUID();
     ArgumentCaptor<RegisterStockMovementCommand> captor = ArgumentCaptor.forClass(RegisterStockMovementCommand.class);
     when(registerStockMovementUseCase.execute(captor.capture())).thenReturn(anyDto());
+    UUID adminId = UUID.randomUUID();
 
-    service.execute(new RegisterWasteCommand(productId, 3, "rota"));
+    service.execute(new RegisterWasteCommand(productId, 3, "rota", adminId));
 
     assertThat(captor.getValue().type()).isEqualTo(StockMovementType.WASTE);
     assertThat(captor.getValue().quantity()).isEqualTo(-3);
     assertThat(captor.getValue().note()).isEqualTo("rota");
-    assertThat(captor.getValue().adminUserId()).isNull();
+    assertThat(captor.getValue().adminUserId()).isEqualTo(adminId);
   }
 
   @Test
@@ -54,7 +55,7 @@ class RegisterWasteServiceTest {
     ArgumentCaptor<RegisterStockMovementCommand> captor = ArgumentCaptor.forClass(RegisterStockMovementCommand.class);
     when(registerStockMovementUseCase.execute(captor.capture())).thenReturn(anyDto());
 
-    service.execute(new RegisterWasteCommand(productId, -3, "rota"));
+    service.execute(new RegisterWasteCommand(productId, -3, "rota", UUID.randomUUID()));
 
     assertThat(captor.getValue().quantity()).isEqualTo(-3);
   }

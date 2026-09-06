@@ -9,11 +9,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.floristeriarosy.application.admin.port.out.AdminReadPort;
 import com.floristeriarosy.application.inventory.command.RegisterStockMovementCommand;
 import com.floristeriarosy.application.inventory.dto.StockMovementDto;
 import com.floristeriarosy.application.inventory.port.out.ProductStockPort;
+import com.floristeriarosy.application.inventory.port.out.StockMovementReadPort;
 import com.floristeriarosy.application.inventory.port.out.StockMovementWritePort;
 import com.floristeriarosy.application.product.port.out.ProductReadPort;
+import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.domain.exception.inventory.InventoryInsufficientStockException;
 import com.floristeriarosy.domain.exception.inventory.InventoryNotManagedException;
 import com.floristeriarosy.domain.model.inventory.StockMovement;
@@ -43,7 +46,10 @@ class RegisterStockMovementServiceTest {
 
   @Mock private ProductStockPort stockPort;
   @Mock private StockMovementWritePort movementWritePort;
+  @Mock private StockMovementReadPort movementReadPort;
   @Mock private ProductReadPort productReadPort;
+  @Mock private AdminReadPort adminReadPort;
+  @Mock private PiiCryptoPort piiCryptoPort;
 
   private RegisterStockMovementService service;
 
@@ -78,7 +84,9 @@ class RegisterStockMovementServiceTest {
 
   @Test
   void initialMovementWritesTheExactStockTheDatabaseSetInitialReturned() {
-    service = new RegisterStockMovementService(stockPort, movementWritePort, productReadPort);
+    service =
+        new RegisterStockMovementService(
+            stockPort, movementWritePort, movementReadPort, productReadPort, adminReadPort, piiCryptoPort);
     UUID productId = UUID.randomUUID();
     when(stockPort.setInitial(any(ProductId.class), eq(10))).thenReturn(10);
     ArgumentCaptor<StockMovement> captor = ArgumentCaptor.forClass(StockMovement.class);
@@ -93,7 +101,9 @@ class RegisterStockMovementServiceTest {
 
   @Test
   void decrementUsesTheStockTheDatabaseReturnedNeverAValueComputedSeparately() {
-    service = new RegisterStockMovementService(stockPort, movementWritePort, productReadPort);
+    service =
+        new RegisterStockMovementService(
+            stockPort, movementWritePort, movementReadPort, productReadPort, adminReadPort, piiCryptoPort);
     UUID productId = UUID.randomUUID();
     // The database's actual returned value (7) intentionally does not match a naive
     // "resultingStock = someAssumedPriorStock - quantity" computation: proves the service passes
@@ -109,7 +119,9 @@ class RegisterStockMovementServiceTest {
 
   @Test
   void purchaseIncrementsStock() {
-    service = new RegisterStockMovementService(stockPort, movementWritePort, productReadPort);
+    service =
+        new RegisterStockMovementService(
+            stockPort, movementWritePort, movementReadPort, productReadPort, adminReadPort, piiCryptoPort);
     UUID productId = UUID.randomUUID();
     when(stockPort.incrementConditional(any(ProductId.class), eq(5))).thenReturn(Optional.of(15));
     when(movementWritePort.save(any(StockMovement.class))).thenReturn(savedMovementWith(15));
@@ -123,7 +135,9 @@ class RegisterStockMovementServiceTest {
 
   @Test
   void positiveAdjustmentIncrementsStock() {
-    service = new RegisterStockMovementService(stockPort, movementWritePort, productReadPort);
+    service =
+        new RegisterStockMovementService(
+            stockPort, movementWritePort, movementReadPort, productReadPort, adminReadPort, piiCryptoPort);
     UUID productId = UUID.randomUUID();
     when(stockPort.incrementConditional(any(ProductId.class), eq(4))).thenReturn(Optional.of(14));
     when(movementWritePort.save(any(StockMovement.class))).thenReturn(savedMovementWith(14));
@@ -135,7 +149,9 @@ class RegisterStockMovementServiceTest {
 
   @Test
   void negativeAdjustmentDecrementsStock() {
-    service = new RegisterStockMovementService(stockPort, movementWritePort, productReadPort);
+    service =
+        new RegisterStockMovementService(
+            stockPort, movementWritePort, movementReadPort, productReadPort, adminReadPort, piiCryptoPort);
     UUID productId = UUID.randomUUID();
     when(stockPort.decrementConditional(any(ProductId.class), eq(4))).thenReturn(Optional.of(6));
     when(movementWritePort.save(any(StockMovement.class))).thenReturn(savedMovementWith(6));
@@ -147,7 +163,9 @@ class RegisterStockMovementServiceTest {
 
   @Test
   void aSaleThatWouldTakeStockBelowZeroThrowsInsufficientStockWhenTheProductIsManaged() {
-    service = new RegisterStockMovementService(stockPort, movementWritePort, productReadPort);
+    service =
+        new RegisterStockMovementService(
+            stockPort, movementWritePort, movementReadPort, productReadPort, adminReadPort, piiCryptoPort);
     UUID productId = UUID.randomUUID();
     when(stockPort.decrementConditional(any(ProductId.class), eq(5))).thenReturn(Optional.empty());
     when(productReadPort.findById(any(ProductId.class))).thenReturn(Optional.of(managedProduct(2)));
@@ -160,7 +178,9 @@ class RegisterStockMovementServiceTest {
 
   @Test
   void aDecrementOnAnUnmanagedProductThrowsNotManagedInsteadOfInsufficientStock() {
-    service = new RegisterStockMovementService(stockPort, movementWritePort, productReadPort);
+    service =
+        new RegisterStockMovementService(
+            stockPort, movementWritePort, movementReadPort, productReadPort, adminReadPort, piiCryptoPort);
     UUID productId = UUID.randomUUID();
     when(stockPort.decrementConditional(any(ProductId.class), eq(5))).thenReturn(Optional.empty());
     when(productReadPort.findById(any(ProductId.class))).thenReturn(Optional.of(unmanagedProductWithNullStock()));
@@ -175,7 +195,9 @@ class RegisterStockMovementServiceTest {
 
   @Test
   void aDecrementOnAMissingProductThrowsNotManaged() {
-    service = new RegisterStockMovementService(stockPort, movementWritePort, productReadPort);
+    service =
+        new RegisterStockMovementService(
+            stockPort, movementWritePort, movementReadPort, productReadPort, adminReadPort, piiCryptoPort);
     UUID productId = UUID.randomUUID();
     when(stockPort.decrementConditional(any(ProductId.class), eq(5))).thenReturn(Optional.empty());
     when(productReadPort.findById(any(ProductId.class))).thenReturn(Optional.empty());
@@ -187,7 +209,9 @@ class RegisterStockMovementServiceTest {
 
   @Test
   void anIncrementOnAnUnmanagedProductThrowsNotManaged() {
-    service = new RegisterStockMovementService(stockPort, movementWritePort, productReadPort);
+    service =
+        new RegisterStockMovementService(
+            stockPort, movementWritePort, movementReadPort, productReadPort, adminReadPort, piiCryptoPort);
     UUID productId = UUID.randomUUID();
     when(stockPort.incrementConditional(any(ProductId.class), eq(5))).thenReturn(Optional.empty());
 

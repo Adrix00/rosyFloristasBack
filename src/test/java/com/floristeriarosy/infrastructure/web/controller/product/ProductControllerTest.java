@@ -192,6 +192,14 @@ class ProductControllerTest {
   }
 
   @Test
+  void getDeletionImpactWithAMalformedUuidReturns400NotA500() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/products/not-a-uuid/deletion-impact"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+  }
+
+  @Test
   void updateReturns200() throws Exception {
     UUID id = UUID.randomUUID();
     when(updateProductUseCase.execute(any(UpdateProductCommand.class)))

@@ -10,8 +10,19 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
-/** Implements {@link AuditLogPort} with plain JPA insert (ADR-002, ADR-010). */
+/**
+ * Implements {@link AuditLogPort} with plain JPA insert (ADR-002, ADR-010).
+ *
+ * <p>{@code record} runs in its own {@code REQUIRES_NEW} transaction, committed independently of
+ * the caller's: ADR-010 requires a failed login attempt to be audited, but {@code
+ * AdminLoginService}/{@code VerifyAdminMfaService} call this and then throw the domain exception
+ * that denies the request, rolling their own {@code @Transactional} back — and a plain {@code
+ * save} inside that transaction rolls back with it, silently dropping the one row ADR-010 exists
+ * to guarantee.
+ */
 @Repository
 public class AuditLogPersistenceAdapter implements AuditLogPort {
 
@@ -34,6 +45,7 @@ public class AuditLogPersistenceAdapter implements AuditLogPort {
    * @param changedFields the names of the fields that changed, never their values
    */
   @Override
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void record(
       UUID adminUserId,
       AuditAction action,

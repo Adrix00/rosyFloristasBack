@@ -61,7 +61,7 @@ public class SearchProductsService implements SearchProductsUseCase {
         query.minPrice(),
         query.maxPrice(),
         query.onSale(),
-        query.attributeFilters().keySet(),
+        Encode.forJava(String.join(",", query.attributeFilters().keySet())),
         query.page(),
         query.size());
 

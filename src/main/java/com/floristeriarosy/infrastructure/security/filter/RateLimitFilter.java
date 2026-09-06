@@ -276,7 +276,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     try {
       JsonNode node = objectMapper.readTree(request.cachedBody());
       JsonNode field = node == null ? null : node.get(fieldName);
-      return field == null || field.isNull() ? null : field.asText();
+      return field == null || field.isNull() ? null : field.asString();
     } catch (JacksonException malformed) {
       return null;
     }

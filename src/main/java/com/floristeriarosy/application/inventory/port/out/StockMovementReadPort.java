@@ -5,6 +5,7 @@ import com.floristeriarosy.application.inventory.dto.StockMovementDto;
 import com.floristeriarosy.application.product.dto.PageResult;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 import java.util.List;
+import java.util.Optional;
 
 /** Retrieves stock movements (ADR-003; inventory.md, section 8). */
 public interface StockMovementReadPort {
@@ -24,4 +25,15 @@ public interface StockMovementReadPort {
    * @return every product currently mismatched
    */
   List<ReconciliationMismatch> findReconciliationMismatches();
+
+  /**
+   * The sum of every movement recorded for a product, which is what {@code products.stock} must
+   * equal (inventory.md, section 3.8). Distinguishes "no history at all" from "history that sums
+   * to zero": only the former means an {@code INITIAL} is still available for this product
+   * ({@code ux_stock_movements_initial}).
+   *
+   * @param productId the product whose history to total
+   * @return the sum of its movements, or empty if it has no movement history
+   */
+  Optional<Integer> movementsTotal(ProductId productId);
 }

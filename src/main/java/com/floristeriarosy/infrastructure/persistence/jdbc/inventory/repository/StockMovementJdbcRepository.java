@@ -5,6 +5,7 @@ import com.floristeriarosy.application.inventory.dto.StockMovementDto;
 import com.floristeriarosy.application.product.dto.PageResult;
 import com.floristeriarosy.infrastructure.persistence.jdbc.inventory.rowmapper.StockMovementDtoRowMapper;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +25,10 @@ public class StockMovementJdbcRepository {
       "SELECT * FROM stock_movements WHERE product_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?";
 
   private static final String COUNT_BY_PRODUCT_SQL = "SELECT COUNT(*) FROM stock_movements WHERE product_id = ?";
+
+  private static final String MOVEMENTS_TOTAL_SQL =
+      "SELECT COUNT(*) AS movement_count, COALESCE(SUM(quantity), 0) AS movements_total "
+          + "FROM stock_movements WHERE product_id = ?";
 
   private static final String RECONCILIATION_MISMATCHES_SQL =
       """
@@ -74,5 +79,26 @@ public class StockMovementJdbcRepository {
                     (UUID) rs.getObject("id"), rs.getInt("stock"), rs.getInt("movements_total")));
     LOGGER.debug("findReconciliationMismatches -> count={}", result.size());
     return result;
+  }
+
+  /**
+   * Counts and totals a product's movements in one round trip: the count is what tells "no history"
+   * apart from "history summing to zero", and the sum is the baseline a reactivation adjusts from.
+   *
+   * @param productId the product whose history to total
+   * @return the sum of its movements, or empty if it has none
+   */
+  public Optional<Integer> movementsTotal(UUID productId) {
+    LOGGER.debug("movementsTotal productId={}", productId);
+    Optional<Integer> result =
+        jdbcTemplate.query(
+            MOVEMENTS_TOTAL_SQL,
+            rs ->
+                rs.next() && rs.getLong("movement_count") > 0
+                    ? Optional.of(rs.getInt("movements_total"))
+                    : Optional.<Integer>empty(),
+            productId);
+    LOGGER.debug("movementsTotal productId={} -> {}", productId, result);
+    return result == null ? Optional.empty() : result;
   }
 }

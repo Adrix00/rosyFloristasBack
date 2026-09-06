@@ -5,7 +5,6 @@ import com.floristeriarosy.application.inventory.dto.InventoryAlertDto;
 import com.floristeriarosy.application.product.dto.PageResult;
 import com.floristeriarosy.domain.model.inventory.InventoryAlert;
 import com.floristeriarosy.domain.model.inventory.valueobject.InventoryAlertId;
-import java.util.List;
 import java.util.Optional;
 
 /** Persists and retrieves inventory alerts (ADR-003; inventory.md, section 8). */
@@ -28,11 +27,6 @@ public interface InventoryAlertPort {
    * @return the alert, if it exists
    */
   Optional<InventoryAlert> findById(InventoryAlertId id);
-
-  /**
-   * @return every alert currently {@code OPEN}
-   */
-  List<InventoryAlert> findOpen();
 
   /**
    * @param criteria the admin's type/status/product filters and the requested page

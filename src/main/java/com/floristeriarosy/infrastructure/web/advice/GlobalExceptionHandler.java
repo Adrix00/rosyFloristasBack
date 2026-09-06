@@ -3,7 +3,9 @@ package com.floristeriarosy.infrastructure.web.advice;
 import com.floristeriarosy.domain.exception.ConflictException;
 import com.floristeriarosy.domain.exception.ForbiddenException;
 import com.floristeriarosy.domain.exception.HasErrorCode;
+import com.floristeriarosy.domain.exception.HasErrorDetails;
 import com.floristeriarosy.domain.exception.NotFoundException;
+import com.floristeriarosy.domain.exception.ResourceModifiedException;
 import com.floristeriarosy.domain.exception.TooManyRequestsException;
 import com.floristeriarosy.domain.exception.UnauthorizedException;
 import com.floristeriarosy.domain.exception.UnprocessableException;
@@ -14,8 +16,10 @@ import java.util.Locale;
 import org.owasp.encoder.Encode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
@@ -26,6 +30,7 @@ import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * Translates domain exceptions and Bean Validation failures to RFC 7807 (ADR-012). One advice for
@@ -60,8 +65,81 @@ public class GlobalExceptionHandler {
    */
   @ExceptionHandler(ConflictException.class)
   public ProblemDetail handleConflict(ConflictException exception, HttpServletRequest request) {
-    LOGGER.debug("409 on {}: {}", Encode.forJava(request.getRequestURI()), exception.getMessage());
+    LOGGER.debug(
+        "409 on {}: {}", Encode.forJava(request.getRequestURI()), Encode.forJava(exception.getMessage()));
     return problemDetail(HttpStatus.CONFLICT, exception, request);
+  }
+
+  /**
+   * Backstop for an {@code @Version} conflict that reached the advice untranslated (ADR-009).
+   * Every persistence adapter is expected to flush inside its own {@code try} and translate this
+   * into {@link ResourceModifiedException} itself; this handler exists so that an adapter which
+   * forgets to answers 409 anyway, never a 500 with an internal message on the wire.
+   *
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body, with {@code code=RESOURCE_MODIFIED}
+   */
+  @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+  public ProblemDetail handleOptimisticLocking(HttpServletRequest request) {
+    LOGGER.debug("409 on {}: optimistic locking conflict", Encode.forJava(request.getRequestURI()));
+    return problemDetail(
+        HttpStatus.CONFLICT,
+        new ResourceModifiedException("The resource was modified concurrently"),
+        request);
+  }
+
+  /**
+   * Backstop for a database constraint violation that reached the advice untranslated. The
+   * constraint's name and the driver's message never leave the server (00-security-validation-
+   * integrity.md, section 9): a violation is a conflict the client caused, so it is 409, not 500,
+   * but it says nothing about which constraint.
+   *
+   * @param exception the constraint violation the driver raised
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body, with {@code code=CONFLICT}
+   */
+  @ExceptionHandler(DataIntegrityViolationException.class)
+  public ProblemDetail handleDataIntegrityViolation(
+      DataIntegrityViolationException exception, HttpServletRequest request) {
+    LOGGER.warn(
+        "409 on {}: untranslated constraint violation",
+        Encode.forJava(request.getRequestURI()),
+        exception);
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.CONFLICT, "The request conflicts with the current state of the resource");
+    problem.setTitle(HttpStatus.CONFLICT.getReasonPhrase());
+    problem.setInstance(URI.create(request.getRequestURI()));
+    problem.setProperty("code", "CONFLICT");
+    return problem;
+  }
+
+  /**
+   * Maps a malformed path variable or query parameter to 400 — a {@code UUID} path segment that is
+   * not a UUID, or {@code ?minPrice=abc}. Without this handler Spring's own resolution failure
+   * falls through to {@link #handleUnexpected}, which reports a caller's typo as a 500.
+   *
+   * <p>Names the parameter, never the rejected value: the name comes from the controller's own
+   * signature, the value is caller-controlled.
+   *
+   * @param exception the type-conversion failure Spring raised
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body, with {@code code=BAD_REQUEST}
+   */
+  @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+  public ProblemDetail handleTypeMismatch(
+      MethodArgumentTypeMismatchException exception, HttpServletRequest request) {
+    LOGGER.debug(
+        "400 on {}: parameter {} has the wrong type",
+        Encode.forJava(request.getRequestURI()),
+        Encode.forJava(exception.getName()));
+    ProblemDetail problem =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.BAD_REQUEST, "Invalid value for parameter '" + exception.getName() + "'");
+    problem.setTitle(HttpStatus.BAD_REQUEST.getReasonPhrase());
+    problem.setInstance(URI.create(request.getRequestURI()));
+    problem.setProperty("code", "BAD_REQUEST");
+    return problem;
   }
 
   /**
@@ -254,6 +332,9 @@ public class GlobalExceptionHandler {
     problem.setInstance(URI.create(request.getRequestURI()));
     if (exception instanceof HasErrorCode hasErrorCode) {
       problem.setProperty("code", hasErrorCode.errorCode());
+    }
+    if (exception instanceof HasErrorDetails hasErrorDetails) {
+      hasErrorDetails.errorDetails().forEach(problem::setProperty);
     }
     return problem;
   }

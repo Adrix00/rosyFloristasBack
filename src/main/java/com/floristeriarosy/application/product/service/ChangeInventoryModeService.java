@@ -10,6 +10,7 @@ import com.floristeriarosy.application.product.port.out.ProductCategoryPort;
 import com.floristeriarosy.application.product.port.out.ProductImagePort;
 import com.floristeriarosy.application.product.port.out.ProductInventoryPort;
 import com.floristeriarosy.application.product.port.out.ProductReadPort;
+import com.floristeriarosy.domain.exception.product.ProductDiscontinuedException;
 import com.floristeriarosy.domain.exception.product.ProductNotFoundException;
 import com.floristeriarosy.domain.exception.product.ProductStockRequiredException;
 import com.floristeriarosy.domain.model.product.Product;
@@ -63,6 +64,8 @@ public class ChangeInventoryModeService implements ChangeInventoryModeUseCase {
    * @throws ProductNotFoundException {@code command.id()} does not exist
    * @throws ProductStockRequiredException {@code command.managed()} is {@code true} without a stock
    *     value
+   * @throws ProductDiscontinuedException the product is {@code DISCONTINUED} (product.md, section
+   *     9/10)
    */
   @Override
   @PreAuthorize("hasRole('ADMIN')")
@@ -79,6 +82,7 @@ public class ChangeInventoryModeService implements ChangeInventoryModeUseCase {
         readPort
             .findById(id)
             .orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
+    product.requireNotDiscontinued();
 
     if (command.managed()) {
       if (command.stock() == null) {
@@ -89,7 +93,8 @@ public class ChangeInventoryModeService implements ChangeInventoryModeUseCase {
         inventoryPort.initializeStock(
             id, command.stock(), command.lowStockThreshold(), command.note());
       } else {
-        inventoryPort.adjustStock(id, command.stock(), command.lowStockThreshold(), command.note());
+        inventoryPort.adjustStock(
+            id, product.stock(), command.stock(), command.lowStockThreshold(), command.note());
       }
     } else if (product.stock() != null) {
       inventoryPort.disableStockManagement(id);

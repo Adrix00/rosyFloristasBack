@@ -110,7 +110,7 @@ public class ProductSearchController {
   }
 
   /**
-   * {@code GET /products/all} (ADMIN — unenforced, dev-plan.md): every status, including {@code
+   * {@code GET /products/all} ({@code ADMIN}, {@code @PreAuthorize} on the service): every status, including {@code
    * INACTIVE} and {@code DISCONTINUED}, no visibility check.
    *
    * @param status only products with this status, or {@code null} for every status

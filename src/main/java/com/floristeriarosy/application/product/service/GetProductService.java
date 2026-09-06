@@ -22,9 +22,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * Implements {@link GetProductUseCase}: loads a single product by id or slug. A non-visible match
- * responds as not found, never as forbidden — no distinction between a public and an admin caller
- * exists yet ({@code SecurityConfig} placeholder; tracked gap, same as category).
+ * Implements {@link GetProductUseCase}: loads a single product by id or slug. This is the public
+ * detail endpoint — no {@code @PreAuthorize}, reachable by an anonymous caller — so a non-visible
+ * match responds as not found, never as forbidden, and {@code stock} is always hidden (product.md,
+ * section 6: "solo aparece para administradores" — publishing it reveals business volume). The
+ * admin-facing listing that does expose stock is {@code GET /products/all}.
  */
 @Service
 public class GetProductService implements GetProductUseCase {
@@ -64,10 +66,35 @@ public class GetProductService implements GetProductUseCase {
     List<ProductCategoryRef> categories = categoryPort.findCategories(product.id());
     List<ProductImageRef> images = imagePort.findImages(product.id());
     BigDecimal activeSalePrice = readPort.findActiveSalePrice(product.id()).orElse(null);
-    ProductDto result = ProductDtoMapper.toDto(product, activeSalePrice, categories, images);
+    ProductDto result = hideStock(ProductDtoMapper.toDto(product, activeSalePrice, categories, images));
 
     LOGGER.debug("getProduct idOrSlug={} -> id={}", LogSanitizer.sanitize(query.idOrSlug()), result.id());
     return result;
+  }
+
+  /**
+   * @param dto the full product read shape
+   * @return the same DTO with {@code stock} nulled, for a caller this public endpoint cannot tell
+   *     apart from an anonymous one (product.md, section 6)
+   */
+  private ProductDto hideStock(ProductDto dto) {
+    return new ProductDto(
+        dto.id(),
+        dto.name(),
+        dto.slug(),
+        dto.description(),
+        dto.price(),
+        dto.effectivePrice(),
+        dto.onSale(),
+        dto.status(),
+        dto.isExtra(),
+        dto.attributes(),
+        dto.categories(),
+        dto.images(),
+        null,
+        dto.inventoryManaged(),
+        dto.createdAt(),
+        dto.updatedAt());
   }
 
   /**

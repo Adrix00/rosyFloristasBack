@@ -35,13 +35,17 @@ class GetProductServiceTest {
   private GetProductService service;
 
   private Product visibleProduct(UUID id) {
+    return visibleProduct(id, null);
+  }
+
+  private Product visibleProduct(UUID id, Integer stock) {
     return Product.reconstitute(
         ProductId.of(id),
         "Ramo",
         ProductSlug.generateFrom("Ramo"),
         null,
         BigDecimal.TEN,
-        null,
+        stock,
         null,
         ProductStatus.ACTIVE,
         false,
@@ -87,6 +91,22 @@ class GetProductServiceTest {
 
     assertThatThrownBy(() -> service.execute(new GetProductQuery("no-existe")))
         .isInstanceOf(ProductNotFoundException.class);
+  }
+
+  @Test
+  void neverExposesStockOnThisPublicEndpoint() {
+    service = new GetProductService(readPort, categoryPort, imagePort);
+    UUID id = UUID.randomUUID();
+    Product product = visibleProduct(id, 42);
+    when(readPort.findById(ProductId.of(id))).thenReturn(Optional.of(product));
+    when(readPort.isVisible(ProductId.of(id))).thenReturn(true);
+    when(categoryPort.findCategories(ProductId.of(id))).thenReturn(List.of());
+    when(imagePort.findImages(ProductId.of(id))).thenReturn(List.of());
+
+    ProductDto dto = service.execute(new GetProductQuery(id.toString()));
+
+    assertThat(dto.stock()).isNull();
+    assertThat(dto.inventoryManaged()).isTrue();
   }
 
   @Test

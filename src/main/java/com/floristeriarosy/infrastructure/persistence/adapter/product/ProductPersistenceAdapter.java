@@ -110,6 +110,13 @@ public class ProductPersistenceAdapter implements ProductReadPort, ProductWriteP
    * carry {@code version = 0} and be mistaken for a new row (ADR-009). Builds a fresh entity only
    * for a genuinely new product.
    *
+   * <p>Uses {@code saveAndFlush}, not {@code save}: the id is application-assigned, so Hibernate
+   * would otherwise defer the {@code INSERT}/{@code UPDATE} — and with it the unique-constraint
+   * violation and the {@code @Version} check — to the enclosing {@code @Transactional} service's
+   * commit, which happens after this method and its {@code catch} have already returned. The
+   * translation below would then never run and the caller would get a 500 instead of its 409 (same
+   * trap {@code StockMovementPersistenceAdapter} documents).
+   *
    * @param product the product to insert or update
    * @return the saved product, with timestamps populated by the database
    * @throws ProductAlreadyExistsException the slug unique constraint was violated
@@ -126,7 +133,7 @@ public class ProductPersistenceAdapter implements ProductReadPort, ProductWriteP
       entity = mapper.toEntity(product, searchText);
     }
     try {
-      Product result = mapper.toDomain(jpaRepository.save(entity));
+      Product result = mapper.toDomain(jpaRepository.saveAndFlush(entity));
       LOGGER.debug("save id={} -> saved", result.id());
       return result;
     } catch (ObjectOptimisticLockingFailureException conflict) {
@@ -137,6 +144,11 @@ public class ProductPersistenceAdapter implements ProductReadPort, ProductWriteP
   }
 
   /**
+   * Flushes inside the {@code try}, for the reason {@link #save(Product)} documents: Hibernate
+   * defers the {@code DELETE} to commit, so the {@code RESTRICT} foreign keys of {@code
+   * order_items}/{@code stock_movements}/{@code purchase_items} would fire outside this {@code
+   * catch} and surface as a 500 instead of the 409 product.md section 3.10 promises.
+   *
    * @param id the product to delete; {@code product_categories}, {@code product_images} and
    *     {@code product_suggestions} rows cascade
    * @throws ProductHasHistoryException the product has orders, stock movements or purchases
@@ -147,6 +159,7 @@ public class ProductPersistenceAdapter implements ProductReadPort, ProductWriteP
     LOGGER.debug("delete id={}", id);
     try {
       jpaRepository.deleteById(id.value());
+      jpaRepository.flush();
     } catch (DataIntegrityViolationException violation) {
       throw new ProductHasHistoryException(
           "Product " + id + " has orders, stock movements or purchases referencing it");
@@ -167,7 +180,7 @@ public class ProductPersistenceAdapter implements ProductReadPort, ProductWriteP
         jpaRepository.findById(id.value()).orElseThrow(() -> new IllegalStateException("Product " + id + " not found"));
     entity.changeStatus(status);
     try {
-      Product result = mapper.toDomain(jpaRepository.save(entity));
+      Product result = mapper.toDomain(jpaRepository.saveAndFlush(entity));
       LOGGER.debug("updateStatus id={} -> {}", id, result.status());
       return result;
     } catch (ObjectOptimisticLockingFailureException conflict) {

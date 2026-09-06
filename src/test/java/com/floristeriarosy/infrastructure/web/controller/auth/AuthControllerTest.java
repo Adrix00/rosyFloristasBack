@@ -195,7 +195,7 @@ class AuthControllerTest {
   }
 
   @Test
-  void logoutWithoutACookieReturns204AndDoesNotCallTheUseCase() throws Exception {
+  void logoutWithoutACookieStillInvokesTheUseCaseAndReturns204() throws Exception {
     mockMvc
         .perform(post("/api/v1/auth/logout").with(csrf()))
         .andExpect(status().isNoContent())

@@ -31,6 +31,7 @@ regla 3.2). Un invitado que nunca se registra puede completar un pedido igualmen
 | `customer_id` | `REFERENCES customers ON DELETE CASCADE`, **nullable** — `NULL` es un carrito de invitado |
 | `session_token` | `NOT NULL`, `UNIQUE` — identifica el carrito en ambos casos, invitado o cliente |
 | `expires_at` | `NOT NULL` |
+| `version` | `NOT NULL DEFAULT 0` — bloqueo optimista (ADR-009, enmienda 2026-09-06); ver sección 3.3 |
 
 | Columna de `cart_items` | Restricción |
 |---|---|
@@ -78,7 +79,11 @@ el `UNIQUE (cart_id, product_id)`: una fila por producto.
 
 Límites de carga útil, defensivos y sin significado de negocio (
 [`00-security-validation-integrity.md`](00-security-validation-integrity.md), sección 4): máximo 99
-unidades por línea, máximo 50 líneas distintas por carrito.
+unidades por línea, máximo 50 líneas distintas por carrito. Se comprueban **antes** que el stock: si
+una línea a 90 unidades recibe otras 20, el resultado (110) excede tanto el tope de 99 como un stock
+de 100 — responder con el tope de línea es lo accionable, porque es el límite que de verdad se aplica
+aquí; devolver `availableQuantity: 100` invitaría a un reintento con 100 que fallaría igual, contra un
+código de error distinto.
 
 **Comprobación de stock al añadir o actualizar cantidad.** Es la primera de tres comprobaciones — la
 selección de cantidad en el frontend, que limita al stock visible, es la primera y no es
@@ -86,12 +91,24 @@ responsabilidad de este backend. Si aun así llega una cantidad mayor que el sto
 disponible, se rechaza con el número real disponible en el mensaje: pedir 5 con solo 3 en stock
 responde 422 con `availableQuantity: 3`, no un simple "sin stock".
 
-Esta comprobación es **blanda**: no reserva nada. El único bloqueo real de concurrencia es el
-`UPDATE` condicional del checkout ([`inventory.md`](inventory.md), regla 3.1). Entre que se añade al
-carrito y se paga, otra persona puede agotar el producto — por eso existe la tercera comprobación
-(regla 3.4).
+Esta comprobación es **blanda**: no reserva nada. El único bloqueo real de concurrencia sobre el stock
+en sí es el `UPDATE` condicional del checkout ([`inventory.md`](inventory.md), regla 3.1). Entre que
+se añade al carrito y se paga, otra persona puede agotar el producto — por eso existe la tercera
+comprobación (regla 3.4).
 
 Un producto sin gestión de inventario (`stock IS NULL`) no tiene límite que comprobar aquí.
+
+**Concurrencia sobre la fila del propio carrito** (distinta de la anterior, que es sobre el stock del
+producto): `carts.version` (ADR-009, enmienda 2026-09-06) protege la fila `carts` — no `cart_items`,
+que se escribe con un upsert atómico (`INSERT ... ON CONFLICT`) inmune a condiciones de carrera por
+construcción — de dos escrituras concurrentes desde dos dispositivos de la misma cuenta. A diferencia
+de `products` o `admin_users`, un conflicto de versión aquí **no** se expone al cliente como 409: se
+reintenta una vez, de forma transparente, releyendo el carrito y reaplicando la misma operación
+(añadir, fijar cantidad, quitar, vaciar o fusionar) — seguro porque cada una de esas operaciones
+produce el mismo resultado final se aplique una vez o dos, a diferencia de la edición arbitraria de un
+campo que sí exige que el segundo escritor decida. Cada caso de uso escribe primero la fila `carts`
+(la que lleva `version`) y solo después la línea en `cart_items`, para que un conflicto no deje nada a
+medio aplicar antes de reintentar.
 
 ### 3.4 Validación antes de pagar
 
@@ -200,7 +217,8 @@ próxima visita.
 `id`, `items`, `subtotal`, `itemCount`.
 
 `subtotal` es la suma de `effectivePrice * quantity` de cada línea, calculada en la respuesta — no
-existe columna que la guarde (regla 3.5).
+existe columna que la guarde (regla 3.5). `itemCount` es la suma de `quantity` de todas las líneas
+(total de unidades, no número de líneas distintas): es el número que un badge de carrito muestra.
 
 ### `CartItemResponse`
 
@@ -247,17 +265,19 @@ toca la cantidad de una línea con stock insuficiente — eso lo decide el clien
 
 | Port | Capacidad |
 |---|---|
-| `CartReadPort` | `findByCustomer`, `findBySessionToken` |
-| `CartWritePort` | `save`, `touch` (renueva `expires_at`) |
-| `CartItemWritePort` | `save`, `delete`, `deleteAll` |
-| `CartPricingPort` | `priceFor` — precio vigente de un producto, delegado a [`product.md`](product.md) |
+| `CartReadPort` | `findByCustomer`, `findBySessionToken` — agregado de dominio, sin precio |
+| `CartWritePort` | `save`, `touch` (renueva `expires_at`), `delete` (fila `carts`, usado solo por la fusión de la regla 3.2) |
+| `CartItemWritePort` | `save` (upsert), `delete`, `deleteAll` (todo el carrito o un subconjunto) sobre líneas individuales |
+| `CartPricingPort` | `catalogEntriesFor` — proyección completa (nombre, slug, imagen, precio, `onSale`, estado, stock) por lote, delegada a [`product.md`](product.md), para `GET /cart` y la respuesta de cada caso de uso de escritura, en una sola consulta |
+| `CartProductAvailabilityPort` | `isVisible` (regla 3.6, al añadir), `availableStock` (regla 3.3, comprobación blanda de stock) — no está en la tabla original de esta sección; se añadió porque las reglas 3.3/3.6 lo exigen, mismo espíritu que `ProductInventoryPort` |
 
 `CartPricingPort` no reimplementa el cálculo de `effectivePrice`: lo pide a `product`. Este módulo no
 sabe cómo se calcula un descuento, solo que existe un precio vigente que preguntar.
 
 Persistencia ([ADR-002](../architecture/ADR/ADR-002-jpa-and-jdbc.md)): JPA para añadir, actualizar y
-eliminar líneas; JDBC para `GET /cart`, que es un join con `products` y `product_discounts` para
-resolver el precio vigente de cada línea en una sola consulta.
+eliminar líneas; JDBC (`CartProjectionJdbcRepository`) para `GET /cart` y la respuesta de todo caso de
+uso de escritura, que hace un join con `products` y `product_discounts` para resolver en una sola
+consulta el precio vigente, el estado y el stock disponible de cada línea.
 
 ---
 

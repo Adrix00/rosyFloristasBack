@@ -3,6 +3,7 @@ package com.floristeriarosy.application.product.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.floristeriarosy.application.product.command.UpdateProductExtrasCommand;
@@ -11,6 +12,7 @@ import com.floristeriarosy.application.product.port.out.ProductCategoryPort;
 import com.floristeriarosy.application.product.port.out.ProductImagePort;
 import com.floristeriarosy.application.product.port.out.ProductReadPort;
 import com.floristeriarosy.application.product.port.out.ProductSuggestionPort;
+import com.floristeriarosy.domain.exception.product.ProductDiscontinuedException;
 import com.floristeriarosy.domain.exception.product.ProductNotAnExtraException;
 import com.floristeriarosy.domain.exception.product.ProductNotFoundException;
 import com.floristeriarosy.domain.exception.product.ProductSuggestsItselfException;
@@ -40,6 +42,10 @@ class UpdateProductExtrasServiceTest {
   private UpdateProductExtrasService service;
 
   private Product product(UUID id, boolean isExtra) {
+    return product(id, isExtra, ProductStatus.ACTIVE);
+  }
+
+  private Product product(UUID id, boolean isExtra, ProductStatus status) {
     return Product.reconstitute(
         ProductId.of(id),
         "Ramo",
@@ -48,7 +54,7 @@ class UpdateProductExtrasServiceTest {
         BigDecimal.TEN,
         null,
         null,
-        ProductStatus.ACTIVE,
+        status,
         isExtra,
         Map.of(),
         Instant.now(),
@@ -111,5 +117,16 @@ class UpdateProductExtrasServiceTest {
 
     assertThatThrownBy(() -> service.execute(new UpdateProductExtrasCommand(id, List.of())))
         .isInstanceOf(ProductNotFoundException.class);
+  }
+
+  @Test
+  void rejectsUpdatingExtrasOfADiscontinuedProduct() {
+    service = new UpdateProductExtrasService(readPort, categoryPort, imagePort, suggestionPort);
+    UUID id = UUID.randomUUID();
+    when(readPort.findById(ProductId.of(id))).thenReturn(Optional.of(product(id, false, ProductStatus.DISCONTINUED)));
+
+    assertThatThrownBy(() -> service.execute(new UpdateProductExtrasCommand(id, List.of())))
+        .isInstanceOf(ProductDiscontinuedException.class);
+    verifyNoInteractions(suggestionPort);
   }
 }

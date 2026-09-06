@@ -10,6 +10,7 @@ import com.floristeriarosy.application.product.port.out.ProductCategoryPort;
 import com.floristeriarosy.application.product.port.out.ProductImagePort;
 import com.floristeriarosy.application.product.port.out.ProductReadPort;
 import com.floristeriarosy.application.product.port.out.ProductSuggestionPort;
+import com.floristeriarosy.domain.exception.product.ProductDiscontinuedException;
 import com.floristeriarosy.domain.exception.product.ProductNotAnExtraException;
 import com.floristeriarosy.domain.exception.product.ProductNotFoundException;
 import com.floristeriarosy.domain.exception.product.ProductSuggestsItselfException;
@@ -67,6 +68,8 @@ public class UpdateProductExtrasService implements UpdateProductExtrasUseCase {
    *     = false}
    * @throws ProductSuggestsItselfException {@code command.id()} is among {@code
    *     command.extraProductIds()}
+   * @throws ProductDiscontinuedException the product is {@code DISCONTINUED} (product.md, section
+   *     9/10)
    */
   @Override
   @PreAuthorize("hasRole('ADMIN')")
@@ -81,6 +84,7 @@ public class UpdateProductExtrasService implements UpdateProductExtrasUseCase {
         readPort
             .findById(id)
             .orElseThrow(() -> new ProductNotFoundException("Product " + id + " not found"));
+    product.requireNotDiscontinued();
 
     for (UUID extraId : command.extraProductIds()) {
       if (extraId.equals(command.id())) {

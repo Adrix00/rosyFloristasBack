@@ -10,9 +10,8 @@ import java.util.UUID;
  * @param type the kind of movement
  * @param quantity the signed quantity
  * @param resultingStock the product's stock immediately after this movement
- * @param adminUserName who triggered it, or {@code null} for a system-generated movement or an
- *     admin who has since been deactivated — always {@code null} today (no {@code auth}/{@code
- *     admin} module yet)
+ * @param adminUserName who triggered it (their email, {@code admin_users} has no name column), or
+ *     {@code null} for a system-generated movement or an admin who has since been deactivated
  * @param note the optional note, or {@code null}
  * @param createdAt when the row was created
  */

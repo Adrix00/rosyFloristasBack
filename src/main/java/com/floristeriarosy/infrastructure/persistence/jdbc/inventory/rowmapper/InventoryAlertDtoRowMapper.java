@@ -18,7 +18,9 @@ public class InventoryAlertDtoRowMapper implements RowMapper<InventoryAlertDto> 
   /**
    * @param rs the current row
    * @param rowNum the row's index, unused
-   * @return the row mapped to an inventory alert read shape
+   * @return the row mapped to an inventory alert read shape; {@code resolvedByAdminName} is always
+   *     {@code null} here — resolving and decrypting it (ADR-005) is the calling service's job,
+   *     not a pure row mapper's
    * @throws SQLException propagated from a column read
    */
   @Override
@@ -33,6 +35,7 @@ public class InventoryAlertDtoRowMapper implements RowMapper<InventoryAlertDto> 
         rs.getInt("expected_value"),
         InventoryAlertStatus.valueOf(rs.getString("status")),
         (UUID) rs.getObject("resolved_by_admin_id"),
+        null,
         resolvedAt == null ? null : resolvedAt.toInstant(),
         rs.getTimestamp("created_at").toInstant());
   }

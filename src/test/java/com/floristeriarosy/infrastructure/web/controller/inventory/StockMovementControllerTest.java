@@ -52,7 +52,7 @@ class StockMovementControllerTest {
 
   private StockMovementDto dto(StockMovementType type, int quantity, int resultingStock) {
     return new StockMovementDto(
-        UUID.randomUUID(), UUID.randomUUID(), type, quantity, resultingStock, null, "nota", Instant.now());
+        UUID.randomUUID(), UUID.randomUUID(), type, quantity, resultingStock, null, null, "nota", Instant.now());
   }
 
   @Test

@@ -2,9 +2,7 @@ package com.floristeriarosy.infrastructure.persistence.jdbc.inventory.repository
 
 import com.floristeriarosy.application.inventory.dto.InventoryAlertDto;
 import com.floristeriarosy.application.product.dto.PageResult;
-import com.floristeriarosy.domain.model.inventory.InventoryAlert;
 import com.floristeriarosy.infrastructure.persistence.jdbc.inventory.rowmapper.InventoryAlertDtoRowMapper;
-import com.floristeriarosy.infrastructure.persistence.jdbc.inventory.rowmapper.InventoryAlertRowMapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -14,18 +12,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 /**
- * JDBC reads for inventory alerts (ADR-002): every {@code OPEN} alert, and the admin's filtered,
- * paginated listing with the product's name resolved via {@code JOIN} (no N+1 lookups).
+ * JDBC reads for inventory alerts (ADR-002): the admin's filtered, paginated listing with the
+ * product's name resolved via {@code JOIN} (no N+1 lookups).
  */
 @Repository
 public class InventoryAlertJdbcRepository {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(InventoryAlertJdbcRepository.class);
 
-  private static final String FIND_OPEN_SQL = "SELECT * FROM inventory_alerts WHERE status = 'OPEN'";
-
   private final JdbcTemplate jdbcTemplate;
-  private final InventoryAlertRowMapper rowMapper = new InventoryAlertRowMapper();
   private final InventoryAlertDtoRowMapper dtoRowMapper = new InventoryAlertDtoRowMapper();
 
   /**
@@ -33,16 +28,6 @@ public class InventoryAlertJdbcRepository {
    */
   public InventoryAlertJdbcRepository(JdbcTemplate jdbcTemplate) {
     this.jdbcTemplate = jdbcTemplate;
-  }
-
-  /**
-   * @return every alert currently {@code OPEN}
-   */
-  public List<InventoryAlert> findOpen() {
-    LOGGER.debug("findOpen");
-    List<InventoryAlert> result = jdbcTemplate.query(FIND_OPEN_SQL, rowMapper);
-    LOGGER.debug("findOpen -> count={}", result.size());
-    return result;
   }
 
   /**

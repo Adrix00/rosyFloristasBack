@@ -1,5 +1,6 @@
 package com.floristeriarosy.domain.model.product.valueobject;
 
+import com.floristeriarosy.domain.exception.product.ProductSlugEmptyException;
 import com.floristeriarosy.domain.exception.product.ProductSlugReservedException;
 import com.floristeriarosy.shared.util.LogSanitizer;
 import java.text.Normalizer;
@@ -58,6 +59,8 @@ public final class ProductSlug {
    *
    * @param name the product name to derive a slug from
    * @return the generated slug
+   * @throws ProductSlugEmptyException {@code name} normalizes to an empty string (e.g. {@code
+   *     "---"}, which strips down to nothing)
    * @throws ProductSlugReservedException the generated slug collides with a literal route segment
    *     under {@code /products/} (e.g. {@code suggestions}, {@code all})
    */
@@ -70,6 +73,10 @@ public final class ProductSlug {
     normalized = DIACRITICS.matcher(normalized).replaceAll("");
     normalized = NON_ALPHANUMERIC.matcher(normalized).replaceAll("-");
     normalized = normalized.replaceAll("^-+|-+$", "");
+    if (normalized.isEmpty()) {
+      throw new ProductSlugEmptyException(
+          "'" + LogSanitizer.sanitize(name) + "' normalizes to an empty slug");
+    }
     if (RESERVED.contains(normalized)) {
       throw new ProductSlugReservedException(
           "'" + LogSanitizer.sanitize(name) + "' generates the reserved slug '" + normalized + "'");

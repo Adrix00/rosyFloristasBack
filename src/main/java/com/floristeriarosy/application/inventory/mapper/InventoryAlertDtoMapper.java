@@ -12,9 +12,11 @@ public final class InventoryAlertDtoMapper {
    * @param alert the domain alert to expose
    * @param productName the product's current name, resolved separately (the alert itself only
    *     carries {@code productId})
+   * @param resolvedByAdminName the closing admin's email, resolved separately (ADR-005), or
+   *     {@code null}
    * @return its read shape, with plain UUID/enum fields a Controller may hold directly
    */
-  public static InventoryAlertDto toDto(InventoryAlert alert, String productName) {
+  public static InventoryAlertDto toDto(InventoryAlert alert, String productName, String resolvedByAdminName) {
     return new InventoryAlertDto(
         alert.id().value(),
         alert.type(),
@@ -24,6 +26,7 @@ public final class InventoryAlertDtoMapper {
         alert.expectedValue(),
         alert.status(),
         alert.resolvedByAdminId(),
+        resolvedByAdminName,
         alert.resolvedAt(),
         alert.createdAt());
   }

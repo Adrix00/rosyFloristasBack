@@ -54,7 +54,7 @@ public class ProductDiscountController {
   }
 
   /**
-   * {@code POST /products/{id}/discounts} (ADMIN — unenforced, dev-plan.md).
+   * {@code POST /products/{id}/discounts} ({@code ADMIN}, {@code @PreAuthorize} on the service).
    *
    * @param productId the product to discount
    * @param request the promotion's fields
@@ -71,7 +71,7 @@ public class ProductDiscountController {
   }
 
   /**
-   * {@code GET /products/{id}/discounts} (ADMIN — unenforced, dev-plan.md): complete discount
+   * {@code GET /products/{id}/discounts} ({@code ADMIN}, {@code @PreAuthorize} on the service): complete discount
    * history, past and present.
    *
    * @param productId the product whose discount history to list

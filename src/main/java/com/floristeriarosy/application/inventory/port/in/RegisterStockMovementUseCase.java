@@ -2,6 +2,7 @@ package com.floristeriarosy.application.inventory.port.in;
 
 import com.floristeriarosy.application.inventory.command.RegisterStockMovementCommand;
 import com.floristeriarosy.application.inventory.dto.StockMovementDto;
+import com.floristeriarosy.domain.exception.ResourceModifiedException;
 import com.floristeriarosy.domain.exception.inventory.InventoryAlreadyInitializedException;
 import com.floristeriarosy.domain.exception.inventory.InventoryInsufficientStockException;
 import com.floristeriarosy.domain.exception.inventory.InventoryNotManagedException;
@@ -46,19 +47,45 @@ public interface RegisterStockMovementUseCase {
   }
 
   /**
-   * Reactivates inventory for a product that already carries a prior {@code INITIAL} movement in
-   * its history — a second {@code INITIAL} is impossible ({@code ux_stock_movements_initial}), so
-   * {@code product.md} section 3.7 records the reactivation as an {@code ADJUSTMENT} instead.
-   * Unlike a normal {@code ADJUSTMENT}, this unconditionally sets {@code products.stock} to {@code
-   * stock} rather than applying it as a delta on top of the current value — the product is
-   * currently unmanaged ({@code stock IS NULL}), so there is no prior numeric value to offset
-   * from, only the absolute stock the reactivation starts at.
+   * Activates managed inventory for a product, whether or not it was ever managed before
+   * (product.md, section 3.7). A product with no movement history gets an {@code INITIAL}; one that
+   * already carries history gets an {@code ADJUSTMENT}, because {@code ux_stock_movements_initial}
+   * allows exactly one {@code INITIAL} per product for its whole lifetime.
    *
-   * @param productId the product to reactivate
+   * <p>The caller does not have to know which case it is in, and must not find out by attempting
+   * an {@code INITIAL} and catching the violation: the failed {@code INSERT} aborts the enclosing
+   * PostgreSQL transaction and marks it rollback-only, so the fallback would write into a doomed
+   * transaction and the request would fail with a 500 either way.
+   *
+   * <p>The {@code ADJUSTMENT}'s quantity is the delta against the sum of the product's previous
+   * movements, never the absolute stock: {@code products.stock} must equal that sum, and a daily
+   * reconciliation job raises {@code RECONCILIATION_MISMATCH} when it does not (inventory.md,
+   * section 3.8). A reactivation whose delta is zero writes no movement row at all — there is
+   * nothing to record, and {@code chk_stock_movements_quantity_nonzero} forbids it.
+   *
+   * @param productId the product to activate inventory for
    * @param stock the stock to (re)start at
    * @param adminUserId the admin who triggered it, or {@code null}
    * @param note optional note
-   * @return the recorded movement
    */
-  StockMovementDto reactivate(UUID productId, int stock, UUID adminUserId, String note);
+  void initializeOrReactivate(UUID productId, int stock, UUID adminUserId, String note);
+
+  /**
+   * Sets a managed product's stock to an absolute value and records the {@code ADJUSTMENT} that
+   * represents the change (product.md, section 3.7: an administrator states the stock they counted,
+   * not a delta).
+   *
+   * <p>Takes {@code expectedStock} because the caller has already read it: the write is conditional
+   * on the product still holding that value, so two adjustments issued at once cannot compound into
+   * a third number neither administrator asked for. The loser is told (409), never merged silently.
+   *
+   * @param productId the product to adjust
+   * @param expectedStock the stock the caller read before deciding
+   * @param newStock the stock to set
+   * @param adminUserId the admin who triggered it, or {@code null}
+   * @param note optional note
+   * @throws ResourceModifiedException the product's stock changed since {@code expectedStock} was
+   *     read
+   */
+  void adjustToAbsolute(UUID productId, int expectedStock, int newStock, UUID adminUserId, String note);
 }

@@ -264,6 +264,10 @@ producto, no una acción sobre una alerta.
 identificador por su cuenta. Si el administrador se dio de baja, aparece como `null` — el `SET NULL`
 de la fila.
 
+`admin_users` no tiene columna `name` ([`../database/README.md`](../database/README.md)); el valor
+que viaja en `adminUserName`/`resolvedByAdminName` es el email descifrado del administrador
+(ADR-005), resuelto y descifrado por el servicio — nunca en el mapper de fila JDBC ni en un log.
+
 ### `InventoryAlertResponse`
 
 `id`, `type`, `productId`, `productName`, `observedValue`, `expectedValue`, `status`,

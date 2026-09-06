@@ -80,3 +80,53 @@ path, so their version would never detect anything the root's version did not al
 - ADR-002 — JPA and JDBC: `@Version` is a JPA concern and stays inside Infrastructure.
 - ADR-007 — Historical integrity and data lifecycle: the customer deactivation flow this ADR protects.
 - `docs/database/README.md` — the conditional `UPDATE` patterns for stock and discounts.
+
+---
+
+# Amendment (2026-09-06): `carts`
+
+The original decision left `carts` unaddressed — neither listed above nor explicitly excluded. In
+`feature/cart`, `CartEntity` shipped without `@Version` and a Javadoc comment claiming this ADR
+excluded it "same as `customer_addresses`, `product_images`" (a child-entity exclusion this ADR does
+grant to child tables, but a cart is an aggregate root of its own, not `products`' child). Neither
+this ADR nor `cart.md` ever recorded that exclusion; the code review that caught the discrepancy is
+the reason this amendment exists.
+
+**`carts` is added to the list of aggregate roots with `version` (JPA `@Version`).** A customer's own
+cart is reachable from two devices at once — add-to-cart on a phone and a laptop tab open on the same
+account — and cart.md's rule 3.1 already resolves a signed-in customer's cart the same way regardless
+of device, by `customer_id`, not by cookie. Two such writes racing is the same shape of problem this
+ADR protects `customer_payment_methods` from: last-write-wins would silently discard one device's
+line additions, with no error on either side.
+
+**The line quantity write stays a plain overwrite, not itself conditional**, unlike
+`products.stock`: cart.md's rule 3.3 has no invariant like `stock >= 0` for a cart line to protect
+mid-write, so there is nothing for a conditional predicate to check. `@Version` alone is the right
+tool here — it is `products.stock` that additionally needs the conditional `UPDATE`, not every
+aggregate this ADR covers.
+
+**`version` stays invisible on the wire, unlike every other aggregate this ADR lists.** The admin
+panel's `PUT /products/{id}` and friends round-trip a `version` field the client must send back —
+workable because an admin is looking at a form, editing one row at a time. Cart writes are
+one-line-at-a-time increments (`POST /cart/items`, `PATCH /cart/items/{id}`) triggered by ordinary
+shopping, not form edits; requiring the SPA to track and resend a `version` for every add-to-cart
+click would be a contract change with no admin-panel precedent to justify it, for an aggregate no
+human is staring at while editing.
+
+Resolution: a version conflict on a cart write is retried once, transparently, by re-reading the
+cart and reapplying the same use-case-level operation (add/set/remove the one line the request named)
+against the fresh version — never surfaced to the client as 409. This is safe specifically because a
+cart write commutes with itself: "add 2 units of product X" produces the same end state whether it is
+the first or second attempt to apply it against the latest row, unlike an admin's arbitrary field
+edit, which is why every other `@Version` aggregate in this ADR answers 409 instead of retrying.
+
+**`carts.touch()` (renews `expires_at` on every write, cart.md rule 3.7) bumps `version` too.** It is
+a real `UPDATE` to the row like any other, currently issued as a standalone JPQL statement
+(`CartJpaRepository.touch`) that bypasses the JPA-managed entity's own `@Version` check. Left alone,
+that statement would let two concurrent line-writes both renew the expiry unconditionally after one
+of them lost the retry above, masking exactly the race this amendment exists to close — the same gap
+ADR-009's original text does not call out for the JDBC stock writes, since those are guarded by their
+own value predicate instead. `touch` has no such predicate to fall back on, so it must go through the
+versioned entity path (a `findById` + field assignment + `save`) rather than a bare `UPDATE`.
+
+See `cart.md`, section 2 and 3.3, for the resulting concurrency model as documented for that module.

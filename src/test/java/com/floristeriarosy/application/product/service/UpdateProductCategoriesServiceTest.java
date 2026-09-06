@@ -12,6 +12,7 @@ import com.floristeriarosy.application.product.dto.ProductDto;
 import com.floristeriarosy.application.product.port.out.ProductCategoryPort;
 import com.floristeriarosy.application.product.port.out.ProductImagePort;
 import com.floristeriarosy.application.product.port.out.ProductReadPort;
+import com.floristeriarosy.domain.exception.product.ProductDiscontinuedException;
 import com.floristeriarosy.domain.exception.product.ProductNotFoundException;
 import com.floristeriarosy.domain.exception.product.ProductWithoutCategoryException;
 import com.floristeriarosy.domain.model.category.valueobject.CategoryId;
@@ -40,6 +41,10 @@ class UpdateProductCategoriesServiceTest {
   private UpdateProductCategoriesService service;
 
   private Product product(UUID id) {
+    return product(id, ProductStatus.ACTIVE);
+  }
+
+  private Product product(UUID id, ProductStatus status) {
     return Product.reconstitute(
         ProductId.of(id),
         "Ramo",
@@ -48,7 +53,7 @@ class UpdateProductCategoriesServiceTest {
         BigDecimal.TEN,
         null,
         null,
-        ProductStatus.ACTIVE,
+        status,
         false,
         Map.of(),
         Instant.now(),
@@ -89,5 +94,17 @@ class UpdateProductCategoriesServiceTest {
     assertThatThrownBy(
             () -> service.execute(new UpdateProductCategoriesCommand(id, List.of(UUID.randomUUID()))))
         .isInstanceOf(ProductNotFoundException.class);
+  }
+
+  @Test
+  void rejectsUpdatingCategoriesOfADiscontinuedProduct() {
+    service = new UpdateProductCategoriesService(readPort, categoryPort, imagePort);
+    UUID id = UUID.randomUUID();
+    when(readPort.findById(ProductId.of(id))).thenReturn(Optional.of(product(id, ProductStatus.DISCONTINUED)));
+
+    assertThatThrownBy(
+            () -> service.execute(new UpdateProductCategoriesCommand(id, List.of(UUID.randomUUID()))))
+        .isInstanceOf(ProductDiscontinuedException.class);
+    verifyNoInteractions(categoryPort);
   }
 }

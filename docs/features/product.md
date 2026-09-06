@@ -474,6 +474,8 @@ Enum `ProductErrorCode` en `domain/exception/product/`
 | `PRODUCT_HAS_ACTIVE_DISCOUNT` | 409 | Cambio de precio con promoción vigente (regla 3.8) |
 | `RESOURCE_MODIFIED` | 409 | Conflicto de bloqueo optimista (ADR-009) |
 | `PRODUCT_VALIDATION_FAILED` | 422 | Bean Validation; con `errors[]` |
+| `ATTRIBUTE_DEFINITION_NOT_FOUND` | 404 | `/product-attributes/{id}` no existe (enum `AttributeErrorCode`) |
+| `ATTRIBUTE_DEFINITION_ALREADY_EXISTS` | 409 | `attributeKey` ya declarado (enum `AttributeErrorCode`) |
 
 Ninguna violación de constraint llega al cliente con su nombre: `uq_products_slug` se traduce a
 `PRODUCT_ALREADY_EXISTS`.

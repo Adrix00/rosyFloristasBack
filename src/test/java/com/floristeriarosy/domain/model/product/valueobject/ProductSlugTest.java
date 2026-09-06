@@ -3,6 +3,7 @@ package com.floristeriarosy.domain.model.product.valueobject;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.floristeriarosy.domain.exception.product.ProductSlugEmptyException;
 import com.floristeriarosy.domain.exception.product.ProductSlugReservedException;
 import org.junit.jupiter.api.Test;
 
@@ -30,5 +31,11 @@ class ProductSlugTest {
   @Test
   void ofWrapsAnAlreadyValidSlugWithoutReservedCheck() {
     assertThat(ProductSlug.of("ramos").value()).isEqualTo("ramos");
+  }
+
+  @Test
+  void rejectsANameThatNormalizesToAnEmptySlug() {
+    assertThatThrownBy(() -> ProductSlug.generateFrom("---")).isInstanceOf(ProductSlugEmptyException.class);
+    assertThatThrownBy(() -> ProductSlug.generateFrom("   ")).isInstanceOf(ProductSlugEmptyException.class);
   }
 }

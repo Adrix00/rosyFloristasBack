@@ -78,7 +78,7 @@ class ProductInventoryPersistenceAdapterTest {
     ProductId id = newProduct();
     adapter.initializeStock(id, 10, null, null);
 
-    adapter.adjustStock(id, 15, null, "reposicion");
+    adapter.adjustStock(id, 10, 15, null, "reposicion");
 
     assertThat(currentStock(id)).isEqualTo(15);
     assertThat(movementCount(id, "ADJUSTMENT")).isEqualTo(1);
@@ -89,7 +89,7 @@ class ProductInventoryPersistenceAdapterTest {
     ProductId id = newProduct();
     adapter.initializeStock(id, 10, null, null);
 
-    adapter.adjustStock(id, 10, 3, null);
+    adapter.adjustStock(id, 10, 10, 3, null);
 
     assertThat(currentStock(id)).isEqualTo(10);
     assertThat(movementCount(id, "ADJUSTMENT")).isZero();

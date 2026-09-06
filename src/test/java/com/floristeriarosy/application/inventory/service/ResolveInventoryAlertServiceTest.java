@@ -7,10 +7,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.floristeriarosy.application.admin.port.out.AdminReadPort;
 import com.floristeriarosy.application.inventory.command.ResolveInventoryAlertCommand;
 import com.floristeriarosy.application.inventory.dto.InventoryAlertDto;
 import com.floristeriarosy.application.inventory.port.out.InventoryAlertPort;
 import com.floristeriarosy.application.product.port.out.ProductReadPort;
+import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.domain.exception.inventory.InventoryAlertNotFoundException;
 import com.floristeriarosy.domain.exception.inventory.InventoryAlertNotOpenException;
 import com.floristeriarosy.domain.model.inventory.InventoryAlert;
@@ -39,6 +41,8 @@ class ResolveInventoryAlertServiceTest {
 
   @Mock private InventoryAlertPort alertPort;
   @Mock private ProductReadPort productReadPort;
+  @Mock private AdminReadPort adminReadPort;
+  @Mock private PiiCryptoPort piiCryptoPort;
 
   private ResolveInventoryAlertService service;
 
@@ -60,25 +64,25 @@ class ResolveInventoryAlertServiceTest {
 
   @Test
   void throwsNotFoundWhenTheAlertDoesNotExist() {
-    service = new ResolveInventoryAlertService(alertPort, productReadPort);
+    service = new ResolveInventoryAlertService(alertPort, productReadPort, adminReadPort, piiCryptoPort);
     UUID id = UUID.randomUUID();
     when(alertPort.findById(any(InventoryAlertId.class))).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> service.execute(new ResolveInventoryAlertCommand(id, null)))
+    assertThatThrownBy(() -> service.execute(new ResolveInventoryAlertCommand(id, null, null)))
         .isInstanceOf(InventoryAlertNotFoundException.class);
     verify(alertPort, never()).resolve(any());
   }
 
   @Test
   void resolvesAnOpenAlertAndReturnsItWithTheProductsCurrentName() {
-    service = new ResolveInventoryAlertService(alertPort, productReadPort);
+    service = new ResolveInventoryAlertService(alertPort, productReadPort, adminReadPort, piiCryptoPort);
     ProductId productId = ProductId.newId();
     InventoryAlert alert = InventoryAlert.open(InventoryAlertId.newId(), InventoryAlertType.LOW_STOCK, productId, 2, 5);
     when(alertPort.findById(any(InventoryAlertId.class))).thenReturn(Optional.of(alert));
     when(alertPort.resolve(any(InventoryAlert.class))).thenAnswer(invocation -> invocation.getArgument(0));
     when(productReadPort.findById(productId)).thenReturn(Optional.of(product("Ramo")));
 
-    InventoryAlertDto result = service.execute(new ResolveInventoryAlertCommand(alert.id().value(), "repuesto"));
+    InventoryAlertDto result = service.execute(new ResolveInventoryAlertCommand(alert.id().value(), "repuesto", null));
 
     assertThat(result.productName()).isEqualTo("Ramo");
     verify(alertPort).resolve(alert);
@@ -86,13 +90,13 @@ class ResolveInventoryAlertServiceTest {
 
   @Test
   void resolvingAnAlertThatIsAlreadyClosedThrowsNotOpen() {
-    service = new ResolveInventoryAlertService(alertPort, productReadPort);
+    service = new ResolveInventoryAlertService(alertPort, productReadPort, adminReadPort, piiCryptoPort);
     InventoryAlert alert =
         InventoryAlert.open(InventoryAlertId.newId(), InventoryAlertType.LOW_STOCK, ProductId.newId(), 2, 5);
     alert.dismiss(null, null, Instant.now());
     when(alertPort.findById(any(InventoryAlertId.class))).thenReturn(Optional.of(alert));
 
-    assertThatThrownBy(() -> service.execute(new ResolveInventoryAlertCommand(alert.id().value(), null)))
+    assertThatThrownBy(() -> service.execute(new ResolveInventoryAlertCommand(alert.id().value(), null, null)))
         .isInstanceOf(InventoryAlertNotOpenException.class);
     verify(alertPort, never()).resolve(any());
   }

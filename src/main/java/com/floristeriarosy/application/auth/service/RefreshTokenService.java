@@ -96,7 +96,13 @@ public class RefreshTokenService implements RefreshTokenUseCase {
     }
 
     presented.revoke(now);
-    refreshTokenWritePort.revoke(presented.id(), now);
+    boolean wonTheRace = refreshTokenWritePort.revoke(presented.id(), now);
+    if (!wonTheRace) {
+      revokeTokenFamilyPort.revokeFamily(presented.familyId());
+      LOGGER.debug(
+          "refreshToken familyId={} -> 401 SESSION_REVOKED (concurrent reuse)", presented.familyId());
+      throw new SessionRevokedException("Refresh token reuse detected; session revoked");
+    }
 
     String rawNewToken = RefreshToken.generatePlaintext();
     RefreshToken rotated = presented.rotate(RefreshTokenId.newId(), RefreshToken.hash(rawNewToken));

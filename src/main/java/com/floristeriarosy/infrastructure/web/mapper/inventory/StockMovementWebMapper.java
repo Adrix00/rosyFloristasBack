@@ -37,28 +37,37 @@ public class StockMovementWebMapper {
   /**
    * @param productId the product being written off, from the path
    * @param request the wasted quantity and required note
+   * @param adminUserId the caller, resolved from the JWT
    * @return the command to hand to {@code RegisterWasteUseCase}
    */
-  public RegisterWasteCommand toCommand(UUID productId, RegisterWasteRequest request) {
-    return new RegisterWasteCommand(productId, request.quantity(), request.note());
+  public RegisterWasteCommand toCommand(UUID productId, RegisterWasteRequest request, UUID adminUserId) {
+    return new RegisterWasteCommand(productId, request.quantity(), request.note(), adminUserId);
   }
 
   /**
    * @param productId the product being corrected, from the path
    * @param request the signed delta and required note
+   * @param adminUserId the caller, resolved from the JWT
    * @return the command to hand to {@code RegisterAdjustmentUseCase}
    */
-  public RegisterAdjustmentCommand toCommand(UUID productId, RegisterAdjustmentRequest request) {
-    return new RegisterAdjustmentCommand(productId, request.quantity(), request.note());
+  public RegisterAdjustmentCommand toCommand(UUID productId, RegisterAdjustmentRequest request, UUID adminUserId) {
+    return new RegisterAdjustmentCommand(productId, request.quantity(), request.note(), adminUserId);
   }
 
   /**
    * @param dto the movement to expose
-   * @return its API representation; {@code adminUserName} is always {@code null} (known gap)
+   * @return its API representation
    */
   public StockMovementResponse toResponse(StockMovementDto dto) {
     return new StockMovementResponse(
-        dto.id(), dto.productId(), dto.type(), dto.quantity(), dto.resultingStock(), null, dto.note(), dto.createdAt());
+        dto.id(),
+        dto.productId(),
+        dto.type(),
+        dto.quantity(),
+        dto.resultingStock(),
+        dto.adminUserName(),
+        dto.note(),
+        dto.createdAt());
   }
 
   /**

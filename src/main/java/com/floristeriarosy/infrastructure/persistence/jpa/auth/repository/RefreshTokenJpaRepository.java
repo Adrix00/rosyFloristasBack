@@ -24,12 +24,20 @@ public interface RefreshTokenJpaRepository extends JpaRepository<RefreshTokenEnt
    * needs an explicit {@code @Transactional} here (same pitfall as {@code
    * countActiveOwnersForUpdate} in the admin module).
    *
+   * <p>{@code AND r.revokedAt IS NULL} is what makes this the same conditional-write pattern
+   * ADR-009 uses elsewhere: under READ COMMITTED, two concurrent refreshes of the same token can
+   * both read it as not-yet-revoked, but only one {@code UPDATE} can win this predicate — the
+   * second affects zero rows and the caller treats that as the reuse ADR-008 requires it to detect
+   * (auth.md, section 10), instead of both requests rotating the same token into two live
+   * successors.
+   *
    * @param id the row to revoke
    * @param revokedAt the revocation instant
-   * @return how many rows were updated (0 or 1)
+   * @return how many rows were updated: 1 if this call won the race, 0 if the token was already
+   *     revoked
    */
   @Modifying
   @Transactional
-  @Query("UPDATE RefreshTokenEntity r SET r.revokedAt = :revokedAt WHERE r.id = :id")
+  @Query("UPDATE RefreshTokenEntity r SET r.revokedAt = :revokedAt WHERE r.id = :id AND r.revokedAt IS NULL")
   int revoke(@Param("id") UUID id, @Param("revokedAt") Instant revokedAt);
 }

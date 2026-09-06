@@ -85,13 +85,24 @@ class RefreshTokenPersistenceAdapterTest {
   }
 
   @Test
-  void revokeMarksTheRowRevoked() {
+  void revokeMarksTheRowRevokedAndReportsItWon() {
     RefreshToken token = adapter.save(newAdminFamily());
 
-    adapter.revoke(token.id(), Instant.now());
+    boolean won = adapter.revoke(token.id(), Instant.now());
 
+    assertThat(won).isTrue();
     RefreshToken reloaded = adapter.findByHash(token.tokenHash()).orElseThrow();
     assertThat(reloaded.isRevoked()).isTrue();
+  }
+
+  @Test
+  void revokingAnAlreadyRevokedRowReportsItLost() {
+    RefreshToken token = adapter.save(newAdminFamily());
+    adapter.revoke(token.id(), Instant.now());
+
+    boolean won = adapter.revoke(token.id(), Instant.now());
+
+    assertThat(won).isFalse();
   }
 
   @Test

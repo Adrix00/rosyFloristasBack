@@ -3,6 +3,7 @@ package com.floristeriarosy.application.product.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.floristeriarosy.application.product.command.UpdateProductImagesCommand;
@@ -12,6 +13,7 @@ import com.floristeriarosy.application.product.dto.ProductImageRef;
 import com.floristeriarosy.application.product.port.out.ProductCategoryPort;
 import com.floristeriarosy.application.product.port.out.ProductImagePort;
 import com.floristeriarosy.application.product.port.out.ProductReadPort;
+import com.floristeriarosy.domain.exception.product.ProductDiscontinuedException;
 import com.floristeriarosy.domain.exception.product.ProductNotFoundException;
 import com.floristeriarosy.domain.model.product.Product;
 import com.floristeriarosy.domain.model.product.ProductStatus;
@@ -38,6 +40,10 @@ class UpdateProductImagesServiceTest {
   private UpdateProductImagesService service;
 
   private Product product(UUID id) {
+    return product(id, ProductStatus.ACTIVE);
+  }
+
+  private Product product(UUID id, ProductStatus status) {
     return Product.reconstitute(
         ProductId.of(id),
         "Ramo",
@@ -46,7 +52,7 @@ class UpdateProductImagesServiceTest {
         BigDecimal.TEN,
         null,
         null,
-        ProductStatus.ACTIVE,
+        status,
         false,
         Map.of(),
         Instant.now(),
@@ -77,5 +83,16 @@ class UpdateProductImagesServiceTest {
 
     assertThatThrownBy(() -> service.execute(new UpdateProductImagesCommand(id, List.of())))
         .isInstanceOf(ProductNotFoundException.class);
+  }
+
+  @Test
+  void rejectsUpdatingImagesOfADiscontinuedProduct() {
+    service = new UpdateProductImagesService(readPort, categoryPort, imagePort);
+    UUID id = UUID.randomUUID();
+    when(readPort.findById(ProductId.of(id))).thenReturn(Optional.of(product(id, ProductStatus.DISCONTINUED)));
+
+    assertThatThrownBy(() -> service.execute(new UpdateProductImagesCommand(id, List.of())))
+        .isInstanceOf(ProductDiscontinuedException.class);
+    verifyNoInteractions(imagePort);
   }
 }

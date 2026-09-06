@@ -122,6 +122,7 @@ class RefreshTokenServiceTest {
             SubjectType.ADMIN,
             familyExpiresAt);
     when(refreshTokenReadPort.findByHash(any())).thenReturn(Optional.of(presented));
+    when(refreshTokenWritePort.revoke(eq(presented.id()), any())).thenReturn(true);
     when(adminReadPort.findById(admin.id())).thenReturn(Optional.of(admin));
     when(accessTokenPort.issue(any(), any())).thenReturn("new-access-token");
 
@@ -132,5 +133,26 @@ class RefreshTokenServiceTest {
     assertThat(dto.refreshToken()).isNotEqualTo("presented");
     verify(refreshTokenWritePort).revoke(eq(presented.id()), any());
     verify(refreshTokenWritePort).save(any(RefreshToken.class));
+  }
+
+  @Test
+  void revokesTheWholeFamilyWhenTheRevokeLosesAConcurrentRace() {
+    newService();
+    Admin admin = admin();
+    RefreshToken presented =
+        RefreshToken.startFamily(
+            RefreshTokenId.newId(),
+            RefreshToken.hash("presented"),
+            admin.id().value(),
+            SubjectType.ADMIN,
+            Instant.now().plusSeconds(3600));
+    when(refreshTokenReadPort.findByHash(any())).thenReturn(Optional.of(presented));
+    when(refreshTokenWritePort.revoke(eq(presented.id()), any())).thenReturn(false);
+
+    assertThatThrownBy(() -> service.execute(new RefreshTokenCommand("presented")))
+        .isInstanceOf(SessionRevokedException.class);
+
+    verify(revokeTokenFamilyPort).revokeFamily(presented.familyId());
+    verify(refreshTokenWritePort, never()).save(any());
   }
 }

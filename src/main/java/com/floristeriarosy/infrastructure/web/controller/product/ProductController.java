@@ -108,7 +108,7 @@ public class ProductController {
   }
 
   /**
-   * {@code POST /products} (ADMIN — unenforced, dev-plan.md).
+   * {@code POST /products} ({@code ADMIN}, {@code @PreAuthorize} on the service).
    *
    * @param request the product's fields, categories, gallery and optional initial stock
    * @return 201 with the created product
@@ -154,7 +154,7 @@ public class ProductController {
   }
 
   /**
-   * {@code GET /products/{id}/deletion-impact} (ADMIN — unenforced, dev-plan.md): read-only
+   * {@code GET /products/{id}/deletion-impact} ({@code ADMIN}, {@code @PreAuthorize} on the service): read-only
    * preview.
    *
    * @param id the product to preview
@@ -170,7 +170,7 @@ public class ProductController {
   }
 
   /**
-   * {@code PUT /products/{id}} (ADMIN — unenforced, dev-plan.md): full replace of the product's
+   * {@code PUT /products/{id}} ({@code ADMIN}, {@code @PreAuthorize} on the service): full replace of the product's
    * own fields.
    *
    * @param id the product to update
@@ -187,7 +187,7 @@ public class ProductController {
   }
 
   /**
-   * {@code PATCH /products/{id}/status} (ADMIN — unenforced, dev-plan.md).
+   * {@code PATCH /products/{id}/status} ({@code ADMIN}, {@code @PreAuthorize} on the service).
    *
    * @param id the product to change
    * @param request the new status
@@ -203,7 +203,7 @@ public class ProductController {
   }
 
   /**
-   * {@code PUT /products/{id}/categories} (ADMIN — unenforced, dev-plan.md): full replace.
+   * {@code PUT /products/{id}/categories} ({@code ADMIN}, {@code @PreAuthorize} on the service): full replace.
    *
    * @param id the product to update
    * @param request the complete new category set
@@ -220,7 +220,7 @@ public class ProductController {
   }
 
   /**
-   * {@code PUT /products/{id}/images} (ADMIN — unenforced, dev-plan.md): full replace, with order.
+   * {@code PUT /products/{id}/images} ({@code ADMIN}, {@code @PreAuthorize} on the service): full replace, with order.
    *
    * @param id the product to update
    * @param request the complete new gallery
@@ -236,7 +236,7 @@ public class ProductController {
   }
 
   /**
-   * {@code PUT /products/{id}/extras} (ADMIN — unenforced, dev-plan.md): full replace, with order.
+   * {@code PUT /products/{id}/extras} ({@code ADMIN}, {@code @PreAuthorize} on the service): full replace, with order.
    *
    * @param id the product to update
    * @param request the complete new suggestion set
@@ -252,7 +252,7 @@ public class ProductController {
   }
 
   /**
-   * {@code PATCH /products/{id}/inventory} (ADMIN — unenforced, dev-plan.md).
+   * {@code PATCH /products/{id}/inventory} ({@code ADMIN}, {@code @PreAuthorize} on the service).
    *
    * @param id the product to change
    * @param request the new inventory mode
@@ -268,7 +268,7 @@ public class ProductController {
   }
 
   /**
-   * {@code DELETE /products/{id}} (ADMIN — unenforced, dev-plan.md): permanent removal.
+   * {@code DELETE /products/{id}} ({@code ADMIN}, {@code @PreAuthorize} on the service): permanent removal.
    *
    * @param id the product to delete
    * @return 204, empty body

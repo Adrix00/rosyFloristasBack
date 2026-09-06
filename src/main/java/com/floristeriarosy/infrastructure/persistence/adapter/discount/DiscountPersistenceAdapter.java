@@ -88,6 +88,13 @@ public class DiscountPersistenceAdapter implements DiscountReadPort, DiscountWri
    * is not clobbered by a full detached-entity overwrite. Builds a fresh entity only for a
    * genuinely new discount.
    *
+   * <p>Uses {@code saveAndFlush}, not {@code save}: the id is application-assigned, so Hibernate
+   * would otherwise defer the {@code INSERT}/{@code UPDATE} to the enclosing {@code @Transactional}
+   * service's commit — after this method and its {@code catch} have returned — letting {@code
+   * ex_product_discounts_no_overlap} escape untranslated as a 500 instead of the 409 {@code
+   * DISCOUNT_OVERLAP} product-discounts.md promises (same trap {@code
+   * StockMovementPersistenceAdapter} documents).
+   *
    * @param discount the discount to insert or update
    * @return the saved discount, with timestamps populated by the database
    * @throws DiscountOverlapException {@code ex_product_discounts_no_overlap} was violated
@@ -105,7 +112,7 @@ public class DiscountPersistenceAdapter implements DiscountReadPort, DiscountWri
       entity = mapper.toEntity(discount);
     }
     try {
-      Discount result = mapper.toDomain(jpaRepository.save(entity));
+      Discount result = mapper.toDomain(jpaRepository.saveAndFlush(entity));
       LOGGER.debug("save id={} -> saved", result.id());
       return result;
     } catch (DataIntegrityViolationException violation) {
@@ -137,7 +144,7 @@ public class DiscountPersistenceAdapter implements DiscountReadPort, DiscountWri
             .orElseThrow(() -> new IllegalStateException("Discount " + id + " not found"));
     entity.endNow(Instant.now());
     try {
-      Discount result = mapper.toDomain(jpaRepository.save(entity));
+      Discount result = mapper.toDomain(jpaRepository.saveAndFlush(entity));
       LOGGER.debug("endNow id={} -> endsAt={}", id, result.endsAt());
       return result;
     } catch (DataIntegrityViolationException violation) {

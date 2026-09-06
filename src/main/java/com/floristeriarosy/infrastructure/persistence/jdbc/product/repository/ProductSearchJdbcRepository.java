@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.owasp.encoder.Encode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -80,7 +81,7 @@ public class ProductSearchJdbcRepository {
   public PageResult<ProductSummaryDto> search(ProductSearchCriteria criteria) {
     LOGGER.debug(
         "search category={} minPrice={} maxPrice={} onSale={} attributeKeys={} page={} size={}",
-        criteria.categoryIdOrSlug(),
+        Encode.forJava(criteria.categoryIdOrSlug()),
         criteria.minPrice(),
         criteria.maxPrice(),
         criteria.onSale(),
@@ -141,7 +142,7 @@ public class ProductSearchJdbcRepository {
   private void appendFullTextFilter(StringBuilder sql, List<Object> params, String q) {
     if (q != null && !q.isBlank()) {
       sql.append(" AND p.search_vector @@ plainto_tsquery('spanish', ?)");
-      params.add(q);
+      params.add(ProductSearchTextBuilder.normalize(q));
     }
   }
 
@@ -232,6 +233,7 @@ public class ProductSearchJdbcRepository {
     }
     return value.toString();
   }
+
 
   /**
    * @param value the raw text to embed in a JSON string

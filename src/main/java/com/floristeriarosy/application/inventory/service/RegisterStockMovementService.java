@@ -1,12 +1,17 @@
 package com.floristeriarosy.application.inventory.service;
 
+import com.floristeriarosy.application.admin.port.out.AdminReadPort;
 import com.floristeriarosy.application.inventory.command.RegisterStockMovementCommand;
 import com.floristeriarosy.application.inventory.dto.StockMovementDto;
 import com.floristeriarosy.application.inventory.mapper.StockMovementDtoMapper;
 import com.floristeriarosy.application.inventory.port.in.RegisterStockMovementUseCase;
 import com.floristeriarosy.application.inventory.port.out.ProductStockPort;
+import com.floristeriarosy.application.inventory.port.out.StockMovementReadPort;
 import com.floristeriarosy.application.inventory.port.out.StockMovementWritePort;
 import com.floristeriarosy.application.product.port.out.ProductReadPort;
+import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
+import com.floristeriarosy.application.shared.support.AdminDisplayNameResolver;
+import com.floristeriarosy.domain.exception.ResourceModifiedException;
 import com.floristeriarosy.domain.exception.inventory.InventoryInsufficientStockException;
 import com.floristeriarosy.domain.exception.inventory.InventoryNotManagedException;
 import com.floristeriarosy.domain.model.inventory.StockMovement;
@@ -14,6 +19,7 @@ import com.floristeriarosy.domain.model.inventory.StockMovementType;
 import com.floristeriarosy.domain.model.inventory.valueobject.StockMovementId;
 import com.floristeriarosy.domain.model.product.Product;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
+import com.floristeriarosy.shared.util.LogSanitizer;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -35,20 +41,36 @@ public class RegisterStockMovementService implements RegisterStockMovementUseCas
 
   private final ProductStockPort stockPort;
   private final StockMovementWritePort movementWritePort;
+  private final StockMovementReadPort movementReadPort;
   private final ProductReadPort productReadPort;
+  private final AdminReadPort adminReadPort;
+  private final PiiCryptoPort piiCryptoPort;
 
   /**
    * @param stockPort applies the conditional {@code UPDATE} on {@code products.stock}
    * @param movementWritePort inserts the resulting audit row
+   * @param movementReadPort totals a product's existing movements, so an activation can tell an
+   *     {@code INITIAL} from a reactivation without provoking a constraint violation
    * @param productReadPort diagnostic-only read, used solely to disambiguate an unmanaged product
    *     from insufficient stock after a failed conditional decrement (inventory.md, section 3.1:
    *     this is not the write path itself, only its failure diagnosis)
+   * @param adminReadPort resolves the triggering admin's encrypted email, for the response's
+   *     {@code adminUserName} (inventory.md, section 6)
+   * @param piiCryptoPort decrypts it (ADR-005)
    */
   public RegisterStockMovementService(
-      ProductStockPort stockPort, StockMovementWritePort movementWritePort, ProductReadPort productReadPort) {
+      ProductStockPort stockPort,
+      StockMovementWritePort movementWritePort,
+      StockMovementReadPort movementReadPort,
+      ProductReadPort productReadPort,
+      AdminReadPort adminReadPort,
+      PiiCryptoPort piiCryptoPort) {
     this.stockPort = stockPort;
     this.movementWritePort = movementWritePort;
+    this.movementReadPort = movementReadPort;
     this.productReadPort = productReadPort;
+    this.adminReadPort = adminReadPort;
+    this.piiCryptoPort = piiCryptoPort;
   }
 
   /**
@@ -78,7 +100,8 @@ public class RegisterStockMovementService implements RegisterStockMovementUseCas
             command.note());
     StockMovement saved = movementWritePort.save(movement);
 
-    StockMovementDto result = StockMovementDtoMapper.toDto(saved);
+    String adminUserName = AdminDisplayNameResolver.resolve(adminReadPort, piiCryptoPort, saved.adminUserId());
+    StockMovementDto result = StockMovementDtoMapper.toDto(saved, adminUserName);
     LOGGER.debug("registerStockMovement -> id={} resultingStock={}", result.id(), result.resultingStock());
     return result;
   }
@@ -107,24 +130,86 @@ public class RegisterStockMovementService implements RegisterStockMovementUseCas
   }
 
   /**
-   * @param productId the product to reactivate
+   * Asks the movement history which case this is instead of attempting an {@code INITIAL} and
+   * catching the {@code ux_stock_movements_initial} violation: that violation aborts the enclosing
+   * PostgreSQL transaction, so no fallback written inside it could ever commit.
+   *
+   * @param productId the product to activate inventory for
    * @param stock the stock to (re)start at
    * @param adminUserId the admin who triggered it, or {@code null}
    * @param note optional note
-   * @return the recorded movement
    */
   @Override
-  public StockMovementDto reactivate(UUID productId, int stock, UUID adminUserId, String note) {
-    LOGGER.debug("reactivate productId={} stock={}", productId, stock);
+  public void initializeOrReactivate(UUID productId, int stock, UUID adminUserId, String note) {
+    LOGGER.debug(
+        "initializeOrReactivate productId={} stock={} adminUserId={} note={}",
+        productId,
+        stock,
+        adminUserId,
+        LogSanitizer.sanitize(String.valueOf(note)));
+
     ProductId id = ProductId.of(productId);
+    Optional<Integer> previousTotal = movementReadPort.movementsTotal(id);
+    if (previousTotal.isEmpty()) {
+      execute(new RegisterStockMovementCommand(productId, StockMovementType.INITIAL, stock, adminUserId, note));
+      LOGGER.debug("initializeOrReactivate productId={} -> INITIAL {}", productId, stock);
+      return;
+    }
+
     int resultingStock = stockPort.setInitial(id, stock);
+    int delta = stock - previousTotal.get();
+    if (delta == 0) {
+      LOGGER.debug("initializeOrReactivate productId={} -> stock already matches its history, no movement", productId);
+      return;
+    }
     StockMovement movement =
         StockMovement.create(
-            StockMovementId.newId(), id, StockMovementType.ADJUSTMENT, stock, resultingStock, adminUserId, note);
-    StockMovement saved = movementWritePort.save(movement);
-    StockMovementDto result = StockMovementDtoMapper.toDto(saved);
-    LOGGER.debug("reactivate -> id={} resultingStock={}", result.id(), result.resultingStock());
-    return result;
+            StockMovementId.newId(), id, StockMovementType.ADJUSTMENT, delta, resultingStock, adminUserId, note);
+    movementWritePort.save(movement);
+    LOGGER.debug(
+        "initializeOrReactivate productId={} -> ADJUSTMENT {} resultingStock={}",
+        productId,
+        delta,
+        resultingStock);
+  }
+
+  /**
+   * @param productId the product to adjust
+   * @param expectedStock the stock the caller read before deciding
+   * @param newStock the stock to set
+   * @param adminUserId the admin who triggered it, or {@code null}
+   * @param note optional note
+   * @throws ResourceModifiedException the product's stock changed since {@code expectedStock} was
+   *     read
+   */
+  @Override
+  public void adjustToAbsolute(
+      UUID productId, int expectedStock, int newStock, UUID adminUserId, String note) {
+    LOGGER.debug(
+        "adjustToAbsolute productId={} expectedStock={} newStock={} adminUserId={}",
+        productId,
+        expectedStock,
+        newStock,
+        adminUserId);
+
+    int delta = newStock - expectedStock;
+    if (delta == 0) {
+      LOGGER.debug("adjustToAbsolute productId={} -> stock unchanged, no movement", productId);
+      return;
+    }
+
+    ProductId id = ProductId.of(productId);
+    int resultingStock =
+        stockPort
+            .compareAndSetStock(id, expectedStock, newStock)
+            .orElseThrow(
+                () ->
+                    new ResourceModifiedException(
+                        "Stock of product " + id + " changed while the adjustment was being prepared"));
+    movementWritePort.save(
+        StockMovement.create(
+            StockMovementId.newId(), id, StockMovementType.ADJUSTMENT, delta, resultingStock, adminUserId, note));
+    LOGGER.debug("adjustToAbsolute productId={} -> delta={} resultingStock={}", productId, delta, resultingStock);
   }
 
   /**

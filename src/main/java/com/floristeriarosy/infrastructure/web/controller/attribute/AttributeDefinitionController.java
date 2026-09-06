@@ -74,7 +74,7 @@ public class AttributeDefinitionController {
   }
 
   /**
-   * {@code POST /product-attributes} (ADMIN — unenforced, dev-plan.md).
+   * {@code POST /product-attributes} ({@code ADMIN}, {@code @PreAuthorize} on the service).
    *
    * @param request key, label, data type, filterable flag and position of the definition to
    *     create
@@ -91,7 +91,7 @@ public class AttributeDefinitionController {
   }
 
   /**
-   * {@code PUT /product-attributes/{id}} (ADMIN — unenforced, dev-plan.md).
+   * {@code PUT /product-attributes/{id}} ({@code ADMIN}, {@code @PreAuthorize} on the service).
    *
    * @param id the attribute definition to update
    * @param request the new label, filterable flag and position
@@ -108,7 +108,7 @@ public class AttributeDefinitionController {
   }
 
   /**
-   * {@code DELETE /product-attributes/{id}} (ADMIN — unenforced, dev-plan.md): permanent removal.
+   * {@code DELETE /product-attributes/{id}} ({@code ADMIN}, {@code @PreAuthorize} on the service): permanent removal.
    *
    * @param id the attribute definition to delete
    * @return 204, empty body

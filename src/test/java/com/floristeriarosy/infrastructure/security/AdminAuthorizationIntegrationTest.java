@@ -118,4 +118,41 @@ class AdminAuthorizationIntegrationTest {
         .perform(post("/api/v1/auth/logout").with(csrf()).header("Authorization", "Bearer " + token))
         .andExpect(status().isNoContent());
   }
+
+  @Test
+  void aSessionWithPasswordChangeRequiredCanStillRefresh() throws Exception {
+    String token = tokenFor("ADMIN", true);
+
+    // No refresh-token cookie is sent, so the use case itself 401s on an unknown token — the point
+    // here is only that PasswordChangeRequiredFilter let the request through instead of 403ing on
+    // the stale pwd_change_required claim still carried by this pre-change access token.
+    mockMvc
+        .perform(post("/api/v1/auth/refresh").with(csrf()).header("Authorization", "Bearer " + token))
+        .andExpect(status().isUnauthorized());
+  }
+
+  /**
+   * attribute-review.md #2: {@code @PreAuthorize("hasRole('ADMIN')")} on {@code
+   * CreateAttributeDefinitionService} was previously exercised by no test at all — a
+   * {@code @WebMvcTest} controller test mocks the use case, so it never sees the annotation, and
+   * the unit service tests run with no Spring context. Deleting the annotation would leave the
+   * whole suite green while an anonymous caller could create attribute definitions.
+   */
+  @Test
+  void anonymousCallerGets401OnCreatingAnAttributeDefinition() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/product-attributes")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"attributeKey\":\"color\",\"label\":\"Color\",\"dataType\":\"TEXT\","
+                        + "\"filterable\":true,\"position\":0}"))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void anonymousCallerGets200OnListingAttributeDefinitionsBecauseTheEndpointIsPublic() throws Exception {
+    mockMvc.perform(get("/api/v1/product-attributes")).andExpect(status().isOk());
+  }
 }

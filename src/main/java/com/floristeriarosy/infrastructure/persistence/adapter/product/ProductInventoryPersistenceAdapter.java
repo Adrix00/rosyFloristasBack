@@ -3,7 +3,6 @@ package com.floristeriarosy.infrastructure.persistence.adapter.product;
 import com.floristeriarosy.application.inventory.port.in.RegisterStockMovementUseCase;
 import com.floristeriarosy.application.product.port.out.ProductInventoryPort;
 import com.floristeriarosy.domain.exception.inventory.InventoryAlreadyInitializedException;
-import com.floristeriarosy.domain.model.inventory.StockMovementType;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 import com.floristeriarosy.infrastructure.persistence.jdbc.product.repository.ProductInventoryJdbcRepository;
 import org.slf4j.Logger;
@@ -36,10 +35,11 @@ public class ProductInventoryPersistenceAdapter implements ProductInventoryPort 
   }
 
   /**
-   * Tries an {@code INITIAL} movement first; if {@code ux_stock_movements_initial} already fired
-   * for this product (it was managed before and later turned unmanaged), falls back to an {@code
-   * ADJUSTMENT} instead — inventory.md's own constraint decides which case this is, so this method
-   * needs no history query of its own.
+   * Delegates the {@code INITIAL}-versus-reactivation decision to {@code inventory} itself, which
+   * settles it by reading the product's movement history. This adapter used to attempt an {@code
+   * INITIAL} and catch {@link InventoryAlreadyInitializedException} to fall back — but that
+   * violation aborts the enclosing PostgreSQL transaction and marks it rollback-only, so the
+   * fallback ran inside a transaction that could never commit and every reactivation answered 500.
    *
    * @param id the product to activate inventory for
    * @param stock the initial stock
@@ -49,32 +49,28 @@ public class ProductInventoryPersistenceAdapter implements ProductInventoryPort 
   @Override
   public void initializeStock(ProductId id, int stock, Integer lowStockThreshold, String note) {
     LOGGER.debug("initializeStock id={} stock={}", id, stock);
-    try {
-      registerStockMovementUseCase.execute(id.value(), StockMovementType.INITIAL, stock, null, note);
-    } catch (InventoryAlreadyInitializedException alreadyInitialized) {
-      LOGGER.debug("initializeStock id={} -> already initialized, falling back to ADJUSTMENT", id);
-      registerStockMovementUseCase.reactivate(id.value(), stock, null, note);
-    }
+    registerStockMovementUseCase.initializeOrReactivate(id.value(), stock, null, note);
     jdbcRepository.updateLowStockThreshold(id.value(), lowStockThreshold);
     LOGGER.debug("initializeStock id={} -> activated", id);
   }
 
   /**
+   * Hands {@code inventory} the stock the caller already read instead of reading it again here:
+   * the read and the write then live in the same conditional statement, closing the window where
+   * two concurrent adjustments each computed a delta from the same stale value and compounded.
+   *
    * @param id the product to adjust
+   * @param expectedStock the stock the caller read before deciding
    * @param newStock the new stock value
    * @param lowStockThreshold the low-stock alert threshold, or {@code null}
    * @param note optional note for the movement
    */
   @Override
-  public void adjustStock(ProductId id, int newStock, Integer lowStockThreshold, String note) {
-    LOGGER.debug("adjustStock id={} newStock={}", id, newStock);
-    Integer currentStock = jdbcRepository.currentStock(id.value());
-    int delta = newStock - (currentStock == null ? 0 : currentStock);
-    if (delta != 0) {
-      registerStockMovementUseCase.execute(id.value(), StockMovementType.ADJUSTMENT, delta, null, note);
-    }
+  public void adjustStock(ProductId id, int expectedStock, int newStock, Integer lowStockThreshold, String note) {
+    LOGGER.debug("adjustStock id={} expectedStock={} newStock={}", id, expectedStock, newStock);
+    registerStockMovementUseCase.adjustToAbsolute(id.value(), expectedStock, newStock, null, note);
     jdbcRepository.updateLowStockThreshold(id.value(), lowStockThreshold);
-    LOGGER.debug("adjustStock id={} -> delta={}", id, delta);
+    LOGGER.debug("adjustStock id={} -> newStock={}", id, newStock);
   }
 
   /**

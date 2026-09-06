@@ -10,7 +10,6 @@ import com.floristeriarosy.infrastructure.persistence.entity.inventory.Inventory
 import com.floristeriarosy.infrastructure.persistence.jdbc.inventory.repository.InventoryAlertJdbcRepository;
 import com.floristeriarosy.infrastructure.persistence.jpa.inventory.repository.InventoryAlertJpaRepository;
 import com.floristeriarosy.infrastructure.persistence.mapper.inventory.InventoryAlertPersistenceMapper;
-import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,16 +86,6 @@ public class InventoryAlertPersistenceAdapter implements InventoryAlertPort {
     return result;
   }
 
-  /**
-   * @return every alert currently {@code OPEN}
-   */
-  @Override
-  public List<InventoryAlert> findOpen() {
-    LOGGER.debug("findOpen");
-    List<InventoryAlert> result = jdbcRepository.findOpen();
-    LOGGER.debug("findOpen -> count={}", result.size());
-    return result;
-  }
 
   /**
    * @param criteria the admin's type/status/product filters and the requested page
