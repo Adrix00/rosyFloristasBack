@@ -7,6 +7,7 @@ import com.floristeriarosy.shared.util.LogSanitizer;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import org.slf4j.Logger;
@@ -145,13 +146,14 @@ public final class OrderItem {
   }
 
   /**
-   * Defensively copies {@code attributes} into an unmodifiable map (SpotBugs EI_EXPOSE_REP2).
+   * Defensively copies {@code attributes} into a mutable map (SpotBugs EI_EXPOSE_REP2). The getter
+   * wraps it again in an unmodifiable view.
    *
    * @param attributes the attribute values to copy
-   * @return an unmodifiable copy, or an empty map if {@code attributes} is {@code null}
+   * @return a mutable copy, or an empty map if {@code attributes} is {@code null}
    */
   private static Map<String, Object> copyAttributes(Map<String, Object> attributes) {
-    return attributes == null ? Map.of() : Collections.unmodifiableMap(Map.copyOf(attributes));
+    return attributes == null ? new LinkedHashMap<>() : new LinkedHashMap<>(attributes);
   }
 
   /**
@@ -176,10 +178,10 @@ public final class OrderItem {
   }
 
   /**
-   * @return the product's attribute values at the moment of sale
+   * @return the product's attribute values at the moment of sale, unmodifiable
    */
   public Map<String, Object> productAttributes() {
-    return productAttributes;
+    return Collections.unmodifiableMap(productAttributes);
   }
 
   /**
