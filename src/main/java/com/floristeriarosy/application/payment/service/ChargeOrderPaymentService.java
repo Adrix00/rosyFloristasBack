@@ -1,12 +1,13 @@
 package com.floristeriarosy.application.payment.service;
 
-import com.floristeriarosy.application.order.port.out.ChargeResult;
+import com.floristeriarosy.application.order.dto.ChargeResult;
 import com.floristeriarosy.application.payment.command.ChargeOrderPaymentCommand;
 import com.floristeriarosy.application.payment.port.in.ChargeOrderPaymentUseCase;
-import com.floristeriarosy.application.payment.port.out.GatewayChargeRequest;
 import com.floristeriarosy.application.payment.port.out.PaymentGatewayPort;
-import com.floristeriarosy.application.payment.port.out.RedsysRedirect;
+import com.floristeriarosy.application.payment.dto.GatewayChargeParameters;
+import com.floristeriarosy.application.payment.dto.RedsysRedirect;
 import com.floristeriarosy.domain.model.payment.Payment;
+import com.floristeriarosy.domain.model.payment.PaymentMethod;
 import com.floristeriarosy.domain.model.payment.PaymentProvider;
 import com.floristeriarosy.domain.model.payment.valueobject.PaymentId;
 import java.time.Instant;
@@ -45,11 +46,12 @@ public class ChargeOrderPaymentService implements ChargeOrderPaymentUseCase {
     LOGGER.debug(
         "chargeOrderPayment orderId={} method={} amount={}", command.orderId(), command.method(),
         command.amount());
-    ChargeResult result =
-        switch (command.method()) {
-          case CARD_ONLINE -> chargeViaRedsys(command);
-          case CASH, DATAPHONE, INTERFLORA -> captureDirectly(command);
-        };
+    ChargeResult result;
+    if (command.method() == PaymentMethod.CARD_ONLINE) {
+      result = chargeViaRedsys(command);
+    } else {
+      result = captureDirectly(command);
+    }
     LOGGER.debug("chargeOrderPayment orderId={} -> {}", command.orderId(), result.getClass().getSimpleName());
     return result;
   }
@@ -61,7 +63,7 @@ public class ChargeOrderPaymentService implements ChargeOrderPaymentUseCase {
   private ChargeResult chargeViaRedsys(ChargeOrderPaymentCommand command) {
     RedsysRedirect redirect =
         gatewayPort.charge(
-            new GatewayChargeRequest(
+            new GatewayChargeParameters(
                 command.orderNumber(), command.amount(), command.paymentMethodToken(), command.idempotencyKey()));
     return new ChargeResult.RedirectRequired(redirect.redirectUrl(), redirect.formFields());
   }

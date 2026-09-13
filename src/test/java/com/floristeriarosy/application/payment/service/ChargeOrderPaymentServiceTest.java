@@ -4,11 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.floristeriarosy.application.order.port.out.ChargeResult;
-import com.floristeriarosy.application.payment.command.ChargeOrderPaymentCommand;
-import com.floristeriarosy.application.payment.port.out.GatewayChargeRequest;
+import com.floristeriarosy.application.order.dto.ChargeResult;
+import com.floristeriarosy.application.payment.dto.GatewayChargeParameters;
+import com.floristeriarosy.application.payment.dto.RedsysRedirect;
 import com.floristeriarosy.application.payment.port.out.PaymentGatewayPort;
-import com.floristeriarosy.application.payment.port.out.RedsysRedirect;
 import com.floristeriarosy.domain.model.order.valueobject.OrderId;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
 import com.floristeriarosy.domain.model.payment.PaymentMethod;
@@ -27,13 +26,12 @@ class ChargeOrderPaymentServiceTest {
     OrderId orderId = OrderId.newId();
     OrderNumber orderNumber = OrderNumber.of("WEB-20260913-000001");
     RedsysRedirect redirect = new RedsysRedirect("https://sis-t.redsys.es/sis/realizarPago", Map.of("k", "v"));
-    when(gatewayPort.charge(new GatewayChargeRequest(orderNumber, new BigDecimal("42.00"), "tok_visa", "idem-1")))
+    when(gatewayPort.charge(new GatewayChargeParameters(orderNumber, new BigDecimal("42.00"), "tok_visa", "idem-1")))
         .thenReturn(redirect);
 
     ChargeResult result =
         service.execute(
-            new ChargeOrderPaymentCommand(
-                orderId, orderNumber, new BigDecimal("42.00"), PaymentMethod.CARD_ONLINE, "tok_visa", "idem-1"));
+            orderId, orderNumber, new BigDecimal("42.00"), PaymentMethod.CARD_ONLINE, "tok_visa", "idem-1");
 
     assertThat(result).isInstanceOf(ChargeResult.RedirectRequired.class);
     assertThat(((ChargeResult.RedirectRequired) result).redirectUrl()).isEqualTo(redirect.redirectUrl());
@@ -45,9 +43,7 @@ class ChargeOrderPaymentServiceTest {
     OrderNumber orderNumber = OrderNumber.of("STORE-20260913-000001");
 
     ChargeResult result =
-        service.execute(
-            new ChargeOrderPaymentCommand(
-                orderId, orderNumber, new BigDecimal("15.00"), PaymentMethod.CASH, null, "idem-2"));
+        service.execute(orderId, orderNumber, new BigDecimal("15.00"), PaymentMethod.CASH, null, "idem-2");
 
     assertThat(result).isInstanceOf(ChargeResult.Captured.class);
     assertThat(((ChargeResult.Captured) result).payment().status())
@@ -59,9 +55,8 @@ class ChargeOrderPaymentServiceTest {
   void interfloraCapturesDirectlyWithoutCallingTheGateway() {
     ChargeResult result =
         service.execute(
-            new ChargeOrderPaymentCommand(
-                OrderId.newId(), OrderNumber.of("INTERFLORA-20260913-000001"), new BigDecimal("30.00"),
-                PaymentMethod.INTERFLORA, null, "idem-3"));
+            OrderId.newId(), OrderNumber.of("INTERFLORA-20260913-000001"), new BigDecimal("30.00"),
+            PaymentMethod.INTERFLORA, null, "idem-3");
 
     assertThat(result).isInstanceOf(ChargeResult.Captured.class);
   }

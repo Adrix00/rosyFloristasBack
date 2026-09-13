@@ -1,4 +1,4 @@
-package com.floristeriarosy.application.payment.port.out;
+package com.floristeriarosy.application.payment.dto;
 
 /**
  * @param success whether the gateway confirmed the refund

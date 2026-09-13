@@ -1,9 +1,9 @@
 package com.floristeriarosy.application.payment.service;
 
 import com.floristeriarosy.application.payment.command.RefundOrderPaymentCommand;
+import com.floristeriarosy.application.payment.dto.GatewayRefundParameters;
+import com.floristeriarosy.application.payment.dto.GatewayRefundResult;
 import com.floristeriarosy.application.payment.port.in.RefundOrderPaymentUseCase;
-import com.floristeriarosy.application.payment.port.out.GatewayRefundRequest;
-import com.floristeriarosy.application.payment.port.out.GatewayRefundResult;
 import com.floristeriarosy.application.payment.port.out.PaymentGatewayPort;
 import com.floristeriarosy.application.payment.port.out.PaymentReadPort;
 import com.floristeriarosy.application.payment.port.out.PaymentWritePort;
@@ -78,7 +78,7 @@ public class RefundOrderPaymentService implements RefundOrderPaymentUseCase {
   private String refundViaRedsys(Payment payment, OrderNumber orderNumber) {
     GatewayRefundResult result =
         gatewayPort.refund(
-            new GatewayRefundRequest(
+            new GatewayRefundParameters(
                 orderNumber.value(), payment.providerPaymentIntentId(), payment.amount()));
     if (!result.success()) {
       throw new IllegalStateException("Redsys refused the refund: " + result.failureReason());

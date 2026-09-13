@@ -2,16 +2,16 @@ package com.floristeriarosy.infrastructure.payment.redsys;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.floristeriarosy.application.payment.port.out.GatewayChargeRequest;
-import com.floristeriarosy.application.payment.port.out.RedsysRedirect;
+import com.floristeriarosy.application.payment.dto.GatewayChargeParameters;
+import com.floristeriarosy.application.payment.dto.RedsysRedirect;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
 import tools.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;
 
-/** {@link RedsysPaymentGatewayAdapter#charge} builds a signed redirect with no network call. */
-class RedsysPaymentGatewayAdapterTest {
+/** {@link RedsysPaymentGateway#charge} builds a signed redirect with no network call. */
+class RedsysPaymentGatewayTest {
 
   private static final RedsysProperties PROPERTIES =
       new RedsysProperties(
@@ -24,16 +24,15 @@ class RedsysPaymentGatewayAdapterTest {
           "http://localhost:5173/checkout/ok",
           "http://localhost:5173/checkout/ko");
 
-  private final RedsysPaymentGatewayAdapter adapter =
-      new RedsysPaymentGatewayAdapter(PROPERTIES, new ObjectMapper());
+  private final RedsysPaymentGateway gateway = new RedsysPaymentGateway(PROPERTIES, new ObjectMapper());
 
   @Test
   void chargeBuildsARedirectWithASignatureThatVerifies() {
-    GatewayChargeRequest request =
-        new GatewayChargeRequest(
+    GatewayChargeParameters request =
+        new GatewayChargeParameters(
             OrderNumber.of("WEB-20260913-000001"), new BigDecimal("42.00"), "tok_visa", "idem-key-1");
 
-    RedsysRedirect redirect = adapter.charge(request);
+    RedsysRedirect redirect = gateway.charge(request);
 
     assertThat(redirect.redirectUrl()).isEqualTo(PROPERTIES.redirectUrl());
     assertThat(redirect.formFields()).containsKeys("Ds_SignatureVersion", "Ds_MerchantParameters", "Ds_Signature");
@@ -44,11 +43,11 @@ class RedsysPaymentGatewayAdapterTest {
 
   @Test
   void chargeEncodesTheAmountInCents() {
-    GatewayChargeRequest request =
-        new GatewayChargeRequest(
+    GatewayChargeParameters request =
+        new GatewayChargeParameters(
             OrderNumber.of("WEB-20260913-000002"), new BigDecimal("42.50"), "tok_visa", "idem-key-2");
 
-    RedsysRedirect redirect = adapter.charge(request);
+    RedsysRedirect redirect = gateway.charge(request);
 
     String decodedParams =
         new String(Base64.getDecoder().decode(redirect.formFields().get("Ds_MerchantParameters")));

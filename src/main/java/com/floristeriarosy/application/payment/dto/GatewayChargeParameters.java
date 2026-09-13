@@ -1,4 +1,4 @@
-package com.floristeriarosy.application.payment.port.out;
+package com.floristeriarosy.application.payment.dto;
 
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
 import java.math.BigDecimal;
@@ -10,5 +10,5 @@ import java.math.BigDecimal;
  * @param merchantData becomes {@code Ds_Merchant_MerchantData}, carrying the checkout's
  *     {@code Idempotency-Key} back through the notification (ADR-017)
  */
-public record GatewayChargeRequest(
+public record GatewayChargeParameters(
     OrderNumber orderNumber, BigDecimal amount, String paymentMethodToken, String merchantData) {}

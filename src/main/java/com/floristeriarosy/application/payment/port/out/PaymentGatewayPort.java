@@ -1,5 +1,10 @@
 package com.floristeriarosy.application.payment.port.out;
 
+import com.floristeriarosy.application.payment.dto.GatewayChargeParameters;
+import com.floristeriarosy.application.payment.dto.GatewayRefundParameters;
+import com.floristeriarosy.application.payment.dto.GatewayRefundResult;
+import com.floristeriarosy.application.payment.dto.RedsysRedirect;
+
 /**
  * The frontier with the real payment gateway (payment.md, section 8): isolates Redsys from the
  * rest of this module. Only ever called for {@code CARD_ONLINE} — {@code MANUAL} methods never
@@ -8,14 +13,14 @@ package com.floristeriarosy.application.payment.port.out;
 public interface PaymentGatewayPort {
 
   /**
-   * @param request what to charge
+   * @param parameters what to charge
    * @return the signed redirect the customer must be sent to
    */
-  RedsysRedirect charge(GatewayChargeRequest request);
+  RedsysRedirect charge(GatewayChargeParameters parameters);
 
   /**
-   * @param request what to refund
+   * @param parameters what to refund
    * @return whether the gateway confirmed the refund
    */
-  GatewayRefundResult refund(GatewayRefundRequest request);
+  GatewayRefundResult refund(GatewayRefundParameters parameters);
 }

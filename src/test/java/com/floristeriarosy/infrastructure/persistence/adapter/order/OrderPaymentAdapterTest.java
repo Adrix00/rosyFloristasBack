@@ -5,9 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.floristeriarosy.application.order.port.out.ChargeCommand;
-import com.floristeriarosy.application.order.port.out.ChargeResult;
-import com.floristeriarosy.application.order.port.out.RefundCommand;
+import com.floristeriarosy.application.order.dto.ChargeResult;
 import com.floristeriarosy.application.payment.port.in.ChargeOrderPaymentUseCase;
 import com.floristeriarosy.application.payment.port.in.RefundOrderPaymentUseCase;
 import com.floristeriarosy.domain.model.order.valueobject.OrderId;
@@ -34,10 +32,11 @@ class OrderPaymentAdapterTest {
     Payment captured =
         Payment.initiate(PaymentId.newId(), orderId, PaymentMethod.CASH, PaymentProvider.MANUAL, new BigDecimal("10.00"));
     captured.capture(null, Instant.now());
-    when(chargeUseCase.execute(any())).thenReturn(new ChargeResult.Captured(captured));
+    when(chargeUseCase.execute(any(), any(), any(), any(), any(), any()))
+        .thenReturn(new ChargeResult.Captured(captured));
 
     ChargeResult result =
-        adapter.charge(new ChargeCommand(orderId, orderNumber, new BigDecimal("10.00"), PaymentMethod.CASH, null, "idem-1"));
+        adapter.charge(orderId, orderNumber, new BigDecimal("10.00"), PaymentMethod.CASH, null, "idem-1");
 
     assertThat(result).isInstanceOf(ChargeResult.Captured.class);
   }
@@ -50,9 +49,9 @@ class OrderPaymentAdapterTest {
         Payment.initiate(PaymentId.newId(), orderId, PaymentMethod.CASH, PaymentProvider.MANUAL, new BigDecimal("10.00"));
     refunded.capture(null, Instant.now());
     refunded.refundInFull(null, Instant.now());
-    when(refundUseCase.execute(any())).thenReturn(refunded);
+    when(refundUseCase.execute(any(), any())).thenReturn(refunded);
 
-    Payment result = adapter.refund(new RefundCommand(orderId, orderNumber));
+    Payment result = adapter.refund(orderId, orderNumber);
 
     assertThat(result.refundedAmount()).isEqualByComparingTo("10.00");
   }

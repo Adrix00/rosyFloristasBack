@@ -1,21 +1,25 @@
 package com.floristeriarosy.infrastructure.persistence.adapter.order;
 
-import com.floristeriarosy.application.order.port.out.ChargeCommand;
-import com.floristeriarosy.application.order.port.out.ChargeResult;
+import com.floristeriarosy.application.order.dto.ChargeResult;
 import com.floristeriarosy.application.order.port.out.OrderPaymentPort;
-import com.floristeriarosy.application.order.port.out.RefundCommand;
-import com.floristeriarosy.application.payment.command.ChargeOrderPaymentCommand;
-import com.floristeriarosy.application.payment.command.RefundOrderPaymentCommand;
 import com.floristeriarosy.application.payment.port.in.ChargeOrderPaymentUseCase;
 import com.floristeriarosy.application.payment.port.in.RefundOrderPaymentUseCase;
+import com.floristeriarosy.domain.model.order.valueobject.OrderId;
+import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
 import com.floristeriarosy.domain.model.payment.Payment;
+import com.floristeriarosy.domain.model.payment.PaymentMethod;
+import java.math.BigDecimal;
 import org.springframework.stereotype.Component;
 
 /**
  * Implements {@link OrderPaymentPort} (ADR-003) by delegating to {@code payment}'s own use cases —
  * same pattern as {@code ProductInventoryPersistenceAdapter} delegating to {@code inventory}'s
  * {@code RegisterStockMovementUseCase}. Carries no logic of its own beyond translating between
- * {@code order}'s command/result shapes and {@code payment}'s.
+ * {@code order}'s port/result shapes and {@code payment}'s.
+ *
+ * <p>Uses the primitive-parameter overloads of the use cases so this persistence adapter never
+ * imports anything from {@code application..command}, satisfying ArchUnit's
+ * {@code persistence_should_not_depend_on_commands}.
  */
 @Component
 public class OrderPaymentAdapter implements OrderPaymentPort {
@@ -33,23 +37,32 @@ public class OrderPaymentAdapter implements OrderPaymentPort {
   }
 
   /**
-   * @param command what to charge and how
+   * @param orderId the order being charged
+   * @param orderNumber the business identifier
+   * @param amount the amount to charge
+   * @param method how the customer pays
+   * @param paymentMethodToken the gateway token for a new card, required for {@code CARD_ONLINE}
+   * @param idempotencyKey the checkout's {@code Idempotency-Key}
    * @return a redirect to complete payment, or an already-settled charge
    */
   @Override
-  public ChargeResult charge(ChargeCommand command) {
-    return chargeUseCase.execute(
-        new ChargeOrderPaymentCommand(
-            command.orderId(), command.orderNumber(), command.amount(), command.method(),
-            command.paymentMethodToken(), command.idempotencyKey()));
+  public ChargeResult charge(
+      OrderId orderId,
+      OrderNumber orderNumber,
+      BigDecimal amount,
+      PaymentMethod method,
+      String paymentMethodToken,
+      String idempotencyKey) {
+    return chargeUseCase.execute(orderId, orderNumber, amount, method, paymentMethodToken, idempotencyKey);
   }
 
   /**
-   * @param command which order's payment to refund
+   * @param orderId the order whose payment to refund
+   * @param orderNumber the original charge's business identifier
    * @return the refunded payment
    */
   @Override
-  public Payment refund(RefundCommand command) {
-    return refundUseCase.execute(new RefundOrderPaymentCommand(command.orderId(), command.orderNumber()));
+  public Payment refund(OrderId orderId, OrderNumber orderNumber) {
+    return refundUseCase.execute(orderId, orderNumber);
   }
 }

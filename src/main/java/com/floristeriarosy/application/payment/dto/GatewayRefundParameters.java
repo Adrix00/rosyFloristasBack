@@ -1,4 +1,4 @@
-package com.floristeriarosy.application.payment.port.out;
+package com.floristeriarosy.application.payment.dto;
 
 import java.math.BigDecimal;
 
@@ -8,4 +8,5 @@ import java.math.BigDecimal;
  * @param providerPaymentIntentId the original charge's gateway reference
  * @param amount the full amount to refund (payment.md, section 3.3: always total)
  */
-public record GatewayRefundRequest(String orderNumber, String providerPaymentIntentId, BigDecimal amount) {}
+public record GatewayRefundParameters(
+    String orderNumber, String providerPaymentIntentId, BigDecimal amount) {}

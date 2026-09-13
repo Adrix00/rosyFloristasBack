@@ -6,8 +6,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.floristeriarosy.application.payment.command.RefundOrderPaymentCommand;
-import com.floristeriarosy.application.payment.port.out.GatewayRefundResult;
+import com.floristeriarosy.application.payment.dto.GatewayRefundParameters;
+import com.floristeriarosy.application.payment.dto.GatewayRefundResult;
 import com.floristeriarosy.application.payment.port.out.PaymentGatewayPort;
 import com.floristeriarosy.application.payment.port.out.PaymentReadPort;
 import com.floristeriarosy.application.payment.port.out.PaymentWritePort;
@@ -42,7 +42,7 @@ class RefundOrderPaymentServiceTest {
     when(gatewayPort.refund(any())).thenReturn(new GatewayRefundResult(true, "redsys-refund-1", null));
     when(writePort.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-    Payment result = service.execute(new RefundOrderPaymentCommand(orderId, orderNumber));
+    Payment result = service.execute(orderId, orderNumber);
 
     assertThat(result.refundedAmount()).isEqualByComparingTo("42.00");
     assertThat(result.providerReference()).isEqualTo("redsys-refund-1");
@@ -58,7 +58,7 @@ class RefundOrderPaymentServiceTest {
     when(readPort.findByOrderId(orderId)).thenReturn(Optional.of(captured));
     when(writePort.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-    Payment result = service.execute(new RefundOrderPaymentCommand(orderId, orderNumber));
+    Payment result = service.execute(orderId, orderNumber);
 
     assertThat(result.refundedAmount()).isEqualByComparingTo("15.00");
     verifyNoInteractions(gatewayPort);
@@ -72,7 +72,7 @@ class RefundOrderPaymentServiceTest {
     org.assertj.core.api.Assertions.assertThatExceptionOfType(PaymentNotFoundException.class)
         .isThrownBy(
             () -> {
-              service.execute(new RefundOrderPaymentCommand(orderId, OrderNumber.of("WEB-20260913-000003")));
+              service.execute(orderId, OrderNumber.of("WEB-20260913-000003"));
             });
   }
 }
