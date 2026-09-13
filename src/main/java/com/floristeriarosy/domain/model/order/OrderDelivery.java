@@ -52,7 +52,6 @@ public final class OrderDelivery {
    * @param cardMessageEncrypted the encrypted card message, or {@code null}
    * @param createdAt when the row was created, or {@code null} before the first save
    * @param updatedAt when the row was last updated, or {@code null} before the first save
-   * @throws IllegalArgumentException {@code slotFrom} is not before {@code slotTo}
    */
   private OrderDelivery(
       byte[] recipientNameEncrypted,
@@ -70,9 +69,6 @@ public final class OrderDelivery {
       byte[] cardMessageEncrypted,
       Instant createdAt,
       Instant updatedAt) {
-    if (!slotFrom.isBefore(slotTo)) {
-      throw new IllegalArgumentException("slotFrom must be before slotTo");
-    }
     this.recipientNameEncrypted = recipientNameEncrypted;
     this.recipientPhoneEncrypted = recipientPhoneEncrypted;
     this.streetEncrypted = streetEncrypted;
@@ -123,6 +119,7 @@ public final class OrderDelivery {
       LocalTime slotFrom,
       LocalTime slotTo,
       byte[] cardMessageEncrypted) {
+    requireValidSlot(slotFrom, slotTo);
     LOGGER.debug(
         "forDelivery deliveryDate={} slotFrom={} slotTo={} distanceKm={}",
         deliveryDate,
@@ -161,6 +158,7 @@ public final class OrderDelivery {
    * @throws IllegalArgumentException {@code slotFrom} is not before {@code slotTo}
    */
   public static OrderDelivery forPickup(LocalDate deliveryDate, LocalTime slotFrom, LocalTime slotTo) {
+    requireValidSlot(slotFrom, slotTo);
     LOGGER.debug("forPickup deliveryDate={} slotFrom={} slotTo={}", deliveryDate, slotFrom, slotTo);
     OrderDelivery result =
         new OrderDelivery(
@@ -168,6 +166,19 @@ public final class OrderDelivery {
             null, null);
     LOGGER.debug("forPickup deliveryDate={} -> created", deliveryDate);
     return result;
+  }
+
+  /**
+   * Guards that the requested slot has a positive duration.
+   *
+   * @param slotFrom the requested slot's start time
+   * @param slotTo the requested slot's end time
+   * @throws IllegalArgumentException {@code slotFrom} is not before {@code slotTo}
+   */
+  private static void requireValidSlot(LocalTime slotFrom, LocalTime slotTo) {
+    if (!slotFrom.isBefore(slotTo)) {
+      throw new IllegalArgumentException("slotFrom must be before slotTo");
+    }
   }
 
   /**

@@ -70,7 +70,6 @@ public final class Order {
    * @param version the optimistic-locking version
    * @param createdAt when the row was created, or {@code null} before the first save
    * @param updatedAt when the row was last updated, or {@code null} before the first save
-   * @throws IllegalArgumentException {@code items} is empty
    */
   private Order(
       OrderId id,
@@ -95,9 +94,6 @@ public final class Order {
       long version,
       Instant createdAt,
       Instant updatedAt) {
-    if (items.isEmpty()) {
-      throw new IllegalArgumentException("items must not be empty");
-    }
     this.id = Objects.requireNonNull(id, "id");
     this.orderNumber = Objects.requireNonNull(orderNumber, "orderNumber");
     this.channel = Objects.requireNonNull(channel, "channel");
@@ -160,6 +156,9 @@ public final class Order {
       OrderDelivery delivery,
       BigDecimal subtotal,
       BigDecimal shippingCost) {
+    if (items.isEmpty()) {
+      throw new IllegalArgumentException("items must not be empty");
+    }
     LOGGER.debug(
         "place id={} orderNumber={} channel={} fulfillment={} itemCount={}",
         id,
