@@ -194,6 +194,65 @@ public final class Payment {
   }
 
   /**
+   * Marks the charge captured — the money has moved (payment.md, section 3.1/3.2).
+   *
+   * @param providerPaymentIntentId the gateway's charge id, or {@code null} for {@code MANUAL}
+   * @param capturedAt when the capture happened
+   * @throws IllegalStateException the payment is not {@code PENDING}
+   */
+  public void capture(String providerPaymentIntentId, Instant capturedAt) {
+    LOGGER.debug("capture id={} providerPaymentIntentId={}", id, providerPaymentIntentId);
+    requireStatus(PaymentStatus.PENDING);
+    this.providerPaymentIntentId = providerPaymentIntentId;
+    this.status = PaymentStatus.CAPTURED;
+    this.capturedAt = capturedAt;
+    LOGGER.debug("capture id={} -> captured", id);
+  }
+
+  /**
+   * Marks the charge failed — the gateway declined it, or it was never attempted for {@code
+   * MANUAL} reasons that never reach this far in practice (payment.md, section 3.2).
+   *
+   * @param reason why the charge failed
+   * @throws IllegalStateException the payment is not {@code PENDING}
+   */
+  public void fail(String reason) {
+    LOGGER.debug("fail id={}", id);
+    requireStatus(PaymentStatus.PENDING);
+    this.status = PaymentStatus.FAILED;
+    this.failureReason = reason;
+    LOGGER.debug("fail id={} -> failed", id);
+  }
+
+  /**
+   * Refunds the whole amount — the only refund this module ever produces automatically (payment.md,
+   * section 3.3). {@code refundReason} is deliberately left {@code null}: the order's status
+   * transition is already the reason.
+   *
+   * @param providerReference the gateway's refund id, or {@code null} for {@code MANUAL}
+   * @param refundedAt when the refund happened
+   * @throws IllegalStateException the payment is not {@code CAPTURED}
+   */
+  public void refundInFull(String providerReference, Instant refundedAt) {
+    LOGGER.debug("refundInFull id={} providerReference={}", id, providerReference);
+    requireStatus(PaymentStatus.CAPTURED);
+    this.providerReference = providerReference;
+    this.refundedAmount = amount;
+    this.refundedAt = refundedAt;
+    LOGGER.debug("refundInFull id={} -> refunded {}", id, amount);
+  }
+
+  /**
+   * @param expected the status this payment must currently have
+   * @throws IllegalStateException the current status is not {@code expected}
+   */
+  private void requireStatus(PaymentStatus expected) {
+    if (status != expected) {
+      throw new IllegalStateException("Payment " + id + " is " + status + ", expected " + expected);
+    }
+  }
+
+  /**
    * @return the application-generated identifier
    */
   public PaymentId id() {
