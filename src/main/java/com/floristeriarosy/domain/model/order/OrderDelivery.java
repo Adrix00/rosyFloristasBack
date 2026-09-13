@@ -16,6 +16,8 @@ import org.slf4j.LoggerFactory;
  */
 public final class OrderDelivery {
 
+  private static final Logger LOGGER = LoggerFactory.getLogger(OrderDelivery.class);
+
   private final byte[] recipientNameEncrypted;
   private final byte[] recipientPhoneEncrypted;
   private final byte[] streetEncrypted;
@@ -31,8 +33,6 @@ public final class OrderDelivery {
   private final byte[] cardMessageEncrypted;
   private final Instant createdAt;
   private final Instant updatedAt;
-
-  private static final Logger LOGGER = LoggerFactory.getLogger(OrderDelivery.class);
 
   /**
    * Private constructor. Use {@link #forDelivery}, {@link #forPickup} or {@link #reconstitute}.

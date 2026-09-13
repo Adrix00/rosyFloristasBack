@@ -21,6 +21,8 @@ import org.slf4j.LoggerFactory;
  */
 public final class OrderItem {
 
+  private static final Logger LOGGER = LoggerFactory.getLogger(OrderItem.class);
+
   private final OrderItemId id;
   private final ProductId productId;
   private final String productName;
@@ -30,8 +32,6 @@ public final class OrderItem {
   private final DiscountId discountId;
   private final int quantity;
   private final Instant createdAt;
-
-  private static final Logger LOGGER = LoggerFactory.getLogger(OrderItem.class);
 
   /**
    * Private constructor. Use {@link #snapshot} to create a new order line, or {@link #reconstitute}
