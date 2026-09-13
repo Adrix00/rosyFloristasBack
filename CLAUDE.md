@@ -76,6 +76,39 @@ Never skip steps.
 
 ---
 
+## Agent roles and skill policy
+
+Work on this project happens across three coordinating Claude Code sessions — **ARCHITECT**
+(design, specs, ADRs, implementation plans), **IMPLEMENTER** (executes plans: writes code and
+tests), **REVIEWER** (reviews IMPLEMENTER's diffs against the plan and the docs). Whichever role a
+session is playing, these skills are mandatory, not optional judgment calls.
+
+**Ponytail is on by default, always, for every task in every role** — ideation, implementation, and
+tests alike. Never skip it unless the user explicitly says "stop ponytail" / "normal mode" for that
+session. Specifically:
+
+- **ARCHITECT, during brainstorming/scoping**: `ponytail` (YAGNI questions, scope discipline) runs
+  alongside `superpowers:brainstorming` and `superpowers:writing-plans` — ponytail keeps the
+  resulting plan from growing unrequested abstractions or speculative phases.
+- **IMPLEMENTER, writing production code**: `ponytail` (full) for every file touched, plus
+  `hexagonal-architecture` whenever the task adds or changes a port, adapter, or use case boundary,
+  plus `superpowers:test-driven-development` for the red-green-refactor cycle a plan's steps already
+  prescribe.
+- **IMPLEMENTER, writing tests**: `ponytail` plus `java-junit` for JUnit 5 conventions
+  (parameterized tests, assertion style, naming) — a test still gets ponytail's "does this scenario
+  need its own test" discipline, not just its own skill.
+- **REVIEWER**: `ponytail-review` (over-engineering: reinvented stdlib, unneeded dependencies,
+  speculative abstractions, dead flexibility) alongside the existing correctness/ADR-compliance
+  review — over-engineering is a defect class of its own, not a subset of correctness review.
+- Any other applicable skill (`code-review`, `simplify`, `security-review`, etc.) is used whenever
+  its own trigger applies, same as always — ponytail runs *alongside* those, it never replaces a
+  skill the task actually needs.
+
+None of this changes the 11-step development workflow above or the coding-style rules below —
+ponytail governs *how lean* the code at each step is, not which steps happen or in what order.
+
+---
+
 ## Coding Style
 
 - Java 21
