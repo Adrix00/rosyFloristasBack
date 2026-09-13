@@ -64,23 +64,9 @@ public class PaymentPersistenceAdapter implements PaymentReadPort, PaymentWriteP
   @Override
   public Payment save(Payment payment) {
     LOGGER.debug("save id={} status={}", payment.id(), payment.status());
-    PaymentEntity entity = jpaRepository.findById(payment.id().value()).orElse(null);
-    PaymentEntity toSave = entity != null ? applyChanges(entity, payment) : mapper.toEntity(payment);
-    Payment result = mapper.toDomain(jpaRepository.saveAndFlush(toSave));
+    PaymentEntity entity = mapper.toEntity(payment);
+    Payment result = mapper.toDomain(jpaRepository.saveAndFlush(entity));
     LOGGER.debug("save id={} -> saved", result.id());
     return result;
-  }
-
-  /**
-   * Reuses the managed entity instance rather than a fresh detached one, same reasoning as {@code
-   * ProductPersistenceAdapter} — irrelevant here since {@code payments} carries no {@code @Version},
-   * but keeps the write path consistent with the rest of this codebase.
-   *
-   * @param entity the managed entity loaded from the database
-   * @param payment the domain state to apply onto it
-   * @return {@code entity}, mutated in place
-   */
-  private PaymentEntity applyChanges(PaymentEntity entity, Payment payment) {
-    return mapper.toEntity(payment);
   }
 }

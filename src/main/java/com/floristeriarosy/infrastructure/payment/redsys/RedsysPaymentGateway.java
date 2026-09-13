@@ -42,7 +42,8 @@ public class RedsysPaymentGateway implements PaymentGatewayPort {
 
   /**
    * @param properties Redsys merchant configuration
-   * @param objectMapper builds {@code Ds_MerchantParameters}' JSON
+   * @param objectMapper builds {@code Ds_MerchantParameters}' JSON; rebuilt to avoid storing the
+   *     caller's mutable reference directly (SpotBugs EI_EXPOSE_REP2)
    */
   public RedsysPaymentGateway(RedsysProperties properties, ObjectMapper objectMapper) {
     this.properties = properties;
