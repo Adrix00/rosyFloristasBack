@@ -1,0 +1,16 @@
+package com.floristeriarosy.domain.exception.order;
+
+/** Business error codes published by the order module (ADR-012, order.md §9). */
+public enum OrderErrorCode {
+  ORDER_NOT_FOUND,
+  CHECKOUT_NOT_FOUND,
+  CHECKOUT_INSUFFICIENT_STOCK,
+  CHECKOUT_DISCOUNT_EXHAUSTED,
+  CHECKOUT_PAYMENT_DECLINED,
+  DELIVERY_OUT_OF_RANGE,
+  DELIVERY_ADDRESS_NOT_GEOCODABLE,
+  ORDER_INVALID_TRANSITION,
+  ORDER_NOT_CANCELABLE,
+  ORDER_VALIDATION_FAILED,
+  IDEMPOTENCY_KEY_REUSED
+}
