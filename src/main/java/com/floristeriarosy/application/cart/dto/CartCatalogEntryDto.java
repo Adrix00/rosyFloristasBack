@@ -2,6 +2,9 @@ package com.floristeriarosy.application.cart.dto;
 
 import com.floristeriarosy.domain.model.product.ProductStatus;
 import java.math.BigDecimal;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -16,6 +19,8 @@ import java.util.UUID;
  * @param unitPrice the product's base price
  * @param effectivePrice the current price, with an active discount applied if any
  * @param onSale whether {@code effectivePrice} reflects an active discount
+ * @param productAttributes the product's attribute values at the moment of pricing
+ * @param discountId the active promotion's identifier, or {@code null}
  * @param status the product's status (product.md §3.2)
  * @param availableQuantity the current stock, or {@code null} if inventory is unmanaged
  */
@@ -27,5 +32,16 @@ public record CartCatalogEntryDto(
     BigDecimal unitPrice,
     BigDecimal effectivePrice,
     boolean onSale,
+    Map<String, Object> productAttributes,
+    UUID discountId,
     ProductStatus status,
-    Integer availableQuantity) {}
+    Integer availableQuantity) {
+
+  /**
+   * Defensively copies {@code productAttributes} (SpotBugs EI_EXPOSE_REP2), using a plain {@link
+   * LinkedHashMap} rather than {@link Map#copyOf} so a {@code null} value is tolerated.
+   */
+  public CartCatalogEntryDto {
+    productAttributes = Collections.unmodifiableMap(new LinkedHashMap<>(productAttributes));
+  }
+}

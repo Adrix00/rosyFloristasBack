@@ -79,6 +79,8 @@ public final class CartDtoAssembler {
         entry.unitPrice(),
         entry.effectivePrice(),
         entry.onSale(),
+        entry.productAttributes(),
+        entry.discountId(),
         quantity,
         lineTotal,
         entry.availableQuantity());
