@@ -278,7 +278,7 @@ class CheckoutServiceTest {
     UUID productId = UUID.randomUUID();
     stubValidCart(productId, null, 5);
     when(idempotencyPort.find("idem-reused"))
-        .thenReturn(Optional.of(new IdempotencyLock("FAILED", new byte[] {1, 2, 3}, UUID.randomUUID())));
+        .thenReturn(Optional.of(new IdempotencyLock("FAILED", new byte[] {1, 2, 3}, UUID.randomUUID(), null)));
 
     assertThatExceptionOfType(IdempotencyKeyReusedException.class)
         .isThrownBy(() -> service.execute(pickupCommand("idem-reused")));
@@ -289,7 +289,7 @@ class CheckoutServiceTest {
     UUID productId = UUID.randomUUID();
     stubValidCart(productId, null, 5);
     when(idempotencyPort.find("idem-pending"))
-        .thenReturn(Optional.of(new IdempotencyLock("PENDING", new byte[0], UUID.randomUUID())));
+        .thenReturn(Optional.of(new IdempotencyLock("PENDING", new byte[0], UUID.randomUUID(), null)));
 
     assertThatExceptionOfType(IdempotencyOperationInProgressException.class)
         .isThrownBy(() -> service.execute(pickupCommand("idem-pending")));
@@ -300,7 +300,7 @@ class CheckoutServiceTest {
     UUID productId = UUID.randomUUID();
     stubValidCart(productId, null, 5);
     when(idempotencyPort.find("idem-completed"))
-        .thenReturn(Optional.of(new IdempotencyLock("COMPLETED", new byte[0], UUID.randomUUID())));
+        .thenReturn(Optional.of(new IdempotencyLock("COMPLETED", new byte[0], UUID.randomUUID(), null)));
 
     assertThatExceptionOfType(IdempotencyOperationInProgressException.class)
         .isThrownBy(() -> service.execute(pickupCommand("idem-completed")));

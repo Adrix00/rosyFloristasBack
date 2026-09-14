@@ -46,7 +46,10 @@ public class CheckoutIdempotencyPersistenceAdapter implements CheckoutIdempotenc
         .map(
             entity ->
                 new IdempotencyLock(
-                    entity.getStatus(), entity.getRequestFingerprint(), entity.getResourceId()));
+                    entity.getStatus(),
+                    entity.getRequestFingerprint(),
+                    entity.getResourceId(),
+                    entity.getCheckoutPayloadEncrypted()));
   }
 
   /**

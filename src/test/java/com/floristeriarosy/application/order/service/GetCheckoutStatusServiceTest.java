@@ -33,7 +33,7 @@ class GetCheckoutStatusServiceTest {
   @Test
   void pendingReportsPendingWithNoOrderNumber() {
     when(idempotencyPort.find("idem-1"))
-        .thenReturn(Optional.of(new IdempotencyLock("PENDING", new byte[0], UUID.randomUUID())));
+.thenReturn(Optional.of(new IdempotencyLock("PENDING", new byte[0], UUID.randomUUID(), null)));
 
     var status = service.execute(new GetCheckoutStatusQuery("idem-1"));
 

@@ -476,6 +476,7 @@ public class CheckoutService implements CheckoutUseCase {
         OrderChannel.WEB.name(),
         command.fulfillment().name(),
         command.customerId(),
+        command.sessionToken(),
         command.buyerFirstName(),
         command.buyerLastName(),
         command.buyerEmail(),

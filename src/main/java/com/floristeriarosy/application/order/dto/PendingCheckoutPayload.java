@@ -17,6 +17,7 @@ import java.util.UUID;
  * @param channel the sales channel
  * @param fulfillment how the order reaches the customer
  * @param customerId the linked customer, or {@code null} for an unlinked guest checkout
+ * @param sessionToken the guest cart's session token, or {@code null} with a session
  * @param buyerFirstName the buyer's first name
  * @param buyerLastName the buyer's last name
  * @param buyerEmail the buyer's email
@@ -31,6 +32,7 @@ public record PendingCheckoutPayload(
     String channel,
     String fulfillment,
     UUID customerId,
+    String sessionToken,
     String buyerFirstName,
     String buyerLastName,
     String buyerEmail,
