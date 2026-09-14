@@ -34,6 +34,7 @@ import com.floristeriarosy.domain.exception.order.CheckoutInsufficientStockExcep
 import com.floristeriarosy.domain.exception.order.DeliveryAddressNotGeocodableException;
 import com.floristeriarosy.domain.exception.order.DeliveryOutOfRangeException;
 import com.floristeriarosy.domain.exception.order.IdempotencyKeyReusedException;
+import com.floristeriarosy.domain.exception.order.IdempotencyOperationInProgressException;
 import com.floristeriarosy.domain.exception.order.OrderValidationFailedException;
 import com.floristeriarosy.domain.model.discount.valueobject.DiscountId;
 import com.floristeriarosy.domain.model.inventory.StockMovementType;
@@ -277,9 +278,100 @@ class CheckoutServiceTest {
     UUID productId = UUID.randomUUID();
     stubValidCart(productId, null, 5);
     when(idempotencyPort.find("idem-reused"))
-        .thenReturn(Optional.of(new IdempotencyLock("PENDING", new byte[] {1, 2, 3}, UUID.randomUUID())));
+        .thenReturn(Optional.of(new IdempotencyLock("FAILED", new byte[] {1, 2, 3}, UUID.randomUUID())));
 
     assertThatExceptionOfType(IdempotencyKeyReusedException.class)
         .isThrownBy(() -> service.execute(pickupCommand("idem-reused")));
+  }
+
+  @Test
+  void idempotencyKeyAlreadyPendingIsConflict() {
+    UUID productId = UUID.randomUUID();
+    stubValidCart(productId, null, 5);
+    when(idempotencyPort.find("idem-pending"))
+        .thenReturn(Optional.of(new IdempotencyLock("PENDING", new byte[0], UUID.randomUUID())));
+
+    assertThatExceptionOfType(IdempotencyOperationInProgressException.class)
+        .isThrownBy(() -> service.execute(pickupCommand("idem-pending")));
+  }
+
+  @Test
+  void nonCardOnlinePaymentMethodIsRejectedBeforeReservation() {
+    CheckoutCommand command =
+        new CheckoutCommand(
+            null,
+            "session-token",
+            OrderFulfillment.PICKUP,
+            PaymentMethod.CASH,
+            null,
+            null,
+            "Ana",
+            "García",
+            "ana@example.com",
+            "600111222",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            LocalDate.now().plusDays(2),
+            LocalTime.of(10, 0),
+            LocalTime.of(11, 0),
+            null,
+            "idem-cash");
+
+    assertThatExceptionOfType(OrderValidationFailedException.class)
+        .isThrownBy(() -> service.execute(command));
+    verifyNoInteractions(
+        validateCartUseCase,
+        getCartUseCase,
+        geocodingPort,
+        shippingRatePort,
+        orderNumberPort,
+        idempotencyPort,
+        orderPaymentPort,
+        registerStockMovementUseCase,
+        discountReservationPort,
+        productReadPort);
+  }
+
+  @Test
+  void savedCardPaymentMethodIdIsRejectedBeforeReservation() {
+    CheckoutCommand command =
+        new CheckoutCommand(
+            null,
+            "session-token",
+            OrderFulfillment.PICKUP,
+            PaymentMethod.CARD_ONLINE,
+            null,
+            UUID.randomUUID(),
+            "Ana",
+            "García",
+            "ana@example.com",
+            "600111222",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            LocalDate.now().plusDays(2),
+            LocalTime.of(10, 0),
+            LocalTime.of(11, 0),
+            null,
+            "idem-saved");
+
+    assertThatExceptionOfType(OrderValidationFailedException.class)
+        .isThrownBy(() -> service.execute(command));
+    verifyNoInteractions(
+        orderNumberPort,
+        idempotencyPort,
+        orderPaymentPort,
+        registerStockMovementUseCase,
+        discountReservationPort,
+        productReadPort);
   }
 }

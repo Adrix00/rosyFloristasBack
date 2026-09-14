@@ -29,6 +29,7 @@ import com.floristeriarosy.domain.exception.order.CheckoutInsufficientStockExcep
 import com.floristeriarosy.domain.exception.order.DeliveryAddressNotGeocodableException;
 import com.floristeriarosy.domain.exception.order.DeliveryOutOfRangeException;
 import com.floristeriarosy.domain.exception.order.IdempotencyKeyReusedException;
+import com.floristeriarosy.domain.exception.order.IdempotencyOperationInProgressException;
 import com.floristeriarosy.domain.exception.order.OrderValidationFailedException;
 import com.floristeriarosy.domain.model.discount.valueobject.DiscountId;
 import com.floristeriarosy.domain.model.inventory.StockMovementType;
@@ -36,6 +37,7 @@ import com.floristeriarosy.domain.model.order.OrderChannel;
 import com.floristeriarosy.domain.model.order.OrderFulfillment;
 import com.floristeriarosy.domain.model.order.valueobject.OrderId;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
+import com.floristeriarosy.domain.model.payment.PaymentMethod;
 import com.floristeriarosy.domain.model.product.Product;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 import java.math.BigDecimal;
@@ -165,11 +167,14 @@ public class CheckoutService implements CheckoutUseCase {
    * @throws OrderValidationFailedException the cross-field rule failed (order.md, §5)
    */
   private void ensureCommandValid(CheckoutCommand command) {
-    boolean hasToken = command.paymentMethodToken() != null;
-    boolean hasSavedCard = command.paymentMethodId() != null;
-    if (hasToken == hasSavedCard) {
-      throw new OrderValidationFailedException(
-          "Exactly one of paymentMethodToken/paymentMethodId is required");
+    if (command.paymentMethod() != PaymentMethod.CARD_ONLINE) {
+      throw new OrderValidationFailedException("paymentMethod must be CARD_ONLINE for WEB");
+    }
+    if (command.paymentMethodToken() == null) {
+      throw new OrderValidationFailedException("paymentMethodToken is required");
+    }
+    if (command.paymentMethodId() != null) {
+      throw new OrderValidationFailedException("Saved cards are not supported yet");
     }
     if (command.customerId() == null && command.buyerFirstName() == null) {
       throw new OrderValidationFailedException("Buyer details are required for guest checkout");
@@ -221,17 +226,13 @@ public class CheckoutService implements CheckoutUseCase {
       CartDto cart,
       GeocodedAddress geocoded,
       BigDecimal shippingCost) {
+    if ("PENDING".equals(lock.status()) || "COMPLETED".equals(lock.status())) {
+      throw new IdempotencyOperationInProgressException(
+          "Idempotency-Key " + command.idempotencyKey() + " is " + lock.status());
+    }
     if (!MessageDigest.isEqual(lock.requestFingerprint(), fingerprint)) {
       throw new IdempotencyKeyReusedException(
           "Idempotency-Key " + command.idempotencyKey() + " was reused with a different cart");
-    }
-    if (!"FAILED".equals(lock.status())) {
-      throw new IllegalStateException(
-          "Idempotency-Key "
-              + command.idempotencyKey()
-              + " is "
-              + lock.status()
-              + " — the controller must handle this before Fase 1 runs again");
     }
     return reserveAndRedirect(command, cart, geocoded, shippingCost, fingerprint, true);
   }
