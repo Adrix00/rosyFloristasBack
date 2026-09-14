@@ -44,15 +44,23 @@ public final class Customer {
     this.id = Objects.requireNonNull(id, "id");
     this.type = Objects.requireNonNull(type, "type");
     this.status = Objects.requireNonNull(status, "status");
-    this.emailEncrypted = emailEncrypted;
-    this.emailHash = emailHash;
-    this.firstNameEncrypted = firstNameEncrypted;
-    this.lastNameEncrypted = lastNameEncrypted;
-    this.phoneEncrypted = phoneEncrypted;
-    this.phoneHash = phoneHash;
+    this.emailEncrypted = copy(emailEncrypted);
+    this.emailHash = copy(emailHash);
+    this.firstNameEncrypted = copy(firstNameEncrypted);
+    this.lastNameEncrypted = copy(lastNameEncrypted);
+    this.phoneEncrypted = copy(phoneEncrypted);
+    this.phoneHash = copy(phoneHash);
     this.version = version;
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
+  }
+
+  /**
+   * @param value a byte array, or {@code null}
+   * @return a defensive copy, or {@code null}
+   */
+  private static byte[] copy(byte[] value) {
+    return value == null ? null : value.clone();
   }
 
   /**
@@ -134,10 +142,10 @@ public final class Customer {
       byte[] phoneEncrypted,
       byte[] phoneHash) {
     LOGGER.debug("updateGuestContact id={}", id);
-    this.firstNameEncrypted = firstNameEncrypted;
-    this.lastNameEncrypted = lastNameEncrypted;
-    this.phoneEncrypted = phoneEncrypted;
-    this.phoneHash = phoneHash;
+    this.firstNameEncrypted = copy(firstNameEncrypted);
+    this.lastNameEncrypted = copy(lastNameEncrypted);
+    this.phoneEncrypted = copy(phoneEncrypted);
+    this.phoneHash = copy(phoneHash);
     LOGGER.debug("updateGuestContact id={} -> updated", id);
   }
 
