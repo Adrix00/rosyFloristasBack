@@ -7,4 +7,16 @@ import java.util.UUID;
  * @param requestFingerprint the stored fingerprint, to compare against a retry's
  * @param resourceId the order id this key resolves to, once known
  */
-public record IdempotencyLock(String status, byte[] requestFingerprint, UUID resourceId) {}
+public record IdempotencyLock(String status, byte[] requestFingerprint, UUID resourceId) {
+
+  /** Defensively copies {@code requestFingerprint} (SpotBugs EI_EXPOSE_REP2). */
+  public IdempotencyLock {
+    requestFingerprint = requestFingerprint == null ? null : requestFingerprint.clone();
+  }
+
+  /** @return a defensive copy of {@code requestFingerprint} (SpotBugs EI_EXPOSE_REP) */
+  @Override
+  public byte[] requestFingerprint() {
+    return requestFingerprint == null ? null : requestFingerprint.clone();
+  }
+}

@@ -8,6 +8,7 @@ import com.floristeriarosy.infrastructure.persistence.jpa.order.repository.Idemp
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+import org.owasp.encoder.Encode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -39,7 +40,7 @@ public class CheckoutIdempotencyPersistenceAdapter implements CheckoutIdempotenc
    */
   @Override
   public Optional<IdempotencyLock> find(String idempotencyKey) {
-    LOGGER.debug("find idempotencyKey={}", idempotencyKey);
+    LOGGER.debug("find idempotencyKey={}", Encode.forJava(idempotencyKey));
     return jpaRepository
         .findByIdempotencyKeyAndEndpoint(idempotencyKey, ENDPOINT)
         .map(
@@ -63,7 +64,7 @@ public class CheckoutIdempotencyPersistenceAdapter implements CheckoutIdempotenc
       UUID resourceId,
       byte[] checkoutPayloadEncrypted,
       Instant expiresAt) {
-    LOGGER.debug("insertPending idempotencyKey={} resourceId={}", idempotencyKey, resourceId);
+    LOGGER.debug("insertPending idempotencyKey={} resourceId={}", Encode.forJava(idempotencyKey), resourceId);
     IdempotencyKeyEntity entity =
         new IdempotencyKeyEntity(
             UUID.randomUUID(),
@@ -82,7 +83,7 @@ public class CheckoutIdempotencyPersistenceAdapter implements CheckoutIdempotenc
       throw new IdempotencyOperationInProgressException(
           "Idempotency-Key " + idempotencyKey + " is already in use");
     }
-    LOGGER.debug("insertPending idempotencyKey={} -> inserted", idempotencyKey);
+    LOGGER.debug("insertPending idempotencyKey={} -> inserted", Encode.forJava(idempotencyKey));
   }
 
   /**
@@ -99,7 +100,7 @@ public class CheckoutIdempotencyPersistenceAdapter implements CheckoutIdempotenc
       UUID resourceId,
       byte[] checkoutPayloadEncrypted,
       Instant expiresAt) {
-    LOGGER.debug("resetToPending idempotencyKey={} resourceId={}", idempotencyKey, resourceId);
+    LOGGER.debug("resetToPending idempotencyKey={} resourceId={}", Encode.forJava(idempotencyKey), resourceId);
     IdempotencyKeyEntity entity =
         jpaRepository
             .findByIdempotencyKeyAndEndpoint(idempotencyKey, ENDPOINT)
@@ -111,7 +112,7 @@ public class CheckoutIdempotencyPersistenceAdapter implements CheckoutIdempotenc
     entity.setResponseStatus(null);
     entity.setExpiresAt(expiresAt);
     jpaRepository.saveAndFlush(entity);
-    LOGGER.debug("resetToPending idempotencyKey={} -> reset", idempotencyKey);
+    LOGGER.debug("resetToPending idempotencyKey={} -> reset", Encode.forJava(idempotencyKey));
   }
 
   /**
@@ -120,7 +121,7 @@ public class CheckoutIdempotencyPersistenceAdapter implements CheckoutIdempotenc
    */
   @Override
   public void markCompleted(String idempotencyKey, int responseStatus) {
-    LOGGER.debug("markCompleted idempotencyKey={} responseStatus={}", idempotencyKey, responseStatus);
+    LOGGER.debug("markCompleted idempotencyKey={} responseStatus={}", Encode.forJava(idempotencyKey), responseStatus);
     IdempotencyKeyEntity entity =
         jpaRepository
             .findByIdempotencyKeyAndEndpoint(idempotencyKey, ENDPOINT)
@@ -129,7 +130,7 @@ public class CheckoutIdempotencyPersistenceAdapter implements CheckoutIdempotenc
     entity.setResponseStatus((short) responseStatus);
     entity.setCheckoutPayloadEncrypted(null);
     jpaRepository.saveAndFlush(entity);
-    LOGGER.debug("markCompleted idempotencyKey={} -> completed", idempotencyKey);
+    LOGGER.debug("markCompleted idempotencyKey={} -> completed", Encode.forJava(idempotencyKey));
   }
 
   /**
@@ -137,7 +138,7 @@ public class CheckoutIdempotencyPersistenceAdapter implements CheckoutIdempotenc
    */
   @Override
   public void markFailed(String idempotencyKey) {
-    LOGGER.debug("markFailed idempotencyKey={}", idempotencyKey);
+    LOGGER.debug("markFailed idempotencyKey={}", Encode.forJava(idempotencyKey));
     IdempotencyKeyEntity entity =
         jpaRepository
             .findByIdempotencyKeyAndEndpoint(idempotencyKey, ENDPOINT)
@@ -145,6 +146,6 @@ public class CheckoutIdempotencyPersistenceAdapter implements CheckoutIdempotenc
     entity.setStatus("FAILED");
     entity.setCheckoutPayloadEncrypted(null);
     jpaRepository.saveAndFlush(entity);
-    LOGGER.debug("markFailed idempotencyKey={} -> failed", idempotencyKey);
+    LOGGER.debug("markFailed idempotencyKey={} -> failed", Encode.forJava(idempotencyKey));
   }
 }

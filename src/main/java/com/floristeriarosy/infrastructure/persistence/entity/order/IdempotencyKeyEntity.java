@@ -71,11 +71,12 @@ public class IdempotencyKeyEntity {
     this.id = id;
     this.idempotencyKey = idempotencyKey;
     this.endpoint = endpoint;
-    this.requestFingerprint = requestFingerprint;
+    this.requestFingerprint = requestFingerprint == null ? null : requestFingerprint.clone();
     this.status = status;
     this.responseStatus = responseStatus;
     this.resourceId = resourceId;
-    this.checkoutPayloadEncrypted = checkoutPayloadEncrypted;
+    this.checkoutPayloadEncrypted =
+        checkoutPayloadEncrypted == null ? null : checkoutPayloadEncrypted.clone();
     this.createdAt = createdAt;
     this.expiresAt = expiresAt;
   }
@@ -95,14 +96,14 @@ public class IdempotencyKeyEntity {
     return endpoint;
   }
 
-  /** @return the stored request fingerprint */
+  /** @return a defensive copy of the stored request fingerprint */
   public byte[] getRequestFingerprint() {
-    return requestFingerprint;
+    return requestFingerprint == null ? null : requestFingerprint.clone();
   }
 
   /** @param requestFingerprint the new fingerprint (retry after {@code FAILED}) */
   public void setRequestFingerprint(byte[] requestFingerprint) {
-    this.requestFingerprint = requestFingerprint;
+    this.requestFingerprint = requestFingerprint == null ? null : requestFingerprint.clone();
   }
 
   /** @return the current status */
@@ -135,14 +136,15 @@ public class IdempotencyKeyEntity {
     this.resourceId = resourceId;
   }
 
-  /** @return the encrypted pending-checkout payload, or {@code null} */
+  /** @return a defensive copy of the encrypted pending-checkout payload, or {@code null} */
   public byte[] getCheckoutPayloadEncrypted() {
-    return checkoutPayloadEncrypted;
+    return checkoutPayloadEncrypted == null ? null : checkoutPayloadEncrypted.clone();
   }
 
   /** @param checkoutPayloadEncrypted the encrypted payload, or {@code null} to clear it */
   public void setCheckoutPayloadEncrypted(byte[] checkoutPayloadEncrypted) {
-    this.checkoutPayloadEncrypted = checkoutPayloadEncrypted;
+    this.checkoutPayloadEncrypted =
+        checkoutPayloadEncrypted == null ? null : checkoutPayloadEncrypted.clone();
   }
 
   /** @return when the row was created */
