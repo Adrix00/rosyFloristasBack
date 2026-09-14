@@ -5,6 +5,7 @@ import com.floristeriarosy.application.order.dto.OrderDto;
 import com.floristeriarosy.application.order.mapper.OrderDtoMapper;
 import com.floristeriarosy.application.order.port.in.CancelOrderUseCase;
 import com.floristeriarosy.application.order.port.out.OrderReadPort;
+import com.floristeriarosy.application.order.support.OrderReversalComponent;
 import com.floristeriarosy.application.order.port.out.OrderWritePort;
 import com.floristeriarosy.domain.exception.order.OrderInvalidTransitionException;
 import com.floristeriarosy.domain.exception.order.OrderNotCancelableException;

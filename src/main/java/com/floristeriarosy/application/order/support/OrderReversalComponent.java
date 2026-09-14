@@ -1,4 +1,4 @@
-package com.floristeriarosy.application.order.service;
+package com.floristeriarosy.application.order.support;
 
 import com.floristeriarosy.application.discount.port.out.DiscountReservationPort;
 import com.floristeriarosy.application.inventory.port.in.RegisterStockMovementUseCase;
@@ -18,12 +18,15 @@ import org.springframework.stereotype.Component;
 /**
  * The reversal {@code RejectOrderService} and {@code CancelOrderService} share (order.md, section
  * 3.10): reverses every line's stock reservation, releases every line's discount reservation,
- * refunds the payment in full, and registers the notification each case calls for. Not a use case
- * — nothing outside {@code order}'s own services calls this, and it is never swapped for another
- * implementation, so it is a plain internal component rather than a capability port (ADR-003).
+ * refunds the payment in full, and registers the notification each case calls for.
+ *
+ * <p>Placed in {@code application.order.support} because it is a plain internal helper, not a use-case
+ * implementation (ADR-001/ADR-003): it has no {@code *UseCase} interface and is never swapped, so
+ * ArchUnit's service-package rules (name ending in {@code Service}, must implement an input port)
+ * do not apply to it.
  */
 @Component
-class OrderReversalComponent {
+public class OrderReversalComponent {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(OrderReversalComponent.class);
   private static final String NOTE = "order lifecycle reversal";
@@ -39,7 +42,7 @@ class OrderReversalComponent {
    * @param orderPaymentPort refunds the order's payment in full
    * @param registerNotificationUseCase registers customer and staff notifications
    */
-  OrderReversalComponent(
+  public OrderReversalComponent(
       RegisterStockMovementUseCase registerStockMovementUseCase,
       DiscountReservationPort discountReservationPort,
       OrderPaymentPort orderPaymentPort,
@@ -56,7 +59,7 @@ class OrderReversalComponent {
    *     STAFF_ORDER_CANCELLED_BY_CUSTOMER} — the one notification.md §3.1 catalog type this
    *     reversal fires besides {@code REFUND_ISSUED}
    */
-  void reverse(Order order, String customerNotificationType) {
+  public void reverse(Order order, String customerNotificationType) {
     LOGGER.debug(
         "reverse orderId={} notificationType={}", order.id(), customerNotificationType);
     for (OrderItem item : order.items()) {
