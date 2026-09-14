@@ -46,4 +46,20 @@ public interface OrderPaymentPort {
    * @return the refunded payment
    */
   Payment refund(OrderId orderId, OrderNumber orderNumber);
+
+  /**
+   * @param orderId the order being confirmed
+   * @param orderNumber the business identifier
+   * @param method how the customer paid — always {@code CARD_ONLINE} in practice (order.md §3.2,
+   *     Fase 3a); the parameter stays general because {@link Payment#initiate} takes it
+   * @param amount the confirmed amount
+   * @param providerPaymentIntentId Redsys's authorization reference from the notification
+   * @return the saved, {@code CAPTURED} payment
+   */
+  Payment confirmCharge(
+      OrderId orderId,
+      OrderNumber orderNumber,
+      PaymentMethod method,
+      BigDecimal amount,
+      String providerPaymentIntentId);
 }

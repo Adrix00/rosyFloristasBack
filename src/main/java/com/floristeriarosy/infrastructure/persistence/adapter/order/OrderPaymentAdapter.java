@@ -3,6 +3,7 @@ package com.floristeriarosy.infrastructure.persistence.adapter.order;
 import com.floristeriarosy.application.order.dto.ChargeResult;
 import com.floristeriarosy.application.order.port.out.OrderPaymentPort;
 import com.floristeriarosy.application.payment.port.in.ChargeOrderPaymentUseCase;
+import com.floristeriarosy.application.payment.port.in.ConfirmOrderPaymentUseCase;
 import com.floristeriarosy.application.payment.port.in.RefundOrderPaymentUseCase;
 import com.floristeriarosy.domain.model.order.valueobject.OrderId;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
@@ -26,14 +27,20 @@ public class OrderPaymentAdapter implements OrderPaymentPort {
 
   private final ChargeOrderPaymentUseCase chargeUseCase;
   private final RefundOrderPaymentUseCase refundUseCase;
+  private final ConfirmOrderPaymentUseCase confirmUseCase;
 
   /**
    * @param chargeUseCase payment's real charging logic
    * @param refundUseCase payment's real refunding logic
+   * @param confirmUseCase payment's real confirmation logic
    */
-  public OrderPaymentAdapter(ChargeOrderPaymentUseCase chargeUseCase, RefundOrderPaymentUseCase refundUseCase) {
+  public OrderPaymentAdapter(
+      ChargeOrderPaymentUseCase chargeUseCase,
+      RefundOrderPaymentUseCase refundUseCase,
+      ConfirmOrderPaymentUseCase confirmUseCase) {
     this.chargeUseCase = chargeUseCase;
     this.refundUseCase = refundUseCase;
+    this.confirmUseCase = confirmUseCase;
   }
 
   /**
@@ -64,5 +71,23 @@ public class OrderPaymentAdapter implements OrderPaymentPort {
   @Override
   public Payment refund(OrderId orderId, OrderNumber orderNumber) {
     return refundUseCase.execute(orderId, orderNumber);
+  }
+
+  /**
+   * @param orderId the order being confirmed
+   * @param orderNumber the business identifier
+   * @param method how the customer paid
+   * @param amount the confirmed amount
+   * @param providerPaymentIntentId Redsys's authorization reference from the notification
+   * @return the saved, captured payment
+   */
+  @Override
+  public Payment confirmCharge(
+      OrderId orderId,
+      OrderNumber orderNumber,
+      PaymentMethod method,
+      BigDecimal amount,
+      String providerPaymentIntentId) {
+    return confirmUseCase.execute(orderId, orderNumber, method, amount, providerPaymentIntentId);
   }
 }

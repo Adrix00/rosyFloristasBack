@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.floristeriarosy.application.order.dto.ChargeResult;
 import com.floristeriarosy.application.payment.port.in.ChargeOrderPaymentUseCase;
+import com.floristeriarosy.application.payment.port.in.ConfirmOrderPaymentUseCase;
 import com.floristeriarosy.application.payment.port.in.RefundOrderPaymentUseCase;
 import com.floristeriarosy.domain.model.order.valueobject.OrderId;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
@@ -23,7 +24,8 @@ class OrderPaymentAdapterTest {
 
   private final ChargeOrderPaymentUseCase chargeUseCase = mock(ChargeOrderPaymentUseCase.class);
   private final RefundOrderPaymentUseCase refundUseCase = mock(RefundOrderPaymentUseCase.class);
-  private final OrderPaymentAdapter adapter = new OrderPaymentAdapter(chargeUseCase, refundUseCase);
+  private final ConfirmOrderPaymentUseCase confirmUseCase = mock(ConfirmOrderPaymentUseCase.class);
+  private final OrderPaymentAdapter adapter = new OrderPaymentAdapter(chargeUseCase, refundUseCase, confirmUseCase);
 
   @Test
   void chargeDelegatesToChargeOrderPaymentUseCase() {
