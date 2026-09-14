@@ -296,6 +296,17 @@ class CheckoutServiceTest {
   }
 
   @Test
+  void idempotencyKeyAlreadyCompletedIsConflict() {
+    UUID productId = UUID.randomUUID();
+    stubValidCart(productId, null, 5);
+    when(idempotencyPort.find("idem-completed"))
+        .thenReturn(Optional.of(new IdempotencyLock("COMPLETED", new byte[0], UUID.randomUUID())));
+
+    assertThatExceptionOfType(IdempotencyOperationInProgressException.class)
+        .isThrownBy(() -> service.execute(pickupCommand("idem-completed")));
+  }
+
+  @Test
   void nonCardOnlinePaymentMethodIsRejectedBeforeReservation() {
     CheckoutCommand command =
         new CheckoutCommand(
@@ -345,7 +356,7 @@ class CheckoutServiceTest {
             "session-token",
             OrderFulfillment.PICKUP,
             PaymentMethod.CARD_ONLINE,
-            null,
+            "tok_visa",
             UUID.randomUUID(),
             "Ana",
             "García",

@@ -132,6 +132,7 @@ public class CheckoutService implements CheckoutUseCase {
    * @throws DeliveryOutOfRangeException the address is more than 10 km away
    * @throws DeliveryAddressNotGeocodableException Google Maps could not locate the address
    * @throws IdempotencyKeyReusedException the same key was used with a different cart
+   * @throws IdempotencyOperationInProgressException the key is PENDING or already COMPLETED
    * @throws CheckoutInsufficientStockException a managed line no longer has enough stock
    * @throws CheckoutDiscountExhaustedException an active promotion sold out during checkout
    */
@@ -215,8 +216,9 @@ public class CheckoutService implements CheckoutUseCase {
    * @param cart the priced cart
    * @param geocoded the geocoded delivery, or {@code null}
    * @param shippingCost the computed shipping cost
-   * @return the redirect for a fresh {@code FAILED}-retry; an already-{@code PENDING}/{@code
-   *     COMPLETED} key never reaches Fase 1 again, per order.md §10
+   * @return the redirect for a fresh {@code FAILED}-retry
+   * @throws IdempotencyOperationInProgressException the key is {@code PENDING} or already {@code
+   *     COMPLETED}; the caller should check {@code GET /checkout/{key}/status} (order.md §10)
    * @throws IdempotencyKeyReusedException the fingerprint changed
    */
   private CheckoutRedirectDto resumeExisting(
@@ -226,9 +228,15 @@ public class CheckoutService implements CheckoutUseCase {
       CartDto cart,
       GeocodedAddress geocoded,
       BigDecimal shippingCost) {
-    if ("PENDING".equals(lock.status()) || "COMPLETED".equals(lock.status())) {
+    if ("PENDING".equals(lock.status())) {
       throw new IdempotencyOperationInProgressException(
-          "Idempotency-Key " + command.idempotencyKey() + " is " + lock.status());
+          "Idempotency-Key " + command.idempotencyKey() + " is PENDING");
+    }
+    if ("COMPLETED".equals(lock.status())) {
+      throw new IdempotencyOperationInProgressException(
+          "Idempotency-Key " + command.idempotencyKey() + " is already COMPLETED; check GET /checkout/"
+              + command.idempotencyKey()
+              + "/status");
     }
     if (!MessageDigest.isEqual(lock.requestFingerprint(), fingerprint)) {
       throw new IdempotencyKeyReusedException(
