@@ -21,8 +21,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import tools.jackson.core.JacksonException;
-import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.type.MapType;
 
 /**
  * JDBC reads backing cart (ADR-002): the batch product-pricing/display projection for {@code GET
@@ -41,10 +41,9 @@ public class CartProjectionJdbcRepository {
 
   private static final String AVAILABLE_STOCK_SQL = "SELECT stock FROM products WHERE id = ?";
 
-  private static final TypeReference<Map<String, Object>> ATTRIBUTES_TYPE = new TypeReference<>() {};
-
   private final JdbcTemplate jdbcTemplate;
   private final ObjectMapper objectMapper;
+  private final MapType attributesType;
 
   /**
    * @param jdbcTemplate runs the SQL against the configured datasource
@@ -54,6 +53,10 @@ public class CartProjectionJdbcRepository {
   public CartProjectionJdbcRepository(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
     this.jdbcTemplate = jdbcTemplate;
     this.objectMapper = objectMapper.rebuild().build();
+    this.attributesType =
+        this.objectMapper
+            .getTypeFactory()
+            .constructMapType(LinkedHashMap.class, String.class, Object.class);
   }
 
   /**
@@ -152,7 +155,10 @@ public class CartProjectionJdbcRepository {
       return Collections.unmodifiableMap(new LinkedHashMap<String, Object>());
     }
     try {
-      return Collections.unmodifiableMap(new LinkedHashMap<>(objectMapper.readValue(json, ATTRIBUTES_TYPE)));
+      @SuppressWarnings("unchecked")
+      Map<String, Object> parsed =
+          (Map<String, Object>) objectMapper.readValue(json, attributesType);
+      return Collections.unmodifiableMap(new LinkedHashMap<>(parsed));
     } catch (JacksonException e) {
       LOGGER.debug("readAttributes -> could not parse json: {}", e.getMessage());
       return Collections.unmodifiableMap(new LinkedHashMap<String, Object>());

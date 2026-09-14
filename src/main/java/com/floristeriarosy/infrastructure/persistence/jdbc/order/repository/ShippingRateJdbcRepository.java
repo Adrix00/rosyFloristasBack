@@ -1,6 +1,6 @@
 package com.floristeriarosy.infrastructure.persistence.jdbc.order.repository;
 
-import com.floristeriarosy.application.order.port.out.ShippingRate;
+import com.floristeriarosy.application.order.dto.ShippingRate;
 import com.floristeriarosy.infrastructure.persistence.jdbc.order.rowmapper.ShippingRateRowMapper;
 import java.math.BigDecimal;
 import java.util.List;

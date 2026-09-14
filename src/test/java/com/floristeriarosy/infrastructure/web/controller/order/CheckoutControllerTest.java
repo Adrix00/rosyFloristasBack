@@ -17,6 +17,7 @@ import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.domain.model.order.OrderFulfillment;
 import com.floristeriarosy.domain.model.payment.PaymentMethod;
 import com.floristeriarosy.infrastructure.security.config.SecurityConfig;
+import com.floristeriarosy.infrastructure.web.mapper.order.CheckoutWebMapper;
 import com.floristeriarosy.infrastructure.web.request.order.CheckoutRequest;
 import com.floristeriarosy.infrastructure.web.request.order.PickupRequest;
 import java.time.LocalDate;
@@ -34,7 +35,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /** {@code POST /checkout} / {@code GET /checkout/{key}/status} — order.md §4. */
 @WebMvcTest(CheckoutController.class)
-@Import({SecurityConfig.class})
+@Import({SecurityConfig.class, CheckoutWebMapper.class})
 class CheckoutControllerTest {
 
   @Autowired private MockMvc mockMvc;

@@ -1,7 +1,7 @@
 package com.floristeriarosy.infrastructure.persistence.adapter.order;
 
+import com.floristeriarosy.application.order.dto.IdempotencyLock;
 import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
-import com.floristeriarosy.application.order.port.out.IdempotencyLock;
 import com.floristeriarosy.domain.exception.order.IdempotencyOperationInProgressException;
 import com.floristeriarosy.infrastructure.persistence.entity.order.IdempotencyKeyEntity;
 import com.floristeriarosy.infrastructure.persistence.jpa.order.repository.IdempotencyKeyJpaRepository;

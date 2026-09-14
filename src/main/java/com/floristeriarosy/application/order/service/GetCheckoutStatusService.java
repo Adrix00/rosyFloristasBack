@@ -2,8 +2,8 @@ package com.floristeriarosy.application.order.service;
 
 import com.floristeriarosy.application.order.dto.CheckoutStatusDto;
 import com.floristeriarosy.application.order.port.in.GetCheckoutStatusUseCase;
+import com.floristeriarosy.application.order.dto.IdempotencyLock;
 import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
-import com.floristeriarosy.application.order.port.out.IdempotencyLock;
 import com.floristeriarosy.application.order.query.GetCheckoutStatusQuery;
 import com.floristeriarosy.domain.exception.order.CheckoutNotFoundException;
 import org.owasp.encoder.Encode;

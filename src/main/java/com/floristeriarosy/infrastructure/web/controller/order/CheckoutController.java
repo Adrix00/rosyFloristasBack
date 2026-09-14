@@ -1,18 +1,13 @@
 package com.floristeriarosy.infrastructure.web.controller.order;
 
-import com.floristeriarosy.application.order.command.CheckoutCommand;
 import com.floristeriarosy.application.order.dto.CheckoutRedirectDto;
 import com.floristeriarosy.application.order.dto.CheckoutStatusDto;
 import com.floristeriarosy.application.order.port.in.CheckoutUseCase;
 import com.floristeriarosy.application.order.port.in.GetCheckoutStatusUseCase;
 import com.floristeriarosy.application.order.query.GetCheckoutStatusQuery;
-import com.floristeriarosy.domain.exception.order.OrderValidationFailedException;
-import com.floristeriarosy.domain.model.order.OrderFulfillment;
 import com.floristeriarosy.infrastructure.security.jwt.AccessTokenJwtClaims;
-import com.floristeriarosy.infrastructure.web.request.order.BuyerRequest;
+import com.floristeriarosy.infrastructure.web.mapper.order.CheckoutWebMapper;
 import com.floristeriarosy.infrastructure.web.request.order.CheckoutRequest;
-import com.floristeriarosy.infrastructure.web.request.order.DeliveryRequest;
-import com.floristeriarosy.infrastructure.web.request.order.PickupRequest;
 import com.floristeriarosy.infrastructure.web.response.order.CheckoutResponse;
 import com.floristeriarosy.infrastructure.web.response.order.CheckoutStatusResponse;
 import jakarta.validation.Valid;
@@ -46,15 +41,20 @@ public class CheckoutController {
 
   private final CheckoutUseCase checkoutUseCase;
   private final GetCheckoutStatusUseCase getCheckoutStatusUseCase;
+  private final CheckoutWebMapper mapper;
 
   /**
    * @param checkoutUseCase runs Fase 1 and builds the redirect
    * @param getCheckoutStatusUseCase reads a checkout attempt's status
+   * @param mapper translates Request/Response to/from Command/Dto
    */
   public CheckoutController(
-      CheckoutUseCase checkoutUseCase, GetCheckoutStatusUseCase getCheckoutStatusUseCase) {
+      CheckoutUseCase checkoutUseCase,
+      GetCheckoutStatusUseCase getCheckoutStatusUseCase,
+      CheckoutWebMapper mapper) {
     this.checkoutUseCase = checkoutUseCase;
     this.getCheckoutStatusUseCase = getCheckoutStatusUseCase;
+    this.mapper = mapper;
   }
 
   /**
@@ -62,7 +62,6 @@ public class CheckoutController {
    * @param idempotencyKey required, ADR-011
    * @param sessionToken the guest cart cookie value, or blank if absent
    * @return 202 with the signed Redsys redirect
-   * @throws OrderValidationFailedException the cross-field rule failed (order.md, §5)
    */
   @PostMapping("/checkout")
   public ResponseEntity<CheckoutResponse> checkout(
@@ -74,9 +73,8 @@ public class CheckoutController {
         "POST /checkout fulfillment={} idempotencyKey={}",
         request.fulfillment(),
         Encode.forJava(idempotencyKey));
-    requireValidRequest(request, customerId);
     CheckoutRedirectDto result =
-        checkoutUseCase.execute(toCommand(request, idempotencyKey, customerId, sessionToken));
+        checkoutUseCase.execute(mapper.toCommand(request, idempotencyKey, customerId, sessionToken));
     LOGGER.debug("POST /checkout idempotencyKey={} -> redirect built", Encode.forJava(idempotencyKey));
     return ResponseEntity.status(HttpStatus.ACCEPTED)
         .body(new CheckoutResponse(result.redirectUrl(), result.formFields()));
@@ -109,77 +107,5 @@ public class CheckoutController {
       }
     }
     return null;
-  }
-
-  /**
-   * @param request the incoming checkout request
-   * @param customerId the resolved caller identity, or {@code null} for a guest
-   * @throws OrderValidationFailedException the cross-field rule failed
-   */
-  private void requireValidRequest(CheckoutRequest request, UUID customerId) {
-    requireExactlyOnePaymentMethodReference(request);
-    if (customerId == null && request.buyer() == null) {
-      throw new OrderValidationFailedException("Buyer details are required for guest checkout");
-    }
-    if (request.fulfillment() == OrderFulfillment.DELIVERY) {
-      if (request.addressId() == null && request.delivery() == null) {
-        throw new OrderValidationFailedException(
-            "Delivery details or a saved address are required for delivery checkout");
-      }
-      return;
-    }
-    if (request.fulfillment() == OrderFulfillment.PICKUP && request.pickup() == null) {
-      throw new OrderValidationFailedException("Pickup details are required");
-    }
-  }
-
-  /**
-   * @param request the incoming checkout request
-   * @throws OrderValidationFailedException the cross-field rule failed (order.md, §5)
-   */
-  private void requireExactlyOnePaymentMethodReference(CheckoutRequest request) {
-    boolean hasToken = request.paymentMethodToken() != null;
-    boolean hasSavedCard = request.paymentMethodId() != null;
-    if (hasToken == hasSavedCard) {
-      throw new OrderValidationFailedException(
-          "Exactly one of paymentMethodToken/paymentMethodId is required");
-    }
-  }
-
-  /**
-   * @param request the incoming checkout request
-   * @param idempotencyKey the {@code Idempotency-Key} header
-   * @param customerId the logged-in customer, or {@code null}
-   * @param sessionToken the guest cart cookie value, or blank
-   * @return the application command
-   */
-  private CheckoutCommand toCommand(
-      CheckoutRequest request, String idempotencyKey, UUID customerId, String sessionToken) {
-    DeliveryRequest delivery = request.delivery();
-    PickupRequest pickup = request.pickup();
-    BuyerRequest buyer = request.buyer();
-    return new CheckoutCommand(
-        customerId,
-        customerId == null ? sessionToken : null,
-        request.fulfillment(),
-        request.paymentMethod(),
-        request.paymentMethodToken(),
-        request.paymentMethodId(),
-        buyer != null ? buyer.firstName() : null,
-        buyer != null ? buyer.lastName() : null,
-        buyer != null ? buyer.email() : null,
-        buyer != null ? buyer.phone() : null,
-        request.addressId(),
-        delivery != null ? delivery.recipientName() : null,
-        delivery != null ? delivery.recipientPhone() : null,
-        delivery != null ? delivery.street() : null,
-        delivery != null ? delivery.number() : null,
-        delivery != null ? delivery.detail() : null,
-        delivery != null ? delivery.postalCode() : null,
-        delivery != null ? delivery.deliveryDate() : pickup != null ? pickup.deliveryDate() : null,
-        delivery != null ? delivery.slotFrom() : pickup != null ? pickup.slotFrom() : null,
-        delivery != null ? delivery.slotTo() : pickup != null ? pickup.slotTo() : null,
-        delivery != null ? delivery.cardMessage() : null,
-        idempotencyKey);
   }
 }

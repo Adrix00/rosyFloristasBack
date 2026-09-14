@@ -1,6 +1,6 @@
 package com.floristeriarosy.infrastructure.geocoding;
 
-import com.floristeriarosy.application.order.port.out.GeocodedAddress;
+import com.floristeriarosy.application.order.dto.GeocodedAddress;
 import com.floristeriarosy.application.order.port.out.GeocodingPort;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -21,9 +21,9 @@ import tools.jackson.databind.ObjectMapper;
 
 /** Implements {@link GeocodingPort} against the Google Maps Geocoding API (order.md, rule 3.7). */
 @Component
-public class GoogleMapsGeocodingAdapter implements GeocodingPort {
+public class GoogleMapsGeocodingClient implements GeocodingPort {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(GoogleMapsGeocodingAdapter.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(GoogleMapsGeocodingClient.class);
 
   private final GeocodingProperties properties;
   private final ObjectMapper objectMapper;
@@ -31,10 +31,10 @@ public class GoogleMapsGeocodingAdapter implements GeocodingPort {
 
   /**
    * @param properties Google Maps configuration and the store's own coordinates
-   * @param objectMapper parses the Google Maps JSON response; rebuilt so this adapter does not hold
+   * @param objectMapper parses the Google Maps JSON response; rebuilt so this client does not hold
    *     the caller's mutable reference (SpotBugs EI_EXPOSE_REP2)
    */
-  public GoogleMapsGeocodingAdapter(GeocodingProperties properties, ObjectMapper objectMapper) {
+  public GoogleMapsGeocodingClient(GeocodingProperties properties, ObjectMapper objectMapper) {
     this.properties = properties;
     this.objectMapper = objectMapper.rebuild().build();
     this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();

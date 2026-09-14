@@ -2,7 +2,7 @@ package com.floristeriarosy.infrastructure.persistence.adapter.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.floristeriarosy.application.order.port.out.ShippingRate;
+import com.floristeriarosy.application.order.dto.ShippingRate;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

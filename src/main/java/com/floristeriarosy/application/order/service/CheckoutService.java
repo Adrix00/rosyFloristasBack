@@ -13,12 +13,12 @@ import com.floristeriarosy.application.order.dto.CheckoutRedirectDto;
 import com.floristeriarosy.application.order.dto.PendingCheckoutPayload;
 import com.floristeriarosy.application.order.port.in.CheckoutUseCase;
 import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
-import com.floristeriarosy.application.order.port.out.GeocodedAddress;
+import com.floristeriarosy.application.order.dto.GeocodedAddress;
+import com.floristeriarosy.application.order.dto.IdempotencyLock;
+import com.floristeriarosy.application.order.dto.ShippingRate;
 import com.floristeriarosy.application.order.port.out.GeocodingPort;
-import com.floristeriarosy.application.order.port.out.IdempotencyLock;
 import com.floristeriarosy.application.order.port.out.OrderNumberPort;
 import com.floristeriarosy.application.order.port.out.OrderPaymentPort;
-import com.floristeriarosy.application.order.port.out.ShippingRate;
 import com.floristeriarosy.application.order.port.out.ShippingRatePort;
 import com.floristeriarosy.application.product.port.out.ProductReadPort;
 import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
@@ -141,6 +141,7 @@ public class CheckoutService implements CheckoutUseCase {
         command.fulfillment(),
         Encode.forJava(command.idempotencyKey()));
 
+    ensureCommandValid(command);
     CartValidationDto validation = validateCartUseCase.execute(toValidateCartCommand(command));
     ensureCartValid(validation);
     CartDto cart = getCartUseCase.execute(toGetCartQuery(command));
@@ -157,6 +158,35 @@ public class CheckoutService implements CheckoutUseCase {
     }
 
     return reserveAndRedirect(command, cart, geocoded, shippingCost, fingerprint, false);
+  }
+
+  /**
+   * @param command the incoming command
+   * @throws OrderValidationFailedException the cross-field rule failed (order.md, §5)
+   */
+  private void ensureCommandValid(CheckoutCommand command) {
+    boolean hasToken = command.paymentMethodToken() != null;
+    boolean hasSavedCard = command.paymentMethodId() != null;
+    if (hasToken == hasSavedCard) {
+      throw new OrderValidationFailedException(
+          "Exactly one of paymentMethodToken/paymentMethodId is required");
+    }
+    if (command.customerId() == null && command.buyerFirstName() == null) {
+      throw new OrderValidationFailedException("Buyer details are required for guest checkout");
+    }
+    if (command.fulfillment() == OrderFulfillment.DELIVERY) {
+      if (command.addressId() == null
+          && (command.street() == null
+              || command.number() == null
+              || command.postalCode() == null)) {
+        throw new OrderValidationFailedException(
+            "Delivery details or a saved address are required for delivery checkout");
+      }
+      return;
+    }
+    if (command.fulfillment() == OrderFulfillment.PICKUP && command.deliveryDate() == null) {
+      throw new OrderValidationFailedException("Pickup details are required");
+    }
   }
 
   /**

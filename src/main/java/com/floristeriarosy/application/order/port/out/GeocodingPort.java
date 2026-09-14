@@ -1,5 +1,6 @@
 package com.floristeriarosy.application.order.port.out;
 
+import com.floristeriarosy.application.order.dto.GeocodedAddress;
 import java.util.Optional;
 
 /** Turns a delivery address into coordinates and a distance from the store (order.md, rule 3.7). */

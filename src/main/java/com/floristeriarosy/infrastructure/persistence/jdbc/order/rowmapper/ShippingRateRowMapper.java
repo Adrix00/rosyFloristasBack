@@ -1,6 +1,6 @@
 package com.floristeriarosy.infrastructure.persistence.jdbc.order.rowmapper;
 
-import com.floristeriarosy.application.order.port.out.ShippingRate;
+import com.floristeriarosy.application.order.dto.ShippingRate;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;

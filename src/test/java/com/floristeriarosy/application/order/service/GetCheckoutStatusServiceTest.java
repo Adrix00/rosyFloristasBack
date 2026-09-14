@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.floristeriarosy.application.order.dto.IdempotencyLock;
 import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
-import com.floristeriarosy.application.order.port.out.IdempotencyLock;
 import com.floristeriarosy.application.order.query.GetCheckoutStatusQuery;
 import com.floristeriarosy.domain.exception.order.CheckoutNotFoundException;
 import java.util.Optional;

@@ -1,5 +1,6 @@
 package com.floristeriarosy.application.order.port.out;
 
+import com.floristeriarosy.application.order.dto.ShippingRate;
 import java.math.BigDecimal;
 import java.util.Optional;
 

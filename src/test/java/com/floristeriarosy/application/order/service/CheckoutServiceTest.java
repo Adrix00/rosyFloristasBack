@@ -18,13 +18,13 @@ import com.floristeriarosy.application.inventory.port.in.RegisterStockMovementUs
 import com.floristeriarosy.application.order.command.CheckoutCommand;
 import com.floristeriarosy.application.order.dto.ChargeResult;
 import com.floristeriarosy.application.order.dto.CheckoutRedirectDto;
+import com.floristeriarosy.application.order.dto.GeocodedAddress;
+import com.floristeriarosy.application.order.dto.IdempotencyLock;
+import com.floristeriarosy.application.order.dto.ShippingRate;
 import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
-import com.floristeriarosy.application.order.port.out.GeocodedAddress;
 import com.floristeriarosy.application.order.port.out.GeocodingPort;
-import com.floristeriarosy.application.order.port.out.IdempotencyLock;
 import com.floristeriarosy.application.order.port.out.OrderNumberPort;
 import com.floristeriarosy.application.order.port.out.OrderPaymentPort;
-import com.floristeriarosy.application.order.port.out.ShippingRate;
 import com.floristeriarosy.application.order.port.out.ShippingRatePort;
 import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.application.product.port.out.ProductReadPort;
