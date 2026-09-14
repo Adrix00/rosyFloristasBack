@@ -4,10 +4,13 @@ import com.floristeriarosy.application.order.port.out.OrderReadPort;
 import com.floristeriarosy.application.order.port.out.OrderWritePort;
 import com.floristeriarosy.domain.exception.ResourceModifiedException;
 import com.floristeriarosy.domain.model.order.Order;
+import com.floristeriarosy.domain.model.order.OrderStatus;
 import com.floristeriarosy.domain.model.order.valueobject.OrderId;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
 import com.floristeriarosy.infrastructure.persistence.entity.order.OrderEntity;
+import com.floristeriarosy.infrastructure.persistence.entity.order.OrderStatusHistoryEntity;
 import com.floristeriarosy.infrastructure.persistence.jpa.order.repository.OrderJpaRepository;
+import com.floristeriarosy.infrastructure.persistence.jpa.order.repository.OrderStatusHistoryJpaRepository;
 import com.floristeriarosy.infrastructure.persistence.mapper.order.OrderPersistenceMapper;
 import java.util.List;
 import java.util.Optional;
@@ -29,14 +32,20 @@ public class OrderPersistenceAdapter implements OrderReadPort, OrderWritePort {
   private static final Logger LOGGER = LoggerFactory.getLogger(OrderPersistenceAdapter.class);
 
   private final OrderJpaRepository jpaRepository;
+  private final OrderStatusHistoryJpaRepository historyJpaRepository;
   private final OrderPersistenceMapper mapper;
 
   /**
    * @param jpaRepository writes and simple lookups by id/order number
+   * @param historyJpaRepository appends status-transition audit rows
    * @param mapper converts between the domain {@link Order} and the JPA {@link OrderEntity}
    */
-  public OrderPersistenceAdapter(OrderJpaRepository jpaRepository, OrderPersistenceMapper mapper) {
+  public OrderPersistenceAdapter(
+      OrderJpaRepository jpaRepository,
+      OrderStatusHistoryJpaRepository historyJpaRepository,
+      OrderPersistenceMapper mapper) {
     this.jpaRepository = jpaRepository;
+    this.historyJpaRepository = historyJpaRepository;
     this.mapper = mapper;
   }
 
@@ -104,5 +113,26 @@ public class OrderPersistenceAdapter implements OrderReadPort, OrderWritePort {
     } catch (ObjectOptimisticLockingFailureException conflict) {
       throw new ResourceModifiedException("Order " + order.id() + " was modified concurrently");
     }
+  }
+
+  /**
+   * @param orderId the order that changed
+   * @param status the status it changed to
+   * @param changedByAdminId the admin who triggered it, or {@code null} when the customer did
+   * @param reason the admin's stated reason, or {@code null}
+   */
+  @Override
+  public void recordStatusChange(
+      OrderId orderId, OrderStatus status, UUID changedByAdminId, String reason) {
+    LOGGER.debug(
+        "recordStatusChange orderId={} status={} changedByAdminId={}",
+        orderId,
+        status,
+        changedByAdminId);
+    OrderStatusHistoryEntity entity =
+        new OrderStatusHistoryEntity(
+            UUID.randomUUID(), orderId.value(), status, changedByAdminId, reason);
+    historyJpaRepository.save(entity);
+    LOGGER.debug("recordStatusChange orderId={} -> recorded", orderId);
   }
 }
