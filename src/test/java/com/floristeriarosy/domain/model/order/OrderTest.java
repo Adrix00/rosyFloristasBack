@@ -2,6 +2,7 @@ package com.floristeriarosy.domain.model.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.floristeriarosy.domain.model.order.valueobject.OrderId;
@@ -125,5 +126,152 @@ class OrderTest {
     assertThat(order.items()).hasSize(1);
     assertThatThrownBy(() -> order.items().add(oneRose()))
         .isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void prepareMovesPendingToPreparing() {
+    Order order = pendingOrder(OrderFulfillment.PICKUP);
+
+    order.prepare();
+
+    assertThat(order.status()).isEqualTo(OrderStatus.PREPARING);
+  }
+
+  @Test
+  void prepareThrowsWhenNotPending() {
+    Order order = pendingOrder(OrderFulfillment.PICKUP);
+    order.prepare();
+
+    assertThatIllegalStateException().isThrownBy(order::prepare);
+  }
+
+  @Test
+  void shipMovesDeliveryPreparingToOutForDelivery() {
+    Order order = pendingOrder(OrderFulfillment.DELIVERY);
+    order.prepare();
+
+    order.ship();
+
+    assertThat(order.status()).isEqualTo(OrderStatus.OUT_FOR_DELIVERY);
+  }
+
+  @Test
+  void shipThrowsWhenNotPreparing() {
+    Order order = pendingOrder(OrderFulfillment.DELIVERY);
+
+    assertThatIllegalStateException().isThrownBy(order::ship);
+  }
+
+  @Test
+  void shipThrowsWhenFulfillmentIsNotDelivery() {
+    Order order = pendingOrder(OrderFulfillment.PICKUP);
+    order.prepare();
+
+    assertThatIllegalStateException().isThrownBy(order::ship);
+  }
+
+  @Test
+  void completeMovesDeliveryOutForDeliveryToDelivered() {
+    Order order = pendingOrder(OrderFulfillment.DELIVERY);
+    order.prepare();
+    order.ship();
+
+    order.complete();
+
+    assertThat(order.status()).isEqualTo(OrderStatus.DELIVERED);
+  }
+
+  @Test
+  void completeMovesPickupPreparingToDelivered() {
+    Order order = pendingOrder(OrderFulfillment.PICKUP);
+    order.prepare();
+
+    order.complete();
+
+    assertThat(order.status()).isEqualTo(OrderStatus.DELIVERED);
+  }
+
+  @Test
+  void completeMovesNonePreparingToDelivered() {
+    Order order = pendingOrder(OrderFulfillment.NONE);
+    order.prepare();
+
+    order.complete();
+
+    assertThat(order.status()).isEqualTo(OrderStatus.DELIVERED);
+  }
+
+  @Test
+  void completeThrowsWhenStatusDoesNotMatchFulfillment() {
+    Order order = pendingOrder(OrderFulfillment.DELIVERY);
+    order.prepare();
+
+    assertThatIllegalStateException().isThrownBy(order::complete);
+  }
+
+  @Test
+  void rejectMovesPendingToRejected() {
+    Order order = pendingOrder(OrderFulfillment.PICKUP);
+
+    order.reject();
+
+    assertThat(order.status()).isEqualTo(OrderStatus.REJECTED);
+  }
+
+  @Test
+  void rejectThrowsWhenNotPending() {
+    Order order = pendingOrder(OrderFulfillment.PICKUP);
+    order.prepare();
+
+    assertThatIllegalStateException().isThrownBy(order::reject);
+  }
+
+  @Test
+  void cancelMovesPendingToCancelled() {
+    Order order = pendingOrder(OrderFulfillment.PICKUP);
+
+    order.cancel();
+
+    assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
+  }
+
+  @Test
+  void cancelMovesPreparingToCancelled() {
+    Order order = pendingOrder(OrderFulfillment.PICKUP);
+    order.prepare();
+
+    order.cancel();
+
+    assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
+  }
+
+  @Test
+  void cancelThrowsWhenNotPendingOrPreparing() {
+    Order order = pendingOrder(OrderFulfillment.PICKUP);
+    order.prepare();
+    order.complete();
+
+    assertThatIllegalStateException().isThrownBy(order::cancel);
+  }
+
+  private Order pendingOrder(OrderFulfillment fulfillment) {
+    return Order.place(
+        OrderId.newId(),
+        OrderNumber.of("WEB-20260913-000005"),
+        OrderChannel.WEB,
+        fulfillment,
+        null,
+        ENCRYPTED,
+        ENCRYPTED,
+        ENCRYPTED,
+        ENCRYPTED,
+        ENCRYPTED,
+        ENCRYPTED,
+        List.of(oneRose()),
+        fulfillment == OrderFulfillment.PICKUP
+            ? OrderDelivery.forPickup(LocalDate.of(2026, 9, 20), LocalTime.of(10, 0), LocalTime.of(11, 0))
+            : null,
+        new BigDecimal("20.00"),
+        BigDecimal.ZERO);
   }
 }

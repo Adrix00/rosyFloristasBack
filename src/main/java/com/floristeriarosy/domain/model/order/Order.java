@@ -279,6 +279,92 @@ public final class Order {
   }
 
   /**
+   * Moves the order into preparation (order.md, section 3.9).
+   *
+   * @throws IllegalStateException the order is not {@code PENDING} — the caller must have already
+   *     checked this and thrown the user-facing {@code OrderInvalidTransitionException} itself;
+   *     this is a last-resort guard, not the real precondition check
+   */
+  public void prepare() {
+    LOGGER.debug("prepare id={} status={}", id, status);
+    requireStatus(OrderStatus.PENDING);
+    status = OrderStatus.PREPARING;
+    LOGGER.debug("prepare id={} -> preparing", id);
+  }
+
+  /**
+   * Sends a {@code DELIVERY} order out for delivery (order.md, section 3.9).
+   *
+   * @throws IllegalStateException the order is not {@code PREPARING}, or {@code fulfillment} is not
+   *     {@code DELIVERY} — same caveat as {@link #prepare()}
+   */
+  public void ship() {
+    LOGGER.debug("ship id={} status={} fulfillment={}", id, status, fulfillment);
+    requireStatus(OrderStatus.PREPARING);
+    if (fulfillment != OrderFulfillment.DELIVERY) {
+      throw new IllegalStateException("Order " + id + " fulfillment is " + fulfillment + ", expected DELIVERY");
+    }
+    status = OrderStatus.OUT_FOR_DELIVERY;
+    LOGGER.debug("ship id={} -> out for delivery", id);
+  }
+
+  /**
+   * Marks the order delivered or picked up (order.md, section 3.9): from {@code OUT_FOR_DELIVERY}
+   * for {@code DELIVERY}, or directly from {@code PREPARING} for {@code PICKUP}/{@code NONE}.
+   *
+   * @throws IllegalStateException the order is not in the expected status for its fulfillment mode
+   *     — same caveat as {@link #prepare()}
+   */
+  public void complete() {
+    LOGGER.debug("complete id={} status={} fulfillment={}", id, status, fulfillment);
+    requireStatus(fulfillment == OrderFulfillment.DELIVERY ? OrderStatus.OUT_FOR_DELIVERY : OrderStatus.PREPARING);
+    status = OrderStatus.DELIVERED;
+    LOGGER.debug("complete id={} -> delivered", id);
+  }
+
+  /**
+   * Rejects the order before preparation starts (order.md, section 3.9) — the admin cannot fulfill
+   * it. Reversal (stock, discount, refund, notification) is a separate concern, driven by the
+   * caller after this returns (section 3.10).
+   *
+   * @throws IllegalStateException the order is not {@code PENDING} — same caveat as {@link
+   *     #prepare()}
+   */
+  public void reject() {
+    LOGGER.debug("reject id={} status={}", id, status);
+    requireStatus(OrderStatus.PENDING);
+    status = OrderStatus.REJECTED;
+    LOGGER.debug("reject id={} -> rejected", id);
+  }
+
+  /**
+   * Cancels the order (order.md, section 3.9) — from {@code PENDING} or {@code PREPARING}. Which of
+   * those two the caller is actually allowed to use depends on who is asking (admin vs. the owning
+   * customer, section 3.9) and is checked by the caller before this is invoked, not here — same
+   * caveat as {@link #prepare()}. Reversal is a separate concern (section 3.10).
+   *
+   * @throws IllegalStateException the order is not {@code PENDING} or {@code PREPARING}
+   */
+  public void cancel() {
+    LOGGER.debug("cancel id={} status={}", id, status);
+    if (status != OrderStatus.PENDING && status != OrderStatus.PREPARING) {
+      throw new IllegalStateException("Order " + id + " is " + status + ", expected PENDING or PREPARING");
+    }
+    status = OrderStatus.CANCELLED;
+    LOGGER.debug("cancel id={} -> cancelled", id);
+  }
+
+  /**
+   * @param expected the status this order must currently have
+   * @throws IllegalStateException the current status is not {@code expected}
+   */
+  private void requireStatus(OrderStatus expected) {
+    if (status != expected) {
+      throw new IllegalStateException("Order " + id + " is " + status + ", expected " + expected);
+    }
+  }
+
+  /**
    * @return the application-generated identifier
    */
   public OrderId id() {

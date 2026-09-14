@@ -107,6 +107,20 @@ session. Specifically:
 None of this changes the 11-step development workflow above or the coding-style rules below —
 ponytail governs *how lean* the code at each step is, not which steps happen or in what order.
 
+### Phase gate: review before a phase is done
+
+- IMPLEMENTER keeps making normal incremental commits while executing a phase's plan (the usual
+  red-green-refactor safety net, one commit per task as the plan specifies) — this rule does not
+  forbid committing.
+- A phase is done once REVIEWER has done its own manual pass (correctness/ADR compliance plus
+  `ponytail-review` for over-engineering) against the plan and the docs, and `mvn verify` is green.
+  `/ultrareview` is not required to close a phase — it is a separate, user-triggered, billed check
+  the user may run whenever they choose, on any branch or PR, independent of this per-phase rhythm.
+  If the user does run it, REVIEWER acts on its findings same as any other review feedback.
+- Merging a phase's branch/commits into `main` still requires the user's explicit go-ahead, same as
+  every other merge — this rule only adds a checkpoint before that, it does not change who approves
+  a merge.
+
 ---
 
 ## Coding Style
