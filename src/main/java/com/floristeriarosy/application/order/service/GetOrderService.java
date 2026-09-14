@@ -1,15 +1,14 @@
 package com.floristeriarosy.application.order.service;
 
 import com.floristeriarosy.application.order.dto.OrderDto;
+import com.floristeriarosy.application.order.mapper.OrderDtoMapper;
 import com.floristeriarosy.application.order.port.in.GetOrderUseCase;
 import com.floristeriarosy.application.order.port.out.OrderReadPort;
 import com.floristeriarosy.application.order.query.GetOrderQuery;
 import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.domain.exception.order.OrderNotFoundException;
 import com.floristeriarosy.domain.model.order.Order;
-import com.floristeriarosy.domain.model.order.OrderItem;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
-import java.math.BigDecimal;
 import java.security.MessageDigest;
 import java.util.Locale;
 import java.util.Objects;
@@ -52,7 +51,7 @@ public class GetOrderService implements GetOrderUseCase {
             .findByOrderNumber(OrderNumber.of(query.orderNumber()))
             .orElseThrow(() -> new OrderNotFoundException("Order " + query.orderNumber() + " not found"));
     ensureOwnership(order, query);
-    OrderDto result = toDto(order);
+    OrderDto result = OrderDtoMapper.toDto(order);
     LOGGER.debug("getOrder orderNumber={} -> found", Encode.forJava(query.orderNumber()));
     return result;
   }
@@ -77,40 +76,5 @@ public class GetOrderService implements GetOrderUseCase {
     if (!MessageDigest.isEqual(providedHash, order.buyerEmailHash())) {
       throw new OrderNotFoundException("Order " + query.orderNumber() + " not found");
     }
-  }
-
-  /**
-   * @param order the owned order
-   * @return its public view
-   */
-  private OrderDto toDto(Order order) {
-    return new OrderDto(
-        order.id().value(),
-        order.orderNumber().value(),
-        order.channel().name(),
-        order.fulfillment().name(),
-        order.status().name(),
-        order.items().stream().map(this::toDto).toList(),
-        order.subtotal(),
-        order.shippingCost(),
-        order.total(),
-        order.placedAt());
-  }
-
-  /**
-   * @param item a sold line
-   * @return its public view
-   */
-  private OrderDto.Item toDto(OrderItem item) {
-    BigDecimal effectivePrice = item.discountPrice() != null ? item.discountPrice() : item.unitPrice();
-    BigDecimal lineTotal = effectivePrice.multiply(BigDecimal.valueOf(item.quantity()));
-    return new OrderDto.Item(
-        item.productId().value(),
-        item.productName(),
-        item.productAttributes(),
-        item.unitPrice(),
-        item.discountPrice(),
-        item.quantity(),
-        lineTotal);
   }
 }
