@@ -9,7 +9,9 @@ import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
 import com.floristeriarosy.infrastructure.persistence.entity.order.OrderEntity;
 import com.floristeriarosy.infrastructure.persistence.jpa.order.repository.OrderJpaRepository;
 import com.floristeriarosy.infrastructure.persistence.mapper.order.OrderPersistenceMapper;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -57,8 +59,24 @@ public class OrderPersistenceAdapter implements OrderReadPort, OrderWritePort {
   @Override
   public Optional<Order> findByOrderNumber(OrderNumber orderNumber) {
     LOGGER.debug("findByOrderNumber orderNumber={}", orderNumber);
-    Optional<Order> result = jpaRepository.findByOrderNumber(orderNumber.value()).map(mapper::toDomain);
+    Optional<Order> result =
+        jpaRepository.findByOrderNumber(orderNumber.value()).map(mapper::toDomain);
     LOGGER.debug("findByOrderNumber orderNumber={} -> found={}", orderNumber, result.isPresent());
+    return result;
+  }
+
+  /**
+   * @param customerId the customer whose orders to list
+   * @return the customer's orders, newest first
+   */
+  @Override
+  public List<Order> findByCustomerId(UUID customerId) {
+    LOGGER.debug("findByCustomerId customerId={}", customerId);
+    List<Order> result =
+        jpaRepository.findByCustomerIdOrderByCreatedAtDesc(customerId).stream()
+            .map(mapper::toDomain)
+            .toList();
+    LOGGER.debug("findByCustomerId customerId={} -> count={}", customerId, result.size());
     return result;
   }
 

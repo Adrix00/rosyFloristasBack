@@ -1,6 +1,7 @@
 package com.floristeriarosy.infrastructure.persistence.jpa.order.repository;
 
 import com.floristeriarosy.infrastructure.persistence.entity.order.OrderEntity;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,4 +14,10 @@ public interface OrderJpaRepository extends JpaRepository<OrderEntity, UUID> {
    * @return the order entity, if it exists
    */
   Optional<OrderEntity> findByOrderNumber(String orderNumber);
+
+  /**
+   * @param customerId the customer whose orders to list
+   * @return the customer's orders, newest first
+   */
+  List<OrderEntity> findByCustomerIdOrderByCreatedAtDesc(UUID customerId);
 }
