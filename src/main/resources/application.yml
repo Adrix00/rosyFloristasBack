@@ -75,3 +75,10 @@ app:
       notification-url: ${REDSYS_NOTIFICATION_URL:http://localhost:8080/api/v1/payments/redsys/notification}
       url-ok: ${REDSYS_URL_OK:http://localhost:5173/checkout/ok}
       url-ko: ${REDSYS_URL_KO:http://localhost:5173/checkout/ko}
+  geocoding:
+    google-maps:
+      api-key: ${GOOGLE_MAPS_API_KEY:}
+      geocode-url: ${GOOGLE_MAPS_GEOCODE_URL:https://maps.googleapis.com/maps/api/geocode/json}
+    store:
+      latitude: ${STORE_LATITUDE:40.4168}
+      longitude: ${STORE_LONGITUDE:-3.7038}
