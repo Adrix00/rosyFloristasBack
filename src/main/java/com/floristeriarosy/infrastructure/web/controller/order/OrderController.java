@@ -1,13 +1,27 @@
 package com.floristeriarosy.infrastructure.web.controller.order;
 
+import com.floristeriarosy.application.order.command.CancelOrderCommand;
+import com.floristeriarosy.application.order.command.CompleteOrderCommand;
+import com.floristeriarosy.application.order.command.PrepareOrderCommand;
+import com.floristeriarosy.application.order.command.RejectOrderCommand;
+import com.floristeriarosy.application.order.command.ShipOrderCommand;
 import com.floristeriarosy.application.order.dto.OrderDto;
+import com.floristeriarosy.application.order.port.in.CancelOrderUseCase;
+import com.floristeriarosy.application.order.port.in.CompleteOrderUseCase;
 import com.floristeriarosy.application.order.port.in.GetOrderUseCase;
 import com.floristeriarosy.application.order.port.in.GetOrdersUseCase;
+import com.floristeriarosy.application.order.port.in.PrepareOrderUseCase;
+import com.floristeriarosy.application.order.port.in.RejectOrderUseCase;
+import com.floristeriarosy.application.order.port.in.ShipOrderUseCase;
 import com.floristeriarosy.application.order.query.GetOrderQuery;
 import com.floristeriarosy.application.order.query.GetOrdersQuery;
 import com.floristeriarosy.infrastructure.security.jwt.AccessTokenJwtClaims;
+import com.floristeriarosy.infrastructure.security.jwt.CurrentAdminResolver;
+import com.floristeriarosy.infrastructure.web.request.order.CancelOrderRequest;
+import com.floristeriarosy.infrastructure.web.request.order.RejectOrderRequest;
 import com.floristeriarosy.infrastructure.web.response.order.OrderItemResponse;
 import com.floristeriarosy.infrastructure.web.response.order.OrderResponse;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import org.owasp.encoder.Encode;
@@ -21,6 +35,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,14 +50,36 @@ public class OrderController {
 
   private final GetOrderUseCase getOrderUseCase;
   private final GetOrdersUseCase getOrdersUseCase;
+  private final PrepareOrderUseCase prepareOrderUseCase;
+  private final ShipOrderUseCase shipOrderUseCase;
+  private final CompleteOrderUseCase completeOrderUseCase;
+  private final RejectOrderUseCase rejectOrderUseCase;
+  private final CancelOrderUseCase cancelOrderUseCase;
 
   /**
    * @param getOrderUseCase loads a single owned order
    * @param getOrdersUseCase lists the authenticated customer's orders
+   * @param prepareOrderUseCase moves an order to PREPARING
+   * @param shipOrderUseCase moves a DELIVERY order to OUT_FOR_DELIVERY
+   * @param completeOrderUseCase marks an order DELIVERED
+   * @param rejectOrderUseCase rejects an order
+   * @param cancelOrderUseCase cancels an order
    */
-  public OrderController(GetOrderUseCase getOrderUseCase, GetOrdersUseCase getOrdersUseCase) {
+  public OrderController(
+      GetOrderUseCase getOrderUseCase,
+      GetOrdersUseCase getOrdersUseCase,
+      PrepareOrderUseCase prepareOrderUseCase,
+      ShipOrderUseCase shipOrderUseCase,
+      CompleteOrderUseCase completeOrderUseCase,
+      RejectOrderUseCase rejectOrderUseCase,
+      CancelOrderUseCase cancelOrderUseCase) {
     this.getOrderUseCase = getOrderUseCase;
     this.getOrdersUseCase = getOrdersUseCase;
+    this.prepareOrderUseCase = prepareOrderUseCase;
+    this.shipOrderUseCase = shipOrderUseCase;
+    this.completeOrderUseCase = completeOrderUseCase;
+    this.rejectOrderUseCase = rejectOrderUseCase;
+    this.cancelOrderUseCase = cancelOrderUseCase;
   }
 
   /**
@@ -65,6 +103,77 @@ public class OrderController {
     OrderResponse response = toResponse(order);
     LOGGER.debug("GET /orders/{} -> found", Encode.forJava(orderNumber));
     return ResponseEntity.ok(response);
+  }
+
+  /**
+   * @param id the order to move to PREPARING
+   * @return the updated order
+   */
+  @PostMapping("/orders/{id}/prepare")
+  public ResponseEntity<OrderResponse> prepare(@PathVariable UUID id) {
+    LOGGER.debug("POST /orders/{}/prepare", Encode.forJava(id.toString()));
+    OrderDto order = prepareOrderUseCase.execute(new PrepareOrderCommand(id, CurrentAdminResolver.resolve()));
+    LOGGER.debug("POST /orders/{}/prepare -> 200", Encode.forJava(id.toString()));
+    return ResponseEntity.ok(toResponse(order));
+  }
+
+  /**
+   * @param id the DELIVERY order to move to OUT_FOR_DELIVERY
+   * @return the updated order
+   */
+  @PostMapping("/orders/{id}/ship")
+  public ResponseEntity<OrderResponse> ship(@PathVariable UUID id) {
+    LOGGER.debug("POST /orders/{}/ship", Encode.forJava(id.toString()));
+    OrderDto order = shipOrderUseCase.execute(new ShipOrderCommand(id, CurrentAdminResolver.resolve()));
+    LOGGER.debug("POST /orders/{}/ship -> 200", Encode.forJava(id.toString()));
+    return ResponseEntity.ok(toResponse(order));
+  }
+
+  /**
+   * @param id the order to mark DELIVERED
+   * @return the updated order
+   */
+  @PostMapping("/orders/{id}/complete")
+  public ResponseEntity<OrderResponse> complete(@PathVariable UUID id) {
+    LOGGER.debug("POST /orders/{}/complete", Encode.forJava(id.toString()));
+    OrderDto order = completeOrderUseCase.execute(new CompleteOrderCommand(id, CurrentAdminResolver.resolve()));
+    LOGGER.debug("POST /orders/{}/complete -> 200", Encode.forJava(id.toString()));
+    return ResponseEntity.ok(toResponse(order));
+  }
+
+  /**
+   * @param id the order to reject
+   * @param request the admin's reason
+   * @return the updated order
+   */
+  @PostMapping("/orders/{id}/reject")
+  public ResponseEntity<OrderResponse> reject(
+      @PathVariable UUID id, @Valid @RequestBody RejectOrderRequest request) {
+    LOGGER.debug("POST /orders/{}/reject", Encode.forJava(id.toString()));
+    OrderDto order =
+        rejectOrderUseCase.execute(
+            new RejectOrderCommand(id, CurrentAdminResolver.resolve(), request.reason()));
+    LOGGER.debug("POST /orders/{}/reject -> 200", Encode.forJava(id.toString()));
+    return ResponseEntity.ok(toResponse(order));
+  }
+
+  /**
+   * @param id the order to cancel
+   * @param request optional reason (required for admin, optional for customer)
+   * @return the updated order
+   */
+  @PostMapping("/orders/{id}/cancel")
+  @PreAuthorize("isAuthenticated()")
+  public ResponseEntity<OrderResponse> cancel(
+      @PathVariable UUID id, @RequestBody(required = false) CancelOrderRequest request) {
+    LOGGER.debug("POST /orders/{}/cancel", Encode.forJava(id.toString()));
+    UUID adminUserId = CurrentAdminResolver.resolve();
+    UUID customerId = adminUserId == null ? resolveCustomerId() : null;
+    String reason = request == null ? null : request.reason();
+    OrderDto order =
+        cancelOrderUseCase.execute(new CancelOrderCommand(id, customerId, adminUserId, reason));
+    LOGGER.debug("POST /orders/{}/cancel -> 200", Encode.forJava(id.toString()));
+    return ResponseEntity.ok(toResponse(order));
   }
 
   /**
