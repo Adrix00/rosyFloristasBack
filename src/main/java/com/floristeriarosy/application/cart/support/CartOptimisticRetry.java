@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -20,6 +21,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  * its stale, dirty entity in the session, which the retry's first query flushes and fails on again.
  * That is why the cart services are not {@code @Transactional} themselves: this class owns the
  * boundary, and one attempt is one transaction.
+ *
+ * <p>The transaction is {@code REQUIRES_NEW}, not {@code REQUIRED}: a caller that already has one
+ * ({@code ConfirmCheckoutService} clears the cart inside the order confirmation) would otherwise
+ * make the attempt join it, so the retry would be just as ineffective and a lost race would mark the
+ * caller's whole transaction rollback-only.
  *
  * <p>{@code operation} must re-resolve the cart from scratch on each call — retrying with the same
  * stale in-memory {@code Cart} would just lose the race again. Kept as one small helper rather than
@@ -37,6 +43,7 @@ public class CartOptimisticRetry {
    */
   public CartOptimisticRetry(PlatformTransactionManager transactionManager) {
     this.transactionTemplate = new TransactionTemplate(transactionManager);
+    this.transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
   }
 
   /**

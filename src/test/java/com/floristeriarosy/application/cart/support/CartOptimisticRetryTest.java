@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import com.floristeriarosy.domain.exception.ResourceModifiedException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 
@@ -50,7 +51,7 @@ class CartOptimisticRetryTest {
   }
 
   @Test
-  void runsEachAttemptInItsOwnTransaction() {
+  void runsEachAttemptInItsOwnNewTransaction() {
     AtomicInteger attempts = new AtomicInteger();
 
     retry.withRetry(
@@ -61,7 +62,14 @@ class CartOptimisticRetryTest {
           return "ok-on-retry";
         });
 
-    verify(transactionManager, times(2)).getTransaction(any(TransactionDefinition.class));
+    ArgumentCaptor<TransactionDefinition> definitions =
+        ArgumentCaptor.forClass(TransactionDefinition.class);
+    verify(transactionManager, times(2)).getTransaction(definitions.capture());
+    assertThat(definitions.getAllValues())
+        .allSatisfy(
+            definition ->
+                assertThat(definition.getPropagationBehavior())
+                    .isEqualTo(TransactionDefinition.PROPAGATION_REQUIRES_NEW));
     verify(transactionManager).rollback(any());
     verify(transactionManager).commit(any());
   }

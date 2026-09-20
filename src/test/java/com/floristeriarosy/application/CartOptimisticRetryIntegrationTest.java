@@ -7,10 +7,12 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 
 import com.floristeriarosy.application.cart.command.AddCartItemCommand;
+import com.floristeriarosy.application.cart.command.ClearCartCommand;
 import com.floristeriarosy.application.cart.dto.CartDto;
 import com.floristeriarosy.application.cart.port.in.AddCartItemUseCase;
-import com.floristeriarosy.application.cart.port.out.CartProductAvailabilityPort;
+import com.floristeriarosy.application.cart.port.in.ClearCartUseCase;
 import com.floristeriarosy.domain.exception.ResourceModifiedException;
+import com.floristeriarosy.infrastructure.persistence.adapter.cart.CartPersistenceAdapter;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -47,7 +52,45 @@ class CartOptimisticRetryIntegrationTest {
 
   @Autowired private AddCartItemUseCase addCartItemUseCase;
   @Autowired private JdbcTemplate jdbcTemplate;
-  @MockitoSpyBean private CartProductAvailabilityPort availabilityPort;
+  @Autowired private ClearCartUseCase clearCartUseCase;
+  @Autowired private PlatformTransactionManager transactionManager;
+  @MockitoSpyBean private CartPersistenceAdapter availabilityPort;
+
+  @Test
+  void clearingInsideAnOuterTransactionRetriesInItsOwnAndTheOuterOneStillCommits() {
+    UUID cartId = UUID.randomUUID();
+    UUID productId = seedProduct();
+    String sessionToken = seedCart(cartId);
+    jdbcTemplate.update(
+        "INSERT INTO cart_items (id, cart_id, product_id, quantity) VALUES (?, ?, ?, 3)",
+        UUID.randomUUID(),
+        cartId,
+        productId);
+    AtomicBoolean raced = new AtomicBoolean();
+    doAnswer(
+            call -> {
+              Object found = call.callRealMethod();
+              if (raced.compareAndSet(false, true)) {
+                bumpVersion(cartId);
+              }
+              return found;
+            })
+        .when(availabilityPort)
+        .findBySessionToken(any());
+
+    new TransactionTemplate(transactionManager)
+        .executeWithoutResult(
+            status -> {
+              assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
+              clearCartUseCase.execute(new ClearCartCommand(null, sessionToken));
+            });
+
+    assertThat(raced).isTrue();
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM cart_items WHERE cart_id = ?", Integer.class, cartId))
+        .isZero();
+  }
 
   @Test
   void addingAnItemSucceedsAfterLosingTheVersionRaceOnce() {
