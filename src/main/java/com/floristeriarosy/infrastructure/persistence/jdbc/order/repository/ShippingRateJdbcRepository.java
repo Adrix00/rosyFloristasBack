@@ -4,6 +4,7 @@ import com.floristeriarosy.application.order.dto.ShippingRate;
 import com.floristeriarosy.infrastructure.persistence.jdbc.order.rowmapper.ShippingRateRowMapper;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -20,6 +21,8 @@ public class ShippingRateJdbcRepository {
       SELECT price, free_from_amount FROM shipping_rates
       WHERE active AND ? >= min_km AND ? < max_km
       """;
+
+  private static final String FIND_MAX_DELIVERY_DISTANCE = "SELECT MAX(max_km) FROM shipping_rates WHERE active";
 
   private final JdbcTemplate jdbcTemplate;
   private final ShippingRateRowMapper rowMapper = new ShippingRateRowMapper();
@@ -40,6 +43,17 @@ public class ShippingRateJdbcRepository {
     LOGGER.debug("findForDistance distanceKm={}", distanceKm);
     List<ShippingRate> result = jdbcTemplate.query(FIND_FOR_DISTANCE, rowMapper, distanceKm, distanceKm);
     LOGGER.debug("findForDistance distanceKm={} -> count={}", distanceKm, result.size());
+    return result;
+  }
+
+  /**
+   * @return the end of the furthest active band, or empty if no band is active
+   */
+  public Optional<BigDecimal> findMaxDeliveryDistance() {
+    LOGGER.debug("findMaxDeliveryDistance");
+    Optional<BigDecimal> result =
+        Optional.ofNullable(jdbcTemplate.queryForObject(FIND_MAX_DELIVERY_DISTANCE, BigDecimal.class));
+    LOGGER.debug("findMaxDeliveryDistance -> {}", result);
     return result;
   }
 }
