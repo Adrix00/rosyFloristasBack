@@ -143,6 +143,30 @@ class ReceiveRedsysNotificationServiceTest {
   }
 
   @Test
+  void approvedForAPreviousAttemptOfARearmedKeyIsRefundedNotConfirmed() throws Exception {
+    String params = signedParams(REDSYS_ORDER_ID, "0000", IDEMPOTENCY_KEY, "auth-1");
+    pendingLockWithOrderNumber("WEB-20260914-000002");
+    when(gatewayPort.refundByGatewayOrderId(any(), any()))
+        .thenReturn(new GatewayRefundResult(true, null, null));
+
+    service.execute(params, signature(params, REDSYS_ORDER_ID));
+
+    verify(gatewayPort).refundByGatewayOrderId(REDSYS_ORDER_ID, new BigDecimal("42.00"));
+    verify(confirmCheckoutUseCase, never()).execute(any());
+  }
+
+  @Test
+  void declinedForAPreviousAttemptMustNotReleaseTheNewAttemptsReservation() throws Exception {
+    String params = signedParams(REDSYS_ORDER_ID, "0190", IDEMPOTENCY_KEY, null);
+    pendingLockWithOrderNumber("WEB-20260914-000002");
+
+    service.execute(params, signature(params, REDSYS_ORDER_ID));
+
+    verify(gatewayPort, never()).refundByGatewayOrderId(any(), any());
+    verify(confirmCheckoutUseCase, never()).execute(any());
+  }
+
+  @Test
   void aResolvedApprovalIsNeverRefunded() throws Exception {
     String params = signedParams(REDSYS_ORDER_ID, "0000", IDEMPOTENCY_KEY, "auth-1");
     pendingLockWithOrderNumber(BUSINESS_ORDER_NUMBER);

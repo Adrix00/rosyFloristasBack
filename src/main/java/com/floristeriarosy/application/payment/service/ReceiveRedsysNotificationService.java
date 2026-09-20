@@ -12,6 +12,7 @@ import com.floristeriarosy.application.payment.port.out.PaymentGatewayPort;
 import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
 import com.floristeriarosy.infrastructure.payment.redsys.RedsysBase64;
+import com.floristeriarosy.infrastructure.payment.redsys.RedsysOrderId;
 import com.floristeriarosy.infrastructure.payment.redsys.RedsysProperties;
 import com.floristeriarosy.infrastructure.payment.redsys.RedsysResponseCode;
 import com.floristeriarosy.infrastructure.payment.redsys.RedsysSignature;
@@ -108,11 +109,20 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
       return;
     }
 
+    OrderNumber orderNumber = orderNumberFrom(lock);
+    if (!RedsysOrderId.from(orderNumber).equals(redsysOrderId)) {
+      LOGGER.debug(
+          "receiveRedsysNotification idempotencyKey={} -> Ds_Order is not the current attempt's",
+          Encode.forJava(idempotencyKey));
+      handleExpired(idempotencyKey, redsysOrderId, params, approved);
+      return;
+    }
+
     ConfirmCheckoutOutcome outcome =
         confirmCheckoutUseCase.execute(
             new ConfirmCheckoutCommand(
                 idempotencyKey,
-                orderNumberFrom(lock),
+                orderNumber,
                 approved,
                 approved ? params.get("Ds_AuthorisationCode") : null,
                 approved ? null : "Ds_Response=" + responseCode));
@@ -127,8 +137,11 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
   }
 
   /**
-   * A notification for a checkout the cleanup already released. A declined one changes nothing. An
-   * approved one means Redsys charged the customer and no order exists: refund it automatically from
+   * A notification for a checkout attempt that no longer exists: the cleanup already released it, or
+   * the same idempotency key was re-armed for a new attempt and this {@code Ds_Order} belongs to the
+   * previous one. A declined one changes nothing (in particular it must not release the new
+   * attempt's reservation). An approved one means Redsys charged the customer and no order exists
+   * for that charge: refund it automatically from
    * the notification's own data (there is no {@code payments} row) and log at ERROR so an operator
    * sees it. Never throws: Redsys must still get its 200 so it stops retrying, and if the refund
    * fails too the ERROR log is the alert.
@@ -157,7 +170,7 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
     }
     LOGGER.error(
         "receiveRedsysNotification idempotencyKey={} redsysOrderId={} -> APPROVED after the checkout"
-            + " expired, the customer was charged with no order: {}",
+            + " expired or was superseded, the customer was charged with no order: {}",
         Encode.forJava(idempotencyKey),
         Encode.forJava(redsysOrderId),
         refundOutcome);
