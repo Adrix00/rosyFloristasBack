@@ -82,11 +82,11 @@ public class ShippingRatePersistenceAdapter implements ShippingRatePort {
    * @return every band, ordered by where it starts, read under the tariff mutex
    */
   @Override
-  public List<ShippingBand> findAllForUpdate() {
-    LOGGER.debug("findAllForUpdate");
+  public List<ShippingBand> findAllUnderTariffLock() {
+    LOGGER.debug("findAllUnderTariffLock");
     jdbcRepository.lockTariff();
     List<ShippingBand> result = jpaRepository.findAllOrdered().stream().map(mapper::toDomain).toList();
-    LOGGER.debug("findAllForUpdate -> count={}", result.size());
+    LOGGER.debug("findAllUnderTariffLock -> count={}", result.size());
     return result;
   }
 

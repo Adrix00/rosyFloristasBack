@@ -62,6 +62,9 @@ public class ShippingRateJdbcRepository {
    * everything the previous holder committed, including rows it inserted, which a row lock ({@code
    * SELECT ... FOR UPDATE}, whose row set is fixed when the statement starts) never would. Plain
    * reads, such as the checkout's distance lookup, are not affected.
+   *
+   * <p>Relies on READ COMMITTED (the default): under REPEATABLE READ the transaction's snapshot would
+   * be taken at this statement, before waiting, and would not see what the previous holder commits.
    */
   public void lockTariff() {
     LOGGER.debug("lockTariff");

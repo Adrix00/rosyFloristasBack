@@ -105,7 +105,7 @@ class ShippingRatePersistenceAdapterTest {
     new TransactionTemplate(transactionManager)
         .executeWithoutResult(
             status -> {
-              ShippingBand band = bandOf(adapter.findAllForUpdate(), MIDDLE);
+              ShippingBand band = bandOf(adapter.findAllUnderTariffLock(), MIDDLE);
               band.replaceWith(new BigDecimal("1"), new BigDecimal("5"), new BigDecimal("9.50"), null, true);
               adapter.save(band);
             });
@@ -157,16 +157,16 @@ class ShippingRatePersistenceAdapterTest {
   }
 
   @Test
-  void aSecondTransactionListingForUpdateWaitsForTheFirstToFinish() throws Exception {
+  void aSecondTransactionTakingTheTariffLockWaitsForTheFirstToFinish() throws Exception {
     TransactionTemplate template = new TransactionTemplate(transactionManager);
     AtomicReference<Future<List<ShippingBand>>> second = new AtomicReference<>();
 
     List<ShippingBand> firstSaw =
         template.execute(
             status -> {
-              List<ShippingBand> mine = adapter.findAllForUpdate();
+              List<ShippingBand> mine = adapter.findAllUnderTariffLock();
               // The second transaction starts now and must block on the rows this one holds.
-              second.set(other.submit(() -> template.execute(s -> adapter.findAllForUpdate())));
+              second.set(other.submit(() -> template.execute(s -> adapter.findAllUnderTariffLock())));
               awaitASessionWaitingOnALock();
               assertThat(second.get().isDone()).isFalse();
               return mine;

@@ -36,7 +36,7 @@ class UpdateShippingRateServiceTest {
 
   @Test
   void aPriceChangeIsSavedAndAuditedWithOnlyTheChangedField() {
-    when(port.findAllForUpdate()).thenReturn(List.of(near, middle, far));
+    when(port.findAllUnderTariffLock()).thenReturn(List.of(near, middle, far));
     when(port.save(any())).thenAnswer(call -> call.getArgument(0));
 
     ShippingBandDto updated = service.execute(command(middle, 1, 5, "9.50", true));
@@ -47,7 +47,7 @@ class UpdateShippingRateServiceTest {
 
   @Test
   void extendingTheLastBandIsCoherent() {
-    when(port.findAllForUpdate()).thenReturn(List.of(near, middle, far));
+    when(port.findAllUnderTariffLock()).thenReturn(List.of(near, middle, far));
     when(port.save(any())).thenAnswer(call -> call.getArgument(0));
 
     assertThat(service.execute(command(far, 5, 15, "10.00", true)).maxKm()).isEqualByComparingTo("15");
@@ -55,7 +55,7 @@ class UpdateShippingRateServiceTest {
 
   @Test
   void deactivatingTheLastBandShrinksTheTariffButStaysCoherent() {
-    when(port.findAllForUpdate()).thenReturn(List.of(near, middle, far));
+    when(port.findAllUnderTariffLock()).thenReturn(List.of(near, middle, far));
     when(port.save(any())).thenAnswer(call -> call.getArgument(0));
 
     assertThat(service.execute(command(far, 5, 10, "10.00", false)).active()).isFalse();
@@ -64,7 +64,7 @@ class UpdateShippingRateServiceTest {
   @Test
   void deactivatingTheOnlyActiveBandIsRefusedAndNothingIsSavedOrAudited() {
     ShippingBand only = band(0, 10);
-    when(port.findAllForUpdate()).thenReturn(List.of(only));
+    when(port.findAllUnderTariffLock()).thenReturn(List.of(only));
 
     assertThatThrownBy(() -> service.execute(command(only, 0, 10, "5.00", false)))
         .isInstanceOf(ShippingRatesInvalidException.class)
@@ -76,7 +76,7 @@ class UpdateShippingRateServiceTest {
 
   @Test
   void deactivatingAMiddleBandLeavesAGapAndIsRefused() {
-    when(port.findAllForUpdate()).thenReturn(List.of(near, middle, far));
+    when(port.findAllUnderTariffLock()).thenReturn(List.of(near, middle, far));
 
     assertThatThrownBy(() -> service.execute(command(middle, 1, 5, "8.00", false)))
         .isInstanceOf(ShippingRatesInvalidException.class)
@@ -87,7 +87,7 @@ class UpdateShippingRateServiceTest {
 
   @Test
   void movingTheFirstBandAwayFromZeroIsRefused() {
-    when(port.findAllForUpdate()).thenReturn(List.of(near, middle, far));
+    when(port.findAllUnderTariffLock()).thenReturn(List.of(near, middle, far));
 
     assertThatThrownBy(() -> service.execute(command(near, 0.5, 1, "5.00", true)))
         .isInstanceOf(ShippingRatesInvalidException.class)
@@ -96,7 +96,7 @@ class UpdateShippingRateServiceTest {
 
   @Test
   void aBandThatDoesNotExistIsNotFound() {
-    when(port.findAllForUpdate()).thenReturn(List.of(near, middle, far));
+    when(port.findAllUnderTariffLock()).thenReturn(List.of(near, middle, far));
 
     assertThatThrownBy(() -> service.execute(new UpdateShippingRateCommand(UUID.randomUUID(), admin, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ONE, null, true)))
         .isInstanceOf(ShippingRateNotFoundException.class);
@@ -106,7 +106,7 @@ class UpdateShippingRateServiceTest {
 
   @Test
   void aReplacementThatChangesNothingSavesAndAuditsNothing() {
-    when(port.findAllForUpdate()).thenReturn(List.of(near, middle, far));
+    when(port.findAllUnderTariffLock()).thenReturn(List.of(near, middle, far));
 
     ShippingBandDto same = service.execute(command(middle, 1, 5, "5.00", true));
 

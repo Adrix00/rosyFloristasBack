@@ -62,7 +62,7 @@ public class CreateShippingRateService implements CreateShippingRateUseCase {
         command.freeFromAmount(),
         command.active());
 
-    List<ShippingBand> resulting = new ArrayList<>(shippingRatePort.findAllForUpdate());
+    List<ShippingBand> resulting = new ArrayList<>(shippingRatePort.findAllUnderTariffLock());
     ShippingBand created =
         ShippingBand.create(
             ShippingBandId.newId(),

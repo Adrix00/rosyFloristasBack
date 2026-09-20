@@ -31,7 +31,7 @@ class CreateShippingRateServiceTest {
 
   @Test
   void aBandThatExtendsTheTariffIsSavedAndAudited() {
-    when(port.findAllForUpdate()).thenReturn(List.of(band(0, 5, true), band(5, 10, true)));
+    when(port.findAllUnderTariffLock()).thenReturn(List.of(band(0, 5, true), band(5, 10, true)));
     when(port.save(any())).thenAnswer(call -> call.getArgument(0));
 
     ShippingBandDto created = service.execute(command(10, 15, true));
@@ -49,7 +49,7 @@ class CreateShippingRateServiceTest {
 
   @Test
   void anInactiveBandNeverBreaksTheTariffWhereverItIs() {
-    when(port.findAllForUpdate()).thenReturn(List.of(band(0, 10, true)));
+    when(port.findAllUnderTariffLock()).thenReturn(List.of(band(0, 10, true)));
     when(port.save(any())).thenAnswer(call -> call.getArgument(0));
 
     assertThat(service.execute(command(20, 30, false)).active()).isFalse();
@@ -57,7 +57,7 @@ class CreateShippingRateServiceTest {
 
   @Test
   void aBandThatLeavesAGapIsRefusedAndNothingIsSavedOrAudited() {
-    when(port.findAllForUpdate()).thenReturn(List.of(band(0, 5, true)));
+    when(port.findAllUnderTariffLock()).thenReturn(List.of(band(0, 5, true)));
 
     assertThatThrownBy(() -> service.execute(command(7, 10, true)))
         .isInstanceOf(ShippingRatesInvalidException.class)
@@ -69,7 +69,7 @@ class CreateShippingRateServiceTest {
 
   @Test
   void aBandThatOverlapsIsRefused() {
-    when(port.findAllForUpdate()).thenReturn(List.of(band(0, 5, true)));
+    when(port.findAllUnderTariffLock()).thenReturn(List.of(band(0, 5, true)));
 
     assertThatThrownBy(() -> service.execute(command(3, 8, true)))
         .isInstanceOf(ShippingRatesInvalidException.class)
@@ -80,7 +80,7 @@ class CreateShippingRateServiceTest {
 
   @Test
   void aBandBreakingItsOwnInvariantsIsRefused() {
-    when(port.findAllForUpdate()).thenReturn(List.of(band(0, 5, true)));
+    when(port.findAllUnderTariffLock()).thenReturn(List.of(band(0, 5, true)));
 
     assertThatThrownBy(() -> service.execute(command(8, 5, true))).isInstanceOf(ShippingRatesInvalidException.class);
 

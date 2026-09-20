@@ -62,7 +62,7 @@ public class UpdateShippingRateService implements UpdateShippingRateUseCase {
         command.freeFromAmount(),
         command.active());
 
-    List<ShippingBand> bands = shippingRatePort.findAllForUpdate();
+    List<ShippingBand> bands = shippingRatePort.findAllUnderTariffLock();
     ShippingBand band =
         bands.stream()
             .filter(candidate -> candidate.id().value().equals(command.id()))

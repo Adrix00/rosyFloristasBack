@@ -35,9 +35,12 @@ public interface ShippingRatePort {
    *
    * @return every band, active or not, ordered by where it starts, read under the tariff mutex
    */
-  List<ShippingBand> findAllForUpdate();
+  List<ShippingBand> findAllUnderTariffLock();
 
   /**
+   * Must be preceded, in the same transaction, by {@link #findAllUnderTariffLock()}: that is what
+   * serializes tariff writers, and nothing here takes the lock.
+   *
    * @param band the band to insert or update
    * @return the saved band, with timestamps populated
    * @throws ShippingRatesInvalidException the database refused the change (overlapping active
