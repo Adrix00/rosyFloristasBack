@@ -15,14 +15,13 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Implements {@link ClearCartUseCase}: empties the cart, never deletes it (cart.md §4). A no-op on
- * an already-empty or nonexistent cart writes nothing (cart.md §10).
+ * an already-empty or nonexistent cart writes nothing (cart.md §10). Not {@code @Transactional}:
+ * {@link CartOptimisticRetry} runs each attempt in its own transaction.
  */
 @Service
-@Transactional
 public class ClearCartService implements ClearCartUseCase {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(ClearCartService.class);
@@ -31,18 +30,22 @@ public class ClearCartService implements ClearCartUseCase {
   private final CartWritePort cartWritePort;
   private final CartItemWritePort cartItemWritePort;
   private final CartPricingPort cartPricingPort;
+  private final CartOptimisticRetry optimisticRetry;
 
   /**
    * @param cartReadPort resolves the caller's existing cart, if any
    * @param cartWritePort renews the cart's expiry
    * @param cartItemWritePort deletes every line
    * @param cartPricingPort prices the resulting cart for the response
+   * @param optimisticRetry runs each attempt in its own transaction, retrying once on a lost race
    */
   public ClearCartService(
       CartReadPort cartReadPort,
       CartWritePort cartWritePort,
       CartItemWritePort cartItemWritePort,
-      CartPricingPort cartPricingPort) {
+      CartPricingPort cartPricingPort,
+      CartOptimisticRetry optimisticRetry) {
+    this.optimisticRetry = optimisticRetry;
     this.cartReadPort = cartReadPort;
     this.cartWritePort = cartWritePort;
     this.cartItemWritePort = cartItemWritePort;
@@ -57,7 +60,7 @@ public class ClearCartService implements ClearCartUseCase {
   public CartDto execute(ClearCartCommand command) {
     LOGGER.debug("clearCart hasCustomer={}", command.customerId() != null);
 
-    return CartOptimisticRetry.withRetry(() -> doExecute(command));
+    return optimisticRetry.withRetry(() -> doExecute(command));
   }
 
   /**

@@ -16,11 +16,12 @@ import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-/** Implements {@link RemoveCartItemUseCase}: removes a single line. */
+/**
+ * Implements {@link RemoveCartItemUseCase}: removes a single line. Not {@code @Transactional}:
+ * {@link CartOptimisticRetry} runs each attempt in its own transaction.
+ */
 @Service
-@Transactional
 public class RemoveCartItemService implements RemoveCartItemUseCase {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(RemoveCartItemService.class);
@@ -29,18 +30,22 @@ public class RemoveCartItemService implements RemoveCartItemUseCase {
   private final CartWritePort cartWritePort;
   private final CartItemWritePort cartItemWritePort;
   private final CartPricingPort cartPricingPort;
+  private final CartOptimisticRetry optimisticRetry;
 
   /**
    * @param cartReadPort resolves the caller's existing cart
    * @param cartWritePort renews the cart's expiry
    * @param cartItemWritePort deletes the touched line
    * @param cartPricingPort prices the resulting cart for the response
+   * @param optimisticRetry runs each attempt in its own transaction, retrying once on a lost race
    */
   public RemoveCartItemService(
       CartReadPort cartReadPort,
       CartWritePort cartWritePort,
       CartItemWritePort cartItemWritePort,
-      CartPricingPort cartPricingPort) {
+      CartPricingPort cartPricingPort,
+      CartOptimisticRetry optimisticRetry) {
+    this.optimisticRetry = optimisticRetry;
     this.cartReadPort = cartReadPort;
     this.cartWritePort = cartWritePort;
     this.cartItemWritePort = cartItemWritePort;
@@ -58,7 +63,7 @@ public class RemoveCartItemService implements RemoveCartItemUseCase {
         "removeCartItem hasCustomer={} productId={}", command.customerId() != null, command.productId());
 
     ProductId productId = ProductId.of(command.productId());
-    return CartOptimisticRetry.withRetry(() -> doExecute(command, productId));
+    return optimisticRetry.withRetry(() -> doExecute(command, productId));
   }
 
   /**

@@ -11,6 +11,7 @@ import com.floristeriarosy.application.cart.command.MergeCartCommand;
 import com.floristeriarosy.application.cart.port.out.CartItemWritePort;
 import com.floristeriarosy.application.cart.port.out.CartReadPort;
 import com.floristeriarosy.application.cart.port.out.CartWritePort;
+import com.floristeriarosy.application.cart.support.CartOptimisticRetry;
 import com.floristeriarosy.domain.model.cart.Cart;
 import com.floristeriarosy.domain.model.cart.valueobject.CartId;
 import com.floristeriarosy.domain.model.product.valueobject.ProductId;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
@@ -34,13 +36,19 @@ class MergeCartServiceTest {
 
   @Mock private CartReadPort cartReadPort;
   @Mock private CartWritePort cartWritePort;
+  @Mock private PlatformTransactionManager transactionManager;
   @Mock private CartItemWritePort cartItemWritePort;
 
   private MergeCartService service;
 
   @BeforeEach
   void setUp() {
-    service = new MergeCartService(cartReadPort, cartWritePort, cartItemWritePort);
+    service =
+        new MergeCartService(
+            cartReadPort,
+            cartWritePort,
+            cartItemWritePort,
+            new CartOptimisticRetry(transactionManager));
   }
 
   private Cart cartWith(UUID customerId, Map<ProductId, Integer> items) {

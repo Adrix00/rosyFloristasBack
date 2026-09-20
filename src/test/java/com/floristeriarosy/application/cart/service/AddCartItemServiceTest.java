@@ -18,6 +18,7 @@ import com.floristeriarosy.application.cart.port.out.CartPricingPort;
 import com.floristeriarosy.application.cart.port.out.CartProductAvailabilityPort;
 import com.floristeriarosy.application.cart.port.out.CartReadPort;
 import com.floristeriarosy.application.cart.port.out.CartWritePort;
+import com.floristeriarosy.application.cart.support.CartOptimisticRetry;
 import com.floristeriarosy.domain.exception.ResourceModifiedException;
 import com.floristeriarosy.domain.exception.cart.CartInsufficientStockException;
 import com.floristeriarosy.domain.exception.cart.CartItemLimitExceededException;
@@ -36,6 +37,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /** {@link AddCartItemService}: cart.md rules 3.1, 3.3, 3.6. */
@@ -44,6 +46,7 @@ class AddCartItemServiceTest {
 
   @Mock private CartReadPort cartReadPort;
   @Mock private CartWritePort cartWritePort;
+  @Mock private PlatformTransactionManager transactionManager;
   @Mock private CartItemWritePort cartItemWritePort;
   @Mock private CartPricingPort cartPricingPort;
   @Mock private CartProductAvailabilityPort availabilityPort;
@@ -52,7 +55,14 @@ class AddCartItemServiceTest {
 
   @BeforeEach
   void setUp() {
-    service = new AddCartItemService(cartReadPort, cartWritePort, cartItemWritePort, cartPricingPort, availabilityPort);
+    service =
+        new AddCartItemService(
+            cartReadPort,
+            cartWritePort,
+            cartItemWritePort,
+            cartPricingPort,
+            availabilityPort,
+            new CartOptimisticRetry(transactionManager));
   }
 
   private Cart existingCart(Map<ProductId, Integer> items) {
