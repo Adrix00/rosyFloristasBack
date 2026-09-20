@@ -198,7 +198,9 @@ los otros dos errores de reparto.
 
 **El radio de reparto es el del tramo activo más lejano** (hoy 10 km con los tramos de arranque): una
 distancia que ningún tramo activo cubre se rechaza con 422 `DELIVERY_OUT_OF_RANGE`. No hay una constante
-de radio aparte de los tramos, para que no puedan desalinearse.
+de radio aparte de los tramos, para que no puedan desalinearse. Los tramos son intervalos semiabiertos
+`[min_km, max_km)`: una dirección a **exactamente** el `max_km` del último tramo queda fuera (con el radio de
+10 km, a 10,00 km no se reparte; a 9,99 sí).
 
 **Los tramos los administra un `ADMIN` desde el panel** (endpoints de la sección 4). Reglas que la
 aplicación exige tras cada cambio, sobre el conjunto de tramos **activos**:
