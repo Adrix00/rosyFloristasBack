@@ -2,6 +2,7 @@ package com.floristeriarosy.application.order.port.out;
 
 import com.floristeriarosy.application.order.dto.IdempotencyLock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,6 +18,35 @@ public interface CheckoutIdempotencyPort {
    * @return the current lock, if a row exists for this key on {@code POST /checkout}
    */
   Optional<IdempotencyLock> find(String idempotencyKey);
+
+  /**
+   * Same lookup, taking the row lock until the caller's transaction ends: a Redsys notification and
+   * the abandoned-checkout cleanup can never both resolve the same row — whichever gets the lock
+   * first wins, the other sees the resolved state.
+   *
+   * @param idempotencyKey the client-supplied key
+   * @return the current lock, locked, if a row exists for this key on {@code POST /checkout}
+   */
+  Optional<IdempotencyLock> findForUpdate(String idempotencyKey);
+
+  /**
+   * @param now the instant "expired" is measured against
+   * @param limit the most keys to return
+   * @return the keys of {@code PENDING} checkouts past their expiry, oldest first; a plain
+   *     candidate list, not locked (each candidate is claimed separately with {@link
+   *     #lockExpiredPending})
+   */
+  List<String> findExpiredPendingKeys(Instant now, int limit);
+
+  /**
+   * Re-checks under the row lock that the checkout is still {@code PENDING} and expired, skipping
+   * a row another transaction already holds.
+   *
+   * @param idempotencyKey a candidate from {@link #findExpiredPendingKeys}
+   * @param now the instant "expired" is measured against
+   * @return the locked row, or empty if it was resolved, is not expired, or is locked elsewhere
+   */
+  Optional<IdempotencyLock> lockExpiredPending(String idempotencyKey, Instant now);
 
   /**
    * @param idempotencyKey the client-supplied key

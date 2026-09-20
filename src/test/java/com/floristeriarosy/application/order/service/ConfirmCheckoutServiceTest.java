@@ -93,7 +93,7 @@ class ConfirmCheckoutServiceTest {
   void approvedMaterializesTheOrderAndClearsTheCart() {
     IdempotencyLock lock =
         new IdempotencyLock("PENDING", new byte[0], UUID.randomUUID(), new byte[0]);
-    when(idempotencyPort.find("idem-1")).thenReturn(Optional.of(lock));
+    when(idempotencyPort.findForUpdate("idem-1")).thenReturn(Optional.of(lock));
     when(findOrCreateGuestCustomerUseCase.execute(any()))
         .thenReturn(CustomerId.of(UUID.randomUUID()));
 
@@ -111,7 +111,7 @@ class ConfirmCheckoutServiceTest {
   void alreadyCompletedIsIgnoredNotReprocessed() {
     IdempotencyLock lock =
         new IdempotencyLock("COMPLETED", new byte[0], UUID.randomUUID(), new byte[0]);
-    when(idempotencyPort.find("idem-2")).thenReturn(Optional.of(lock));
+    when(idempotencyPort.findForUpdate("idem-2")).thenReturn(Optional.of(lock));
 
     service.execute(
         new ConfirmCheckoutCommand(
@@ -125,7 +125,7 @@ class ConfirmCheckoutServiceTest {
   void declinedReversesReservationAndMarksCompletedWith200() {
     IdempotencyLock lock =
         new IdempotencyLock("PENDING", new byte[0], UUID.randomUUID(), new byte[0]);
-    when(idempotencyPort.find("idem-3")).thenReturn(Optional.of(lock));
+    when(idempotencyPort.findForUpdate("idem-3")).thenReturn(Optional.of(lock));
 
     service.execute(
         new ConfirmCheckoutCommand(
@@ -139,7 +139,7 @@ class ConfirmCheckoutServiceTest {
 
   @Test
   void unknownKeyIsIgnoredNotReprocessed() {
-    when(idempotencyPort.find("idem-4")).thenReturn(Optional.empty());
+    when(idempotencyPort.findForUpdate("idem-4")).thenReturn(Optional.empty());
 
     service.execute(
         new ConfirmCheckoutCommand(

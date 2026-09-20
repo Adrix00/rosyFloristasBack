@@ -102,7 +102,7 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
         "confirmCheckout idempotencyKey={} approved={}",
         Encode.forJava(command.idempotencyKey()),
         command.approved());
-    Optional<IdempotencyLock> lock = idempotencyPort.find(command.idempotencyKey());
+    Optional<IdempotencyLock> lock = idempotencyPort.findForUpdate(command.idempotencyKey());
     if (lock.isEmpty() || !"PENDING".equals(lock.get().status())) {
       LOGGER.debug(
           "confirmCheckout idempotencyKey={} -> already resolved or unknown, ignoring (Redsys retry)",

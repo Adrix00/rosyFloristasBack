@@ -4,8 +4,10 @@ import com.floristeriarosy.application.order.dto.IdempotencyLock;
 import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
 import com.floristeriarosy.domain.exception.order.IdempotencyOperationInProgressException;
 import com.floristeriarosy.infrastructure.persistence.entity.order.IdempotencyKeyEntity;
+import com.floristeriarosy.infrastructure.persistence.jdbc.order.repository.CheckoutIdempotencyJdbcRepository;
 import com.floristeriarosy.infrastructure.persistence.jpa.order.repository.IdempotencyKeyJpaRepository;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.owasp.encoder.Encode;
@@ -26,12 +28,16 @@ public class CheckoutIdempotencyPersistenceAdapter implements CheckoutIdempotenc
   private static final String ENDPOINT = "POST /checkout";
 
   private final IdempotencyKeyJpaRepository jpaRepository;
+  private final CheckoutIdempotencyJdbcRepository jdbcRepository;
 
   /**
    * @param jpaRepository reads and writes {@code idempotency_keys}
+   * @param jdbcRepository selects and claims the expired {@code PENDING} rows
    */
-  public CheckoutIdempotencyPersistenceAdapter(IdempotencyKeyJpaRepository jpaRepository) {
+  public CheckoutIdempotencyPersistenceAdapter(
+      IdempotencyKeyJpaRepository jpaRepository, CheckoutIdempotencyJdbcRepository jdbcRepository) {
     this.jpaRepository = jpaRepository;
+    this.jdbcRepository = jdbcRepository;
   }
 
   /**
@@ -41,15 +47,51 @@ public class CheckoutIdempotencyPersistenceAdapter implements CheckoutIdempotenc
   @Override
   public Optional<IdempotencyLock> find(String idempotencyKey) {
     LOGGER.debug("find idempotencyKey={}", Encode.forJava(idempotencyKey));
+    return jpaRepository.findByIdempotencyKeyAndEndpoint(idempotencyKey, ENDPOINT).map(this::toLock);
+  }
+
+  /**
+   * @param idempotencyKey the client-supplied key
+   * @return the current lock, row-locked until the caller's transaction ends, if any
+   */
+  @Override
+  public Optional<IdempotencyLock> findForUpdate(String idempotencyKey) {
+    LOGGER.debug("findForUpdate idempotencyKey={}", Encode.forJava(idempotencyKey));
     return jpaRepository
-        .findByIdempotencyKeyAndEndpoint(idempotencyKey, ENDPOINT)
-        .map(
-            entity ->
-                new IdempotencyLock(
-                    entity.getStatus(),
-                    entity.getRequestFingerprint(),
-                    entity.getResourceId(),
-                    entity.getCheckoutPayloadEncrypted()));
+        .findForUpdateByIdempotencyKeyAndEndpoint(idempotencyKey, ENDPOINT)
+        .map(this::toLock);
+  }
+
+  /**
+   * @param now the instant "expired" is measured against
+   * @param limit the most keys to return
+   * @return the keys of expired {@code PENDING} checkouts, oldest first
+   */
+  @Override
+  public List<String> findExpiredPendingKeys(Instant now, int limit) {
+    return jdbcRepository.findExpiredPendingKeys(ENDPOINT, now, limit);
+  }
+
+  /**
+   * @param idempotencyKey a candidate key
+   * @param now the instant "expired" is measured against
+   * @return the claimed row, or empty if it is no longer claimable
+   */
+  @Override
+  public Optional<IdempotencyLock> lockExpiredPending(String idempotencyKey, Instant now) {
+    return jdbcRepository.lockExpiredPending(idempotencyKey, ENDPOINT, now);
+  }
+
+  /**
+   * @param entity the persisted row
+   * @return its lock view
+   */
+  private IdempotencyLock toLock(IdempotencyKeyEntity entity) {
+    return new IdempotencyLock(
+        entity.getStatus(),
+        entity.getRequestFingerprint(),
+        entity.getResourceId(),
+        entity.getCheckoutPayloadEncrypted());
   }
 
   /**
