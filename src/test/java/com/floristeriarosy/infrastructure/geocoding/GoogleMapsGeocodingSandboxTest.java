@@ -1,12 +1,14 @@
 package com.floristeriarosy.infrastructure.geocoding;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.floristeriarosy.application.order.dto.GeocodedAddress;
+import com.floristeriarosy.domain.exception.order.GeocodingUnavailableException;
 import java.math.BigDecimal;
 import java.util.Optional;
 import org.junit.jupiter.api.Tag;
@@ -19,7 +21,9 @@ import tools.jackson.databind.ObjectMapper;
  * Real calls to Google Maps (opt-in: {@code mvn -Psandbox test}); reported as skipped without a
  * {@code GOOGLE_MAPS_API_KEY}. The key is read from the environment and never printed or asserted
  * on. Distances are measured from the shop's real coordinates, so a landmark next to the shop must
- * be well inside the 10 km delivery limit and one in another town well outside it.
+ * be well inside the 10 km delivery limit and one in another town well outside it. A delivery
+ * address must be real (order.md §3.7): a wrong house number, a misspelled street, a wrong postal
+ * code and a nonsense address are all refused.
  */
 @Tag("sandbox")
 @EnabledIfEnvironmentVariable(named = "GOOGLE_MAPS_API_KEY", matches = ".+")
@@ -48,12 +52,27 @@ class GoogleMapsGeocodingSandboxTest {
   }
 
   @Test
-  void aNonsenseAddressIsNotFound() {
+  void aNonExistentHouseNumberIsRefused() {
+    assertThat(realClient().geocode("Paseo de la Chopera", "9999", "28045")).isEmpty();
+  }
+
+  @Test
+  void aMisspelledStreetIsRefused() {
+    assertThat(realClient().geocode("Paseo de la Chopra", "14", "28045")).isEmpty();
+  }
+
+  @Test
+  void aWrongPostalCodeIsRefusedEvenThoughGoogleFindsTheBuildingUnderTheRightOne() {
+    assertThat(realClient().geocode("Paseo de la Chopera", "14", "28001")).isEmpty();
+  }
+
+  @Test
+  void aNonsenseAddressIsRefused() {
     assertThat(realClient().geocode("Zzqxjv Qwkjhg", "99999", "00000")).isEmpty();
   }
 
   @Test
-  void aRejectedKeyIsAnEmptyResultLoggedAtWarnWithTheStatusOnlyAndNeverTheKey() {
+  void aRejectedKeyIsUnavailableNotAFakeAddressAndIsLoggedAtWarnWithTheStatusOnlyAndNeverTheKey() {
     String badKey = "not-a-real-key-" + System.nanoTime();
     ListAppender<ILoggingEvent> appender = new ListAppender<>();
     appender.start();
@@ -61,10 +80,10 @@ class GoogleMapsGeocodingSandboxTest {
     GeocodingProperties properties =
         new GeocodingProperties(new GeocodingProperties.GoogleMaps(badKey, GEOCODE_URL), SHOP);
 
-    Optional<GeocodedAddress> result =
-        new GoogleMapsGeocodingClient(properties, new ObjectMapper()).geocode("Paseo de la Chopera", "14", "28045");
+    assertThatThrownBy(
+            () -> new GoogleMapsGeocodingClient(properties, new ObjectMapper()).geocode("Paseo de la Chopera", "14", "28045"))
+        .isInstanceOf(GeocodingUnavailableException.class);
 
-    assertThat(result).isEmpty();
     assertThat(appender.list)
         .filteredOn(event -> event.getLevel() == Level.WARN)
         .singleElement()

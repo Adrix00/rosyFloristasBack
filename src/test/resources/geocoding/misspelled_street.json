@@ -1,0 +1,107 @@
+{
+   "results" : 
+   [
+      {
+         "address_components" : 
+         [
+            {
+               "long_name" : "28045",
+               "short_name" : "28045",
+               "types" : 
+               [
+                  "postal_code"
+               ]
+            },
+            {
+               "long_name" : "Arganzuela",
+               "short_name" : "Arganzuela",
+               "types" : 
+               [
+                  "political",
+                  "sublocality",
+                  "sublocality_level_1"
+               ]
+            },
+            {
+               "long_name" : "Madrid",
+               "short_name" : "Madrid",
+               "types" : 
+               [
+                  "locality",
+                  "political"
+               ]
+            },
+            {
+               "long_name" : "Madrid",
+               "short_name" : "M",
+               "types" : 
+               [
+                  "administrative_area_level_2",
+                  "political"
+               ]
+            },
+            {
+               "long_name" : "Community of Madrid",
+               "short_name" : "MD",
+               "types" : 
+               [
+                  "administrative_area_level_1",
+                  "political"
+               ]
+            },
+            {
+               "long_name" : "Spain",
+               "short_name" : "ES",
+               "types" : 
+               [
+                  "country",
+                  "political"
+               ]
+            }
+         ],
+         "formatted_address" : "Arganzuela, 28045 Madrid, Spain",
+         "geometry" : 
+         {
+            "bounds" : 
+            {
+               "northeast" : 
+               {
+                  "lat" : 40.4079991,
+                  "lng" : -3.673554199999999
+               },
+               "southwest" : 
+               {
+                  "lat" : 40.3823175,
+                  "lng" : -3.7049369
+               }
+            },
+            "location" : 
+            {
+               "lat" : 40.39547640000001,
+               "lng" : -3.6902166
+            },
+            "location_type" : "APPROXIMATE",
+            "viewport" : 
+            {
+               "northeast" : 
+               {
+                  "lat" : 40.4079991,
+                  "lng" : -3.673554199999999
+               },
+               "southwest" : 
+               {
+                  "lat" : 40.3823175,
+                  "lng" : -3.7049369
+               }
+            }
+         },
+         "partial_match" : true,
+         "place_id" : "ChIJ0yHT4zgmQg0RMLCLM_dAAxw",
+         "types" : 
+         [
+            "postal_code"
+         ]
+      }
+   ],
+   "status" : "OK"
+}

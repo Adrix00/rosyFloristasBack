@@ -377,12 +377,18 @@ public class CheckoutService implements CheckoutUseCase {
    */
   private ShippingRate rateDelivery(GeocodedAddress geocoded) {
     if (geocoded.distanceKm().compareTo(MAX_DELIVERY_DISTANCE_KM) > 0) {
-      throw new DeliveryOutOfRangeException(
-          "Delivery address is " + geocoded.distanceKm() + " km away, beyond the 10 km limit");
+      throw outOfRange();
     }
-    return shippingRatePort
-        .findRateForDistance(geocoded.distanceKm())
-        .orElseThrow(() -> new DeliveryOutOfRangeException("No shipping band covers " + geocoded.distanceKm() + " km"));
+    return shippingRatePort.findRateForDistance(geocoded.distanceKm()).orElseThrow(this::outOfRange);
+  }
+
+  /**
+   * @return the refusal for an address outside the delivery radius; the message never carries the
+   *     distance or the address, only the radius travels as a detail
+   */
+  private DeliveryOutOfRangeException outOfRange() {
+    return new DeliveryOutOfRangeException(
+        "The delivery address is outside the delivery area", MAX_DELIVERY_DISTANCE_KM);
   }
 
   /**

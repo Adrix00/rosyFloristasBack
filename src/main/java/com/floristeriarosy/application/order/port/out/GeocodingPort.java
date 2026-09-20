@@ -10,7 +10,11 @@ public interface GeocodingPort {
    * @param street the street name
    * @param number the street number
    * @param postalCode the postal code
-   * @return the geocoded address, or empty if it could not be located
+   * @return the geocoded address, or empty if the address is not real: not found, too imprecise, or
+   *     its postal code does not match the one given
+   * @throws com.floristeriarosy.domain.exception.order.GeocodingUnavailableException the address
+   *     could not be checked at all (denied, over quota, timeout, unreadable answer); this is
+   *     never reported as "empty", which would read as a fake address
    */
   Optional<GeocodedAddress> geocode(String street, String number, String postalCode);
 }

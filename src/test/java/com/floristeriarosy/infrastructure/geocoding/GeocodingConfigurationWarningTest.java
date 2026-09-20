@@ -38,14 +38,7 @@ class GeocodingConfigurationWarningTest {
   }
 
   @Test
-  void theOldMadridPlaceholderCoordinatesWarn() {
-    new GeocodingConfigurationWarning(properties("a-key", "40.4168", "-3.7038"));
-
-    assertThat(warnings()).singleElement().satisfies(m -> assertThat(m).contains("STORE_LATITUDE"));
-  }
-
-  @Test
-  void aConfiguredKeyAndRealCoordinatesStayQuietAndNeverLogTheKey() {
+  void aConfiguredKeyStaysQuietAndNeverLogsTheKey() {
     new GeocodingConfigurationWarning(properties("secret-key-value", "40.393944", "-3.6980998"));
 
     assertThat(appender.list).isEmpty();

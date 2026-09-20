@@ -1,126 +1,178 @@
 package com.floristeriarosy.infrastructure.geocoding;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.floristeriarosy.application.order.dto.GeocodedAddress;
+import com.floristeriarosy.domain.exception.order.GeocodingUnavailableException;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
 
-/** {@link GoogleMapsGeocodingClient} against a local server standing in for Google Maps. */
+/**
+ * {@link GoogleMapsGeocodingClient} against a local server standing in for Google Maps. The
+ * responses in {@code src/test/resources/geocoding} are real ones, captured once from the Geocoding
+ * API for a legitimate address, a non-existent house number, a misspelled street, a nonsense
+ * address and a wrong postal code.
+ */
 class GoogleMapsGeocodingClientTest {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+  private static final String POSTAL_CODE = "28045";
 
   @Test
-  void geocodeReturnsCoordinatesAndDistanceForAnOkResponse() throws IOException {
-    Optional<GeocodedAddress> result = geocodeAgainst(200, okBody("ROOFTOP", false));
+  void aLegitimateAddressIsGeocodedWithItsDistanceFromTheStore() throws IOException {
+    Optional<GeocodedAddress> result = geocodeAgainst(200, fixture("legit"), POSTAL_CODE);
 
     assertThat(result).isPresent();
-    assertThat(result.get().latitude()).isEqualByComparingTo("40.5");
-    assertThat(result.get().longitude()).isEqualByComparingTo("-3.7");
+    assertThat(result.get().latitude()).isBetween(new BigDecimal("40.39"), new BigDecimal("40.40"));
     assertThat(result.get().distanceKm()).isPositive();
   }
 
   @Test
-  void geocodeAcceptsAnInterpolatedStreetNumberAndAGeometricCenter() throws IOException {
-    assertThat(geocodeAgainst(200, okBody("RANGE_INTERPOLATED", false))).isPresent();
-    assertThat(geocodeAgainst(200, okBody("GEOMETRIC_CENTER", false))).isPresent();
+  void thePostalCodeTypedWithSurroundingSpacesStillMatches() throws IOException {
+    assertThat(geocodeAgainst(200, fixture("legit"), " 28045 ")).isPresent();
   }
 
   @Test
-  void geocodeRejectsAnApproximateResultLikeTheCentreOfTheCountryGoogleReturnsForNonsense()
+  void aNonExistentHouseNumberIsNotARealAddress() throws IOException {
+    assertThat(geocodeAgainst(200, fixture("wrong_number"), POSTAL_CODE)).isEmpty();
+  }
+
+  @Test
+  void aMisspelledStreetIsNotARealAddress() throws IOException {
+    assertThat(geocodeAgainst(200, fixture("misspelled_street"), POSTAL_CODE)).isEmpty();
+  }
+
+  @Test
+  void aNonsenseAddressIsNotARealAddressEvenThoughGoogleAnswersOkWithTheCentreOfSpain()
       throws IOException {
-    assertThat(geocodeAgainst(200, okBody("APPROXIMATE", false))).isEmpty();
+    assertThat(geocodeAgainst(200, fixture("nonsense"), "00000")).isEmpty();
   }
 
   @Test
-  void geocodeRejectsAPartialMatchEvenWhenItLooksPrecise() throws IOException {
-    assertThat(geocodeAgainst(200, okBody("ROOFTOP", true))).isEmpty();
+  void aWrongPostalCodeIsNotARealAddressEvenThoughGoogleAnswersAPerfectRooftopUnderTheRightOne()
+      throws IOException {
+    assertThat(geocodeAgainst(200, fixture("wrong_postal_code"), "28001")).isEmpty();
   }
 
   @Test
-  void geocodeRejectsAResultWithoutALocationType() throws IOException {
-    String body = "{\"status\":\"OK\",\"results\":[{\"geometry\":{\"location\":{\"lat\":40.5,\"lng\":-3.7}}}]}";
-
-    assertThat(geocodeAgainst(200, body)).isEmpty();
+  void interpolatedAndGeometricCenterResultsAreAcceptedWhenPreciseAndOnTheRightPostalCode()
+      throws IOException {
+    assertThat(geocodeAgainst(200, body("RANGE_INTERPOLATED", false, "street_address", POSTAL_CODE), POSTAL_CODE))
+        .isPresent();
+    assertThat(geocodeAgainst(200, body("GEOMETRIC_CENTER", false, "premise", POSTAL_CODE), POSTAL_CODE))
+        .isPresent();
   }
 
   @Test
-  void geocodeReturnsEmptyForZeroResults() throws IOException {
-    assertThat(geocodeAgainst(200, "{\"status\":\"ZERO_RESULTS\",\"results\":[]}")).isEmpty();
+  void approximatePartialUntypedOrPostalLessResultsAreRefused() throws IOException {
+    assertThat(geocodeAgainst(200, body("APPROXIMATE", false, "street_address", POSTAL_CODE), POSTAL_CODE)).isEmpty();
+    assertThat(geocodeAgainst(200, body("ROOFTOP", true, "street_address", POSTAL_CODE), POSTAL_CODE)).isEmpty();
+    assertThat(geocodeAgainst(200, body("GEOMETRIC_CENTER", false, "locality", POSTAL_CODE), POSTAL_CODE)).isEmpty();
+    assertThat(geocodeAgainst(200, body("ROOFTOP", false, "street_address", null), POSTAL_CODE)).isEmpty();
+    String noLocationType =
+        "{\"status\":\"OK\",\"results\":[{\"types\":[\"street_address\"],\"geometry\":{\"location\":{\"lat\":40.5,\"lng\":-3.7}}}]}";
+    assertThat(geocodeAgainst(200, noLocationType, POSTAL_CODE)).isEmpty();
   }
 
   @Test
-  void geocodeReturnsEmptyWhenTheQuotaIsExceeded() throws IOException {
-    assertThat(geocodeAgainst(200, "{\"status\":\"OVER_QUERY_LIMIT\",\"results\":[]}")).isEmpty();
-  }
-
-  @Test
-  void geocodeReturnsEmptyWhenTheRequestIsDenied() throws IOException {
-    assertThat(geocodeAgainst(200, "{\"status\":\"REQUEST_DENIED\",\"results\":[]}")).isEmpty();
-  }
-
-  @Test
-  void geocodeReturnsEmptyForAMalformedBody() throws IOException {
-    assertThat(geocodeAgainst(200, "not json")).isEmpty();
-  }
-
-  @Test
-  void geocodeReturnsEmptyWhenGoogleMapsIsUnreachable() {
-    GeocodingProperties properties =
-        new GeocodingProperties(
-            new GeocodingProperties.GoogleMaps("test-key", "http://localhost:1/no-one-listens"),
-            new GeocodingProperties.Store(new BigDecimal("40.0"), new BigDecimal("-3.0")));
-
-    assertThat(
-            new GoogleMapsGeocodingClient(properties, OBJECT_MAPPER)
-                .geocode("Calle Mayor", "1", "28013"))
-        .isEmpty();
-  }
-
-  @Test
-  void aDeniedRequestWarnsWithTheStatusOnlyAndNeverTheApiKey() throws IOException {
+  void zeroResultsIsAnEmptyResultAndOnlyADebugLine() throws IOException {
     ListAppender<ILoggingEvent> appender = attachAppender();
 
-    assertThat(geocodeAgainst(200, "{\"status\":\"REQUEST_DENIED\",\"results\":[]}")).isEmpty();
+    assertThat(geocodeAgainst(200, "{\"status\":\"ZERO_RESULTS\",\"results\":[]}", POSTAL_CODE)).isEmpty();
+
+    assertThat(messages(appender, Level.WARN)).isEmpty();
+  }
+
+  @Test
+  void aDeniedKeyAnOverQuotaAndAnUnknownErrorAreUnavailableNotAFakeAddress() {
+    for (String status : List.of("REQUEST_DENIED", "OVER_QUERY_LIMIT", "OVER_DAILY_LIMIT", "UNKNOWN_ERROR", "INVALID_REQUEST")) {
+      assertThatThrownBy(() -> geocodeAgainst(200, "{\"status\":\"" + status + "\",\"results\":[]}", POSTAL_CODE))
+          .as(status)
+          .isInstanceOf(GeocodingUnavailableException.class);
+    }
+  }
+
+  @Test
+  void aDeniedRequestWarnsWithTheStatusOnlyAndNeverTheApiKey() {
+    ListAppender<ILoggingEvent> appender = attachAppender();
+
+    assertThatThrownBy(() -> geocodeAgainst(200, "{\"status\":\"REQUEST_DENIED\",\"results\":[]}", POSTAL_CODE))
+        .isInstanceOf(GeocodingUnavailableException.class)
+        .hasMessageNotContaining("test-key");
 
     assertThat(messages(appender, Level.WARN)).singleElement().satisfies(m -> assertThat(m).contains("REQUEST_DENIED"));
     assertThat(allMessages(appender)).noneMatch(m -> m.contains("test-key"));
   }
 
   @Test
-  void zeroResultsIsOnlyADebugLine() throws IOException {
-    ListAppender<ILoggingEvent> appender = attachAppender();
-
-    assertThat(geocodeAgainst(200, "{\"status\":\"ZERO_RESULTS\",\"results\":[]}")).isEmpty();
-
-    assertThat(messages(appender, Level.WARN)).isEmpty();
+  void aServerErrorAMalformedBodyAndAnEmptyBodyAreUnavailable() {
+    assertThatThrownBy(() -> geocodeAgainst(500, "{\"status\":\"OK\"}", POSTAL_CODE))
+        .isInstanceOf(GeocodingUnavailableException.class);
+    assertThatThrownBy(() -> geocodeAgainst(200, "not json", POSTAL_CODE))
+        .isInstanceOf(GeocodingUnavailableException.class);
+    assertThatThrownBy(() -> geocodeAgainst(200, "", POSTAL_CODE))
+        .isInstanceOf(GeocodingUnavailableException.class);
   }
 
   @Test
-  void anInvalidUrlNeverLeaksTheApiKeyIntoTheLog() {
+  void anUnreachableGoogleIsUnavailable() {
+    GeocodingProperties properties = properties("http://localhost:1/no-one-listens");
+
+    assertThatThrownBy(() -> new GoogleMapsGeocodingClient(properties, OBJECT_MAPPER).geocode("Calle Mayor", "1", POSTAL_CODE))
+        .isInstanceOf(GeocodingUnavailableException.class);
+  }
+
+  @Test
+  void aGoogleThatDoesNotAnswerInTimeIsUnavailable() throws IOException {
+    HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+    server.createContext(
+        "/",
+        exchange -> {
+          try {
+            Thread.sleep(2_000);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+          }
+          exchange.close();
+        });
+    server.start();
+    try {
+      GeocodingProperties properties = properties("http://localhost:" + server.getAddress().getPort());
+
+      assertThatThrownBy(
+              () ->
+                  new GoogleMapsGeocodingClient(properties, OBJECT_MAPPER, Duration.ofMillis(300))
+                      .geocode("Calle Mayor", "1", POSTAL_CODE))
+          .isInstanceOf(GeocodingUnavailableException.class);
+    } finally {
+      server.stop(0);
+    }
+  }
+
+  @Test
+  void anInvalidUrlIsUnavailableAndNeverLeaksTheApiKeyIntoTheLog() {
     ListAppender<ILoggingEvent> appender = attachAppender();
-    GeocodingProperties properties =
-        new GeocodingProperties(
-            new GeocodingProperties.GoogleMaps("test-key", "http://not a valid host"),
-            new GeocodingProperties.Store(new BigDecimal("40.0"), new BigDecimal("-3.0")));
+    GeocodingProperties properties = properties("http://not a valid host");
 
-    Optional<GeocodedAddress> result =
-        new GoogleMapsGeocodingClient(properties, OBJECT_MAPPER).geocode("Calle Mayor", "1", "28013");
+    assertThatThrownBy(() -> new GoogleMapsGeocodingClient(properties, OBJECT_MAPPER).geocode("Calle Mayor", "1", POSTAL_CODE))
+        .isInstanceOf(GeocodingUnavailableException.class);
 
-    assertThat(result).isEmpty();
+    assertThat(messages(appender, Level.WARN)).singleElement().satisfies(m -> assertThat(m).contains("IllegalArgumentException"));
     assertThat(allMessages(appender)).noneMatch(m -> m.contains("test-key"));
     assertThat(appender.list).allSatisfy(event -> assertThat(event.getThrowableProxy()).isNull());
   }
@@ -131,12 +183,26 @@ class GoogleMapsGeocodingClientTest {
         .doesNotContain("test-key");
   }
 
-  private String okBody(String locationType, boolean partialMatch) {
+  private String body(String locationType, boolean partialMatch, String type, String postalCode) {
+    String components =
+        postalCode == null
+            ? "[]"
+            : "[{\"long_name\":\"" + postalCode + "\",\"short_name\":\"" + postalCode + "\",\"types\":[\"postal_code\"]}]";
     return "{\"status\":\"OK\",\"results\":[{\"partial_match\":"
         + partialMatch
+        + ",\"types\":[\""
+        + type
+        + "\"],\"address_components\":"
+        + components
         + ",\"geometry\":{\"location_type\":\""
         + locationType
         + "\",\"location\":{\"lat\":40.5,\"lng\":-3.7}}}]}";
+  }
+
+  private String fixture(String name) throws IOException {
+    try (InputStream in = getClass().getResourceAsStream("/geocoding/" + name + ".json")) {
+      return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+    }
   }
 
   private ListAppender<ILoggingEvent> attachAppender() {
@@ -157,25 +223,29 @@ class GoogleMapsGeocodingClientTest {
     return appender.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
   }
 
-  private Optional<GeocodedAddress> geocodeAgainst(int statusCode, String body) throws IOException {
+  private GeocodingProperties properties(String geocodeUrl) {
+    return new GeocodingProperties(
+        new GeocodingProperties.GoogleMaps("test-key", geocodeUrl),
+        new GeocodingProperties.Store(new BigDecimal("40.0"), new BigDecimal("-3.0")));
+  }
+
+  private Optional<GeocodedAddress> geocodeAgainst(int statusCode, String body, String postalCode)
+      throws IOException {
     HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
     server.createContext(
         "/",
         exchange -> {
           byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-          exchange.sendResponseHeaders(statusCode, bytes.length);
-          exchange.getResponseBody().write(bytes);
+          exchange.sendResponseHeaders(statusCode, bytes.length == 0 ? -1 : bytes.length);
+          if (bytes.length > 0) {
+            exchange.getResponseBody().write(bytes);
+          }
           exchange.close();
         });
     server.start();
     try {
-      GeocodingProperties properties =
-          new GeocodingProperties(
-              new GeocodingProperties.GoogleMaps(
-                  "test-key", "http://localhost:" + server.getAddress().getPort()),
-              new GeocodingProperties.Store(new BigDecimal("40.0"), new BigDecimal("-3.0")));
-      return new GoogleMapsGeocodingClient(properties, OBJECT_MAPPER)
-          .geocode("Calle Mayor", "1", "28013");
+      return new GoogleMapsGeocodingClient(properties("http://localhost:" + server.getAddress().getPort()), OBJECT_MAPPER)
+          .geocode("Calle Mayor", "1", postalCode);
     } finally {
       server.stop(0);
     }

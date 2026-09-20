@@ -2,6 +2,7 @@ package com.floristeriarosy.infrastructure.geocoding;
 
 import com.floristeriarosy.application.order.dto.GeocodedAddress;
 import com.floristeriarosy.application.order.port.out.GeocodingPort;
+import com.floristeriarosy.domain.exception.order.GeocodingUnavailableException;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.URI;
@@ -15,12 +16,20 @@ import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-/** Implements {@link GeocodingPort} against the Google Maps Geocoding API (order.md, rule 3.7). */
+/**
+ * Implements {@link GeocodingPort} against the Google Maps Geocoding API (order.md, rule 3.7).
+ *
+ * <p>Two different outcomes must never be confused. "The address is not real" (not found, too
+ * imprecise, wrong postal code) is an empty result. "We could not check" (denied key, quota, HTTP
+ * error, timeout, unreadable answer) is a {@link GeocodingUnavailableException}: reporting it as
+ * empty would tell a customer with a perfectly good address that it is fake.
+ */
 @Component
 public class GoogleMapsGeocodingClient implements GeocodingPort {
 
@@ -29,19 +38,33 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
   private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
   private static final Set<String> ACCEPTED_LOCATION_TYPES =
       Set.of("ROOFTOP", "RANGE_INTERPOLATED", "GEOMETRIC_CENTER");
+  private static final Set<String> DELIVERABLE_TYPES =
+      Set.of("street_address", "route", "premise", "subpremise", "point_of_interest", "establishment");
 
   private final GeocodingProperties properties;
   private final ObjectMapper objectMapper;
   private final HttpClient httpClient;
+  private final Duration requestTimeout;
 
   /**
    * @param properties Google Maps configuration and the store's own coordinates
    * @param objectMapper parses the Google Maps JSON response; rebuilt so this client does not hold
    *     the caller's mutable reference (SpotBugs EI_EXPOSE_REP2)
    */
+  @Autowired
   public GoogleMapsGeocodingClient(GeocodingProperties properties, ObjectMapper objectMapper) {
+    this(properties, objectMapper, REQUEST_TIMEOUT);
+  }
+
+  /**
+   * @param properties Google Maps configuration and the store's own coordinates
+   * @param objectMapper parses the Google Maps JSON response
+   * @param requestTimeout how long a call may wait for Google's answer; exposed for tests
+   */
+  GoogleMapsGeocodingClient(GeocodingProperties properties, ObjectMapper objectMapper, Duration requestTimeout) {
     this.properties = properties;
     this.objectMapper = objectMapper.rebuild().build();
+    this.requestTimeout = requestTimeout;
     this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
   }
 
@@ -49,8 +72,9 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
    * @param street the street name
    * @param number the street number
    * @param postalCode the postal code
-   * @return the geocoded address with its distance from the store, or empty if Google Maps could not
-   *     locate it
+   * @return the geocoded address with its distance from the store, or empty if the address is not
+   *     real
+   * @throws GeocodingUnavailableException Google Maps could not be asked or did not answer usefully
    */
   @Override
   public Optional<GeocodedAddress> geocode(String street, String number, String postalCode) {
@@ -61,40 +85,64 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
             + "?address="
             + URLEncoder.encode(address, StandardCharsets.UTF_8)
             + "&key="
-            + properties.googleMaps().apiKey();
+            + URLEncoder.encode(properties.googleMaps().apiKey(), StandardCharsets.UTF_8);
+    String body = fetch(url);
+    Optional<GeocodedAddress> result = parseResponse(body, postalCode);
+    LOGGER.debug("geocode postalCode={} -> found={}", postalCode, result.isPresent());
+    return result;
+  }
+
+  /**
+   * @param url the full request URL, which carries the API key
+   * @return the response body of a 200 answer
+   * @throws GeocodingUnavailableException the call failed or the answer was not a 200
+   */
+  private String fetch(String url) {
     try {
       HttpRequest request =
-          HttpRequest.newBuilder(URI.create(url)).timeout(REQUEST_TIMEOUT).GET().build();
+          HttpRequest.newBuilder(URI.create(url)).timeout(requestTimeout).GET().build();
       HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-      Optional<GeocodedAddress> result = parseResponse(response.body());
-      LOGGER.debug("geocode postalCode={} -> found={}", postalCode, result.isPresent());
-      return result;
+      if (response.statusCode() != 200) {
+        LOGGER.warn("geocode -> HTTP {}", response.statusCode());
+        throw new GeocodingUnavailableException();
+      }
+      return response.body();
     } catch (IOException | InterruptedException | IllegalArgumentException e) {
       // Only the class name is logged: the request URI carries the API key, and the messages of
       // URI.create and of the HTTP client's exceptions can quote it.
       if (e instanceof InterruptedException) {
         Thread.currentThread().interrupt();
       }
-      LOGGER.warn("geocode postalCode={} -> call failed: {}", postalCode, e.getClass().getSimpleName());
-      return Optional.empty();
+      LOGGER.warn("geocode -> call failed: {}", e.getClass().getSimpleName());
+      throw new GeocodingUnavailableException();
     }
   }
 
   /**
    * @param body the raw Google Maps JSON response
-   * @return the parsed address with its distance from the store, or empty if {@code status} is not
-   *     {@code OK} or there are no results
+   * @param postalCode the postal code the customer typed
+   * @return the parsed address with its distance from the store, or empty if Google found nothing or
+   *     only something that cannot be delivered to
+   * @throws GeocodingUnavailableException the status is anything but {@code OK} or {@code
+   *     ZERO_RESULTS} (denied key, quota, unknown error), or the body is not readable JSON
    */
-  private Optional<GeocodedAddress> parseResponse(String body) {
+  private Optional<GeocodedAddress> parseResponse(String body, String postalCode) {
     try {
       JsonNode root = objectMapper.readTree(body);
       String status = root.path("status").asText();
-      if (!"OK".equals(status) || root.path("results").isEmpty()) {
-        logNotFound(status);
+      if ("ZERO_RESULTS".equals(status)) {
+        LOGGER.debug("geocode -> status={}", status);
+        return Optional.empty();
+      }
+      if (!"OK".equals(status)) {
+        LOGGER.warn("geocode -> status={}", status);
+        throw new GeocodingUnavailableException();
+      }
+      if (root.path("results").isEmpty()) {
         return Optional.empty();
       }
       JsonNode first = root.path("results").get(0);
-      if (!isPreciseEnough(first)) {
+      if (!isDeliverable(first, postalCode)) {
         return Optional.empty();
       }
       JsonNode location = first.path("geometry").path("location");
@@ -106,41 +154,62 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
       return Optional.of(new GeocodedAddress(latitude, longitude, distanceKm));
     } catch (JacksonException e) {
       LOGGER.warn("geocode -> could not parse Google Maps response: {}", e.getClass().getSimpleName());
-      return Optional.empty();
+      throw new GeocodingUnavailableException();
     }
   }
 
   /**
-   * Google answers {@code OK} even when it could not place the address and falls back to a coarser
-   * area — the query always ends in "Spain", so a nonsense address came back as the centre of the
-   * country, 8.88 km from the shop and inside the delivery range. Such a result is a miss, not a
-   * location: {@code partial_match} or a {@code location_type} other than a building, an
-   * interpolated street number or a geometric centre ({@code APPROXIMATE}: a postal code, a town, a
-   * country) cannot be delivered to.
+   * Google answers {@code OK} for things that are not the address the customer typed, so an
+   * {@code OK} is only accepted when the result pins that very address down (order.md §3.7 — a
+   * delivery address must be real). Checked against real responses: a nonsense address came back as
+   * the centre of Spain ({@code APPROXIMATE}, 8.88 km from the shop, inside the delivery range); a
+   * street with a non-existent house number came back as the street ({@code partial_match}); and
+   * with a wrong postal code Google silently returned the same building under the right one, a
+   * perfect-looking {@code ROOFTOP}, so the postal code component must equal the one typed.
    *
    * @param result the first Google Maps result
-   * @return whether it pins down a deliverable address
+   * @param postalCode the postal code the customer typed
+   * @return whether the result is a non-partial, non-approximate street or building match whose
+   *     postal code is the one typed
    */
-  private boolean isPreciseEnough(JsonNode result) {
+  private boolean isDeliverable(JsonNode result, String postalCode) {
     String locationType = result.path("geometry").path("location_type").asText();
-    boolean precise = ACCEPTED_LOCATION_TYPES.contains(locationType);
     boolean partial = result.path("partial_match").asBoolean(false);
-    if (!precise || partial) {
-      LOGGER.debug("geocode -> imprecise result locationType={} partialMatch={}", locationType, partial);
-      return false;
+    boolean deliverable =
+        ACCEPTED_LOCATION_TYPES.contains(locationType)
+            && !partial
+            && hasAnyType(result.path("types"), DELIVERABLE_TYPES)
+            && postalCodeOf(result).map(code -> code.equals(postalCode.trim())).orElse(false);
+    if (!deliverable) {
+      LOGGER.debug("geocode -> not a deliverable match locationType={} partialMatch={}", locationType, partial);
     }
-    return true;
+    return deliverable;
   }
 
   /**
-   * @param status Google Maps's {@code status}; {@code ZERO_RESULTS} is an ordinary miss (DEBUG),
-   *     anything else (quota, denied key, unknown) is an operator signal (WARN)
+   * @param types a Google Maps {@code types} array
+   * @param wanted the types that count
+   * @return whether the array contains at least one of them
    */
-  private void logNotFound(String status) {
-    if ("ZERO_RESULTS".equals(status)) {
-      LOGGER.debug("geocode -> status={}", status);
-    } else {
-      LOGGER.warn("geocode -> status={}", status);
+  private boolean hasAnyType(JsonNode types, Set<String> wanted) {
+    for (JsonNode type : types) {
+      if (wanted.contains(type.asText())) {
+        return true;
+      }
     }
+    return false;
+  }
+
+  /**
+   * @param result a Google Maps result
+   * @return its {@code postal_code} address component, if it has one
+   */
+  private Optional<String> postalCodeOf(JsonNode result) {
+    for (JsonNode component : result.path("address_components")) {
+      if (hasAnyType(component.path("types"), Set.of("postal_code"))) {
+        return Optional.of(component.path("long_name").asText());
+      }
+    }
+    return Optional.empty();
   }
 }

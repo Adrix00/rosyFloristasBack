@@ -1,0 +1,110 @@
+{
+   "results" : 
+   [
+      {
+         "address_components" : 
+         [
+            {
+               "long_name" : "14",
+               "short_name" : "14",
+               "types" : 
+               [
+                  "street_number"
+               ]
+            },
+            {
+               "long_name" : "Paseo de la Chopera",
+               "short_name" : "P.º de la Chopera",
+               "types" : 
+               [
+                  "route"
+               ]
+            },
+            {
+               "long_name" : "Arganzuela",
+               "short_name" : "Arganzuela",
+               "types" : 
+               [
+                  "political",
+                  "sublocality",
+                  "sublocality_level_1"
+               ]
+            },
+            {
+               "long_name" : "Madrid",
+               "short_name" : "Madrid",
+               "types" : 
+               [
+                  "locality",
+                  "political"
+               ]
+            },
+            {
+               "long_name" : "Madrid",
+               "short_name" : "M",
+               "types" : 
+               [
+                  "administrative_area_level_2",
+                  "political"
+               ]
+            },
+            {
+               "long_name" : "Comunidad de Madrid",
+               "short_name" : "MD",
+               "types" : 
+               [
+                  "administrative_area_level_1",
+                  "political"
+               ]
+            },
+            {
+               "long_name" : "Spain",
+               "short_name" : "ES",
+               "types" : 
+               [
+                  "country",
+                  "political"
+               ]
+            },
+            {
+               "long_name" : "28045",
+               "short_name" : "28045",
+               "types" : 
+               [
+                  "postal_code"
+               ]
+            }
+         ],
+         "formatted_address" : "P.º de la Chopera, 14, Arganzuela, 28045 Madrid, Spain",
+         "geometry" : 
+         {
+            "location" : 
+            {
+               "lat" : 40.39230329999999,
+               "lng" : -3.69743
+            },
+            "location_type" : "ROOFTOP",
+            "viewport" : 
+            {
+               "northeast" : 
+               {
+                  "lat" : 40.3938066802915,
+                  "lng" : -3.695911069708498
+               },
+               "southwest" : 
+               {
+                  "lat" : 40.3911087197085,
+                  "lng" : -3.698609030291502
+               }
+            }
+         },
+         "place_id" : "ChIJqdkH-0kmQg0RL5S3yx0tDDw",
+         "types" : 
+         [
+            "street_address",
+            "subpremise"
+         ]
+      }
+   ],
+   "status" : "OK"
+}

@@ -13,6 +13,7 @@ import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.domain.exception.HasErrorCode;
 import com.floristeriarosy.domain.exception.order.DeliveryAddressNotGeocodableException;
 import com.floristeriarosy.domain.exception.order.DeliveryOutOfRangeException;
+import com.floristeriarosy.domain.exception.order.GeocodingUnavailableException;
 import com.floristeriarosy.domain.model.order.OrderFulfillment;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
 import com.floristeriarosy.domain.model.payment.PaymentMethod;
@@ -176,6 +177,27 @@ class DeliveryCheckoutIntegrationTest {
     assertNothingReserved();
   }
 
+  @Test
+  void anAddressWhoseRealPostalCodeIsNotTheOneTypedIsRefusedAndReservesNothing() {
+    String sessionToken = seedCart("35.00", 1);
+
+    assertThatThrownBy(() -> checkoutUseCase.execute(deliveryCommand(sessionToken, "Calle Otro Postal")))
+        .isInstanceOf(DeliveryAddressNotGeocodableException.class);
+
+    assertNothingReserved();
+  }
+
+  @Test
+  void aGoogleThatCannotCheckTheAddressIsUnavailableNotAFakeAddressAndReservesNothing() {
+    String sessionToken = seedCart("35.00", 1);
+
+    assertThatThrownBy(() -> checkoutUseCase.execute(deliveryCommand(sessionToken, "Calle Denegada")))
+        .isInstanceOf(GeocodingUnavailableException.class)
+        .satisfies(e -> assertThat(((HasErrorCode) e).errorCode()).isEqualTo("DELIVERY_GEOCODING_UNAVAILABLE"));
+
+    assertNothingReserved();
+  }
+
   private void assertNothingReserved() {
     assertThat(idempotencyPort.find(key)).isEmpty();
     assertThat(jdbcTemplate.queryForObject("SELECT stock FROM products WHERE id = ?", Integer.class, productId))
@@ -290,24 +312,35 @@ class DeliveryCheckoutIntegrationTest {
 
   private static String responseFor(String query) {
     if (query.contains("Calle Muy Cerca")) {
-      return found(0.5);
+      return found(0.5, "28001");
     }
     if (query.contains("Calle Cerca")) {
-      return found(3.0);
+      return found(3.0, "28001");
     }
     if (query.contains("Calle Media")) {
-      return found(7.0);
+      return found(7.0, "28001");
     }
     if (query.contains("Calle Lejos")) {
-      return found(15.0);
+      return found(15.0, "28001");
+    }
+    if (query.contains("Calle Otro Postal")) {
+      return found(3.0, "28999");
+    }
+    if (query.contains("Calle Denegada")) {
+      return "{\"status\":\"REQUEST_DENIED\",\"results\":[]}";
     }
     return "{\"status\":\"ZERO_RESULTS\",\"results\":[]}";
   }
 
-  private static String found(double kilometresNorthOfTheShop) {
+  private static String found(double kilometresNorthOfTheShop, String postalCode) {
     double latitude = 40.0 + kilometresNorthOfTheShop / KM_PER_DEGREE_OF_LATITUDE;
-    return "{\"status\":\"OK\",\"results\":[{\"partial_match\":false,\"geometry\":{\"location_type\":\"ROOFTOP\","
-        + "\"location\":{\"lat\":"
+    return "{\"status\":\"OK\",\"results\":[{\"partial_match\":false,\"types\":[\"street_address\"],"
+        + "\"address_components\":[{\"long_name\":\""
+        + postalCode
+        + "\",\"short_name\":\""
+        + postalCode
+        + "\",\"types\":[\"postal_code\"]}],"
+        + "\"geometry\":{\"location_type\":\"ROOFTOP\",\"location\":{\"lat\":"
         + latitude
         + ",\"lng\":-3.0}}}]}";
   }
