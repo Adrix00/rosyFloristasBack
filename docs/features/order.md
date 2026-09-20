@@ -485,7 +485,7 @@ invocarlos y desde qué estado son distintas (regla 3.9).
 |---|---|
 | `OrderReadPort` | `findById`, `findByOrderNumber`, `findByCustomer`, `findAllForAdmin` |
 | `OrderWritePort` | `save` |
-| `ShippingRatePort` | `findRateForDistance`, `findMaxDeliveryDistanceKm` (radio vigente); para el panel, `findAll`, `findAllForUpdate` (toma el cierre exclusivo de la regla de coherencia y lee después), `findById`, `save` |
+| `ShippingRatePort` | `findRateForDistance`, `findMaxDeliveryDistanceKm` (radio vigente); para el panel, `findAll`, `findAllUnderTariffLock` (toma el cierre exclusivo de la regla de coherencia y lee después), `findById`, `save` |
 | `GeocodingPort` | `geocode(address)` — distancia en línea recta desde la tienda |
 | `OrderPaymentPort` | `charge`, `refund` — implementado por [`payment.md`](payment.md) |
 
