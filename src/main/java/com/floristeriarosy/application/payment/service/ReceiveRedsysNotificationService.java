@@ -3,13 +3,12 @@ package com.floristeriarosy.application.payment.service;
 import com.floristeriarosy.application.order.command.ConfirmCheckoutCommand;
 import com.floristeriarosy.application.order.dto.ConfirmCheckoutOutcome;
 import com.floristeriarosy.application.order.dto.IdempotencyLock;
-import com.floristeriarosy.application.order.dto.PendingCheckoutPayload;
 import com.floristeriarosy.application.order.port.in.ConfirmCheckoutUseCase;
 import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
+import com.floristeriarosy.application.order.support.PendingCheckoutPayloadReader;
 import com.floristeriarosy.application.payment.dto.GatewayRefundResult;
 import com.floristeriarosy.application.payment.port.in.ReceiveRedsysNotificationUseCase;
 import com.floristeriarosy.application.payment.port.out.PaymentGatewayPort;
-import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
 import com.floristeriarosy.infrastructure.payment.redsys.RedsysBase64;
 import com.floristeriarosy.infrastructure.payment.redsys.RedsysOrderId;
@@ -44,7 +43,7 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
   private final RedsysProperties properties;
   private final ObjectMapper objectMapper;
   private final CheckoutIdempotencyPort idempotencyPort;
-  private final PiiCryptoPort piiCryptoPort;
+  private final PendingCheckoutPayloadReader payloadReader;
   private final ConfirmCheckoutUseCase confirmCheckoutUseCase;
   private final PaymentGatewayPort gatewayPort;
 
@@ -52,21 +51,21 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
    * @param properties holds the merchant signing key
    * @param objectMapper decodes {@code Ds_MerchantParameters}
    * @param idempotencyPort reads the Fase-1 lock by {@code Ds_Merchant_MerchantData}
-   * @param piiCryptoPort decrypts the pending payload so the business order number can be recovered
+   * @param payloadReader decrypts the pending payload so the business order number can be recovered
    * @param confirmCheckoutUseCase resolves the checkout, once verified
-   * @param gatewayPort refunds a charge approved after its checkout expired
+   * @param gatewayPort refunds a charge approved for a checkout that is no longer live
    */
   public ReceiveRedsysNotificationService(
       RedsysProperties properties,
       ObjectMapper objectMapper,
       CheckoutIdempotencyPort idempotencyPort,
-      PiiCryptoPort piiCryptoPort,
+      PendingCheckoutPayloadReader payloadReader,
       ConfirmCheckoutUseCase confirmCheckoutUseCase,
       PaymentGatewayPort gatewayPort) {
     this.properties = properties;
     this.objectMapper = objectMapper.rebuild().build();
     this.idempotencyPort = idempotencyPort;
-    this.piiCryptoPort = piiCryptoPort;
+    this.payloadReader = payloadReader;
     this.confirmCheckoutUseCase = confirmCheckoutUseCase;
     this.gatewayPort = gatewayPort;
   }
@@ -137,14 +136,14 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
   }
 
   /**
-   * A notification for a checkout attempt that no longer exists: the cleanup already released it, or
-   * the same idempotency key was re-armed for a new attempt and this {@code Ds_Order} belongs to the
-   * previous one. A declined one changes nothing (in particular it must not release the new
-   * attempt's reservation). An approved one means Redsys charged the customer and no order exists
-   * for that charge: refund it automatically from
-   * the notification's own data (there is no {@code payments} row) and log at ERROR so an operator
-   * sees it. Never throws: Redsys must still get its 200 so it stops retrying, and if the refund
-   * fails too the ERROR log is the alert.
+   * A notification for a checkout attempt that is no longer live: it expired (the cleanup released
+   * it), it was superseded (the same idempotency key was re-armed and this {@code Ds_Order} belongs
+   * to the previous attempt) or it was previously declined (the row is {@code FAILED}). A declined
+   * notification changes nothing: a duplicate must not release anything twice, nor the new
+   * attempt's reservation. An approved one means Redsys charged the customer and no order exists
+   * for that charge: refund it automatically from the notification's own data (there is no {@code
+   * payments} row) and log at ERROR so an operator sees it. Never throws: Redsys must still get its
+   * 200 so it stops retrying, and if the refund fails too the ERROR log is the alert.
    *
    * @param idempotencyKey Redsys's echoed {@code Ds_Merchant_MerchantData}
    * @param redsysOrderId the 12-digit {@code Ds_Order} the charge was made under
@@ -155,7 +154,7 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
       String idempotencyKey, String redsysOrderId, Map<String, String> params, boolean approved) {
     if (!approved) {
       LOGGER.debug(
-          "receiveRedsysNotification idempotencyKey={} -> declined after expiry, ignoring",
+          "receiveRedsysNotification idempotencyKey={} -> declined for a dead attempt, ignoring",
           Encode.forJava(idempotencyKey));
       return;
     }
@@ -169,8 +168,9 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
       refundOutcome = "refund NOT attempted (unreadable Ds_Amount or gateway error)";
     }
     LOGGER.error(
-        "receiveRedsysNotification idempotencyKey={} redsysOrderId={} -> APPROVED after the checkout"
-            + " expired or was superseded, the customer was charged with no order: {}",
+        "receiveRedsysNotification idempotencyKey={} redsysOrderId={} -> APPROVED for a checkout that"
+            + " expired, was superseded or was previously declined, the customer was charged with no"
+            + " order: {}",
         Encode.forJava(idempotencyKey),
         Encode.forJava(redsysOrderId),
         refundOutcome);
@@ -181,14 +181,7 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
    * @return the business order number stored in its Fase-1 payload
    */
   private OrderNumber orderNumberFrom(IdempotencyLock lock) {
-    try {
-      PendingCheckoutPayload payload =
-          objectMapper.readValue(
-              piiCryptoPort.decrypt(lock.checkoutPayloadEncrypted()), PendingCheckoutPayload.class);
-      return OrderNumber.of(payload.orderNumber());
-    } catch (JacksonException e) {
-      throw new IllegalStateException("Could not deserialize the pending checkout payload", e);
-    }
+    return OrderNumber.of(payloadReader.read(lock.checkoutPayloadEncrypted()).orderNumber());
   }
 
   /**

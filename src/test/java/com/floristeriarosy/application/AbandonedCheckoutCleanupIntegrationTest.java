@@ -6,9 +6,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.floristeriarosy.application.order.dto.IdempotencyLock;
 import com.floristeriarosy.application.order.dto.PendingCheckoutPayload;
+import com.floristeriarosy.application.order.port.in.GetCheckoutStatusUseCase;
 import com.floristeriarosy.application.order.port.in.ReleaseExpiredCheckoutsUseCase;
 import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
+import com.floristeriarosy.application.order.query.GetCheckoutStatusQuery;
+import com.floristeriarosy.application.order.support.CheckoutReservationReleaser;
+import com.floristeriarosy.application.order.support.PendingCheckoutPayloadReader;
 import com.floristeriarosy.application.payment.dto.GatewayRefundResult;
 import com.floristeriarosy.application.payment.port.in.ReceiveRedsysNotificationUseCase;
 import com.floristeriarosy.application.payment.port.out.PaymentGatewayPort;
@@ -24,7 +29,12 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +43,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -64,7 +76,11 @@ class AbandonedCheckoutCleanupIntegrationTest {
 
   @Autowired private ReleaseExpiredCheckoutsUseCase releaseExpiredCheckoutsUseCase;
   @Autowired private ReceiveRedsysNotificationUseCase receiveRedsysNotificationUseCase;
+  @Autowired private GetCheckoutStatusUseCase getCheckoutStatusUseCase;
   @Autowired private CheckoutIdempotencyPort idempotencyPort;
+  @Autowired private CheckoutReservationReleaser reservationReleaser;
+  @Autowired private PendingCheckoutPayloadReader payloadReader;
+  @Autowired private PlatformTransactionManager transactionManager;
   @Autowired private PiiCryptoPort piiCryptoPort;
   @Autowired private RedsysProperties redsysProperties;
   @Autowired private JdbcTemplate jdbcTemplate;
@@ -137,6 +153,95 @@ class AbandonedCheckoutCleanupIntegrationTest {
     verify(paymentGatewayPort, never()).refundByGatewayOrderId(any(), any());
   }
 
+  @Test
+  void aDeclinedNotificationReleasesOnceLeavesTheRowFailedAndARetryWithTheSameKeyRearmsIt() {
+    String declined = notification(expired, "0190");
+
+    receiveRedsysNotificationUseCase.execute(declined, signature(expired, declined));
+
+    assertReservationReleased(expired);
+    assertThat(rowStatus(expired)).isEqualTo("FAILED");
+    assertThat(payloadIsNull(expired)).isTrue();
+    var status = getCheckoutStatusUseCase.execute(new GetCheckoutStatusQuery(expired.key()));
+    assertThat(status.status()).isEqualTo("FAILED");
+    assertThat(status.orderNumber()).isNull();
+
+    receiveRedsysNotificationUseCase.execute(declined, signature(expired, declined));
+
+    assertThat(stockOf(expired.managedProduct())).isEqualTo(STOCK_AFTER_RESERVATION + RESERVED_MANAGED);
+    assertThat(movementsOf(expired.managedProduct())).isEqualTo(RESERVED_MANAGED);
+    verify(paymentGatewayPort, never()).refundByGatewayOrderId(any(), any());
+
+    idempotencyPort.resetToPending(
+        expired.key(),
+        "fp".getBytes(StandardCharsets.UTF_8),
+        UUID.randomUUID(),
+        new byte[] {1},
+        Instant.now().plusSeconds(600));
+
+    assertThat(rowStatus(expired)).isEqualTo("PENDING");
+  }
+
+  @Test
+  void anApprovedNotificationBlockedBehindTheCleanupsRowLockIsRefundedOnceTheCleanupCommits()
+      throws Exception {
+    when(paymentGatewayPort.refundByGatewayOrderId(any(), any()))
+        .thenReturn(new GatewayRefundResult(true, null, null));
+    ExecutorService notifier = Executors.newSingleThreadExecutor();
+    AtomicReference<Future<?>> notification = new AtomicReference<>();
+    String params = approvedNotification(expired);
+
+    try {
+      new TransactionTemplate(transactionManager)
+          .executeWithoutResult(
+              status -> {
+                IdempotencyLock lock =
+                    idempotencyPort.lockExpiredPending(expired.key(), Instant.now()).orElseThrow();
+                notification.set(
+                    notifier.submit(
+                        () ->
+                            receiveRedsysNotificationUseCase.execute(
+                                params, signature(expired, params))));
+                awaitASessionWaitingOnALock();
+                assertThat(notification.get().isDone()).isFalse();
+                reservationReleaser.release(payloadReader.read(lock.checkoutPayloadEncrypted()));
+                idempotencyPort.markFailed(expired.key());
+              });
+
+      notification.get().get(10, TimeUnit.SECONDS);
+    } finally {
+      notifier.shutdownNow();
+    }
+
+    verify(paymentGatewayPort)
+        .refundByGatewayOrderId(
+            RedsysOrderId.from(OrderNumber.of(expired.orderNumber())), new BigDecimal("20.00"));
+    assertThat(orderCount(expired)).isZero();
+    assertThat(rowStatus(expired)).isEqualTo("FAILED");
+    assertReservationReleased(expired);
+  }
+
+  private void awaitASessionWaitingOnALock() {
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+    while (System.nanoTime() < deadline) {
+      Integer waiting =
+          jdbcTemplate.queryForObject(
+              "SELECT COUNT(*) FROM pg_stat_activity"
+                  + " WHERE datname = current_database() AND wait_event_type = 'Lock'",
+              Integer.class);
+      if (waiting != null && waiting > 0) {
+        return;
+      }
+      try {
+        Thread.sleep(25);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(e);
+      }
+    }
+    throw new AssertionError("the notification never blocked on the row lock");
+  }
+
   private Checkout seedCheckout(Instant expiresAt) throws Exception {
     UUID managed = seedProduct(STOCK_AFTER_RESERVATION);
     UUID discounted = seedProduct(5);
@@ -204,10 +309,16 @@ class AbandonedCheckoutCleanupIntegrationTest {
   }
 
   private String approvedNotification(Checkout checkout) {
+    return notification(checkout, "0000");
+  }
+
+  private String notification(Checkout checkout, String responseCode) {
     String json =
         "{\"Ds_Order\":\""
             + RedsysOrderId.from(OrderNumber.of(checkout.orderNumber()))
-            + "\",\"Ds_Response\":\"0000\",\"Ds_Amount\":\"2000\",\"Ds_AuthorisationCode\":\"auth-1\","
+            + "\",\"Ds_Response\":\""
+            + responseCode
+            + "\",\"Ds_Amount\":\"2000\",\"Ds_AuthorisationCode\":\"auth-1\","
             + "\"Ds_Merchant_MerchantData\":\""
             + checkout.key()
             + "\"}";

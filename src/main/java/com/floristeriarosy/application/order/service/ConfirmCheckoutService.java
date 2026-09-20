@@ -15,6 +15,7 @@ import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
 import com.floristeriarosy.application.order.port.out.OrderPaymentPort;
 import com.floristeriarosy.application.order.port.out.OrderWritePort;
 import com.floristeriarosy.application.order.support.CheckoutReservationReleaser;
+import com.floristeriarosy.application.order.support.PendingCheckoutPayloadReader;
 import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.domain.model.discount.valueobject.DiscountId;
 import com.floristeriarosy.domain.model.order.Order;
@@ -37,8 +38,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.ObjectMapper;
 
 /**
  * Implements {@link ConfirmCheckoutUseCase} — Fase 3a (approved) or Fase 3b (declined) of
@@ -59,7 +58,7 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
   private final RegisterNotificationUseCase registerNotificationUseCase;
   private final ClearCartUseCase clearCartUseCase;
   private final PiiCryptoPort piiCryptoPort;
-  private final ObjectMapper objectMapper;
+  private final PendingCheckoutPayloadReader payloadReader;
   private final CheckoutReservationReleaser reservationReleaser;
 
   /**
@@ -69,8 +68,8 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
    * @param findOrCreateGuestCustomerUseCase links a {@code WEB} guest checkout (customer.md §3.2)
    * @param registerNotificationUseCase registers the confirmation emails (notification.md §3.1)
    * @param clearCartUseCase empties the cart the order was built from
-   * @param piiCryptoPort encrypts the buyer/delivery snapshot and decrypts the pending payload
-   * @param objectMapper deserializes the pending payload
+   * @param piiCryptoPort encrypts the buyer/delivery snapshot
+   * @param payloadReader decrypts and deserializes the pending payload
    * @param reservationReleaser reverses the Fase-1 stock and discount reservations on decline
    */
   public ConfirmCheckoutService(
@@ -81,7 +80,7 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
       RegisterNotificationUseCase registerNotificationUseCase,
       ClearCartUseCase clearCartUseCase,
       PiiCryptoPort piiCryptoPort,
-      ObjectMapper objectMapper,
+      PendingCheckoutPayloadReader payloadReader,
       CheckoutReservationReleaser reservationReleaser) {
     this.idempotencyPort = idempotencyPort;
     this.orderPaymentPort = orderPaymentPort;
@@ -90,16 +89,19 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
     this.registerNotificationUseCase = registerNotificationUseCase;
     this.clearCartUseCase = clearCartUseCase;
     this.piiCryptoPort = piiCryptoPort;
-    this.objectMapper = objectMapper.rebuild().build();
+    this.payloadReader = payloadReader;
     this.reservationReleaser = reservationReleaser;
   }
 
   /**
    * @param command the decoded, signature-verified Redsys notification
-   * @return {@link ConfirmCheckoutOutcome#EXPIRED} when the abandoned-checkout cleanup already
-   *     resolved the row (decided under the row lock, so it cannot race the cleanup), {@link
+   * @return {@link ConfirmCheckoutOutcome#EXPIRED} when the row is already {@code FAILED}, or its
+   *     payload belongs to a different attempt than the notification's (both decided under the row
+   *     lock, so neither the cleanup nor a re-armed key can race it), {@link
    *     ConfirmCheckoutOutcome#IGNORED} when it is unknown or already completed, {@link
-   *     ConfirmCheckoutOutcome#RESOLVED} otherwise
+   *     ConfirmCheckoutOutcome#RESOLVED} otherwise. An approval completes the row; a decline
+   *     releases the reservation and leaves the row {@code FAILED}, so a retry with the same key
+   *     restarts from Fase 1 (order.md §3.2, §10).
    */
   @Override
   public ConfirmCheckoutOutcome execute(ConfirmCheckoutCommand command) {
@@ -120,15 +122,22 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
           Encode.forJava(command.idempotencyKey()));
       return ConfirmCheckoutOutcome.IGNORED;
     }
-    PendingCheckoutPayload payload = decryptPayload(lock.get().checkoutPayloadEncrypted());
+    PendingCheckoutPayload payload = payloadReader.read(lock.get().checkoutPayloadEncrypted());
+    if (!payload.orderNumber().equals(command.orderNumber().value())) {
+      LOGGER.debug(
+          "confirmCheckout idempotencyKey={} -> notification belongs to a previous attempt",
+          Encode.forJava(command.idempotencyKey()));
+      return ConfirmCheckoutOutcome.EXPIRED;
+    }
     OrderId orderId = OrderId.of(lock.get().resourceId());
     if (command.approved()) {
       confirm(orderId, command, payload);
+      idempotencyPort.markCompleted(command.idempotencyKey(), 202);
     } else {
       LOGGER.debug("confirmCheckout orderId={} -> declined, reversing Fase 1", orderId);
       reservationReleaser.release(payload);
+      idempotencyPort.markFailed(command.idempotencyKey());
     }
-    idempotencyPort.markCompleted(command.idempotencyKey(), command.approved() ? 202 : 200);
     LOGGER.debug(
         "confirmCheckout idempotencyKey={} -> resolved", Encode.forJava(command.idempotencyKey()));
     return ConfirmCheckoutOutcome.RESOLVED;
@@ -239,17 +248,5 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
       return OrderDelivery.forPickup(p.deliveryDate(), p.slotFrom(), p.slotTo());
     }
     return null;
-  }
-
-  /**
-   * @param encryptedPayload the encrypted pending-checkout payload
-   * @return the decoded payload
-   */
-  private PendingCheckoutPayload decryptPayload(byte[] encryptedPayload) {
-    try {
-      return objectMapper.readValue(piiCryptoPort.decrypt(encryptedPayload), PendingCheckoutPayload.class);
-    } catch (JacksonException e) {
-      throw new IllegalStateException("Could not deserialize the pending checkout payload", e);
-    }
   }
 }

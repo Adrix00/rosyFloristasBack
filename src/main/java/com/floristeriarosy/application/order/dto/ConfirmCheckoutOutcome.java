@@ -7,9 +7,10 @@ public enum ConfirmCheckoutOutcome {
   /** Nothing to do: the row is unknown or already {@code COMPLETED} (a Redsys retry). */
   IGNORED,
   /**
-   * The row is {@code FAILED}: the abandoned-checkout cleanup already released the reservation and
-   * no order exists. An approved notification landing here means the customer was charged for
-   * nothing.
+   * The notification does not belong to a live attempt: the row is {@code FAILED} (a decline or the
+   * abandoned-checkout cleanup already released the reservation) or it was re-armed for a new
+   * attempt. No order exists for this charge, so an approved notification landing here means the
+   * customer was charged for nothing.
    */
   EXPIRED
 }

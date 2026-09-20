@@ -14,6 +14,7 @@ import com.floristeriarosy.application.order.dto.IdempotencyLock;
 import com.floristeriarosy.application.order.dto.PendingCheckoutPayload;
 import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
 import com.floristeriarosy.application.order.support.CheckoutReservationReleaser;
+import com.floristeriarosy.application.order.support.PendingCheckoutPayloadReader;
 import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import java.math.BigDecimal;
 import java.util.List;
@@ -40,7 +41,10 @@ class ReleaseExpiredCheckoutsServiceTest {
     when(piiCryptoPort.decrypt(any())).thenReturn(objectMapper.writeValueAsString(payload()));
     service =
         new ReleaseExpiredCheckoutsService(
-            idempotencyPort, piiCryptoPort, objectMapper, releaser, transactionManager);
+            idempotencyPort,
+            new PendingCheckoutPayloadReader(piiCryptoPort, objectMapper),
+            releaser,
+            transactionManager);
   }
 
   @Test
@@ -80,15 +84,15 @@ class ReleaseExpiredCheckoutsServiceTest {
   }
 
   @Test
-  void anUnreadablePayloadIsMarkedFailedWithoutReleasingAnything() {
+  void anUnreadablePayloadIsLeftPendingSoFixingTheKeyRecoversIt() {
     when(idempotencyPort.findExpiredPendingKeys(any(), eq(100))).thenReturn(List.of("k1"));
     when(idempotencyPort.lockExpiredPending(eq("k1"), any())).thenReturn(Optional.of(lock()));
     when(piiCryptoPort.decrypt(any())).thenThrow(new IllegalStateException("bad ciphertext"));
 
-    assertThat(service.execute()).isEqualTo(1);
+    assertThat(service.execute()).isZero();
 
     verify(releaser, never()).release(any());
-    verify(idempotencyPort).markFailed("k1");
+    verify(idempotencyPort, never()).markFailed(any());
   }
 
   @Test

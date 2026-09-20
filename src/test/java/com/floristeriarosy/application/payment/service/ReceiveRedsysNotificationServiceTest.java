@@ -14,6 +14,7 @@ import com.floristeriarosy.application.order.dto.ConfirmCheckoutOutcome;
 import com.floristeriarosy.application.order.dto.IdempotencyLock;
 import com.floristeriarosy.application.order.port.in.ConfirmCheckoutUseCase;
 import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
+import com.floristeriarosy.application.order.support.PendingCheckoutPayloadReader;
 import com.floristeriarosy.application.payment.dto.GatewayRefundResult;
 import com.floristeriarosy.application.payment.port.out.PaymentGatewayPort;
 import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
@@ -56,7 +57,7 @@ class ReceiveRedsysNotificationServiceTest {
           PROPERTIES,
           objectMapper,
           idempotencyPort,
-          piiCryptoPort,
+          new PendingCheckoutPayloadReader(piiCryptoPort, objectMapper),
           confirmCheckoutUseCase,
           gatewayPort);
 

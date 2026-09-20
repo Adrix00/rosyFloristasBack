@@ -6,6 +6,8 @@ import com.floristeriarosy.application.order.dto.PendingCheckoutPayload;
 import com.floristeriarosy.domain.exception.inventory.InventoryNotManagedException;
 import com.floristeriarosy.domain.model.discount.valueobject.DiscountId;
 import com.floristeriarosy.domain.model.inventory.StockMovementType;
+import java.util.Comparator;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -45,7 +47,10 @@ public class CheckoutReservationReleaser {
    */
   public void release(PendingCheckoutPayload payload) {
     LOGGER.debug("release items={}", payload.items().size());
-    for (PendingCheckoutPayload.Item item : payload.items()) {
+    // Rows are touched in productId order so two transactions sharing products cannot deadlock.
+    List<PendingCheckoutPayload.Item> items =
+        payload.items().stream().sorted(Comparator.comparing(PendingCheckoutPayload.Item::productId)).toList();
+    for (PendingCheckoutPayload.Item item : items) {
       releaseStock(item);
       releaseDiscount(item);
     }

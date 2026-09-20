@@ -45,6 +45,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -293,7 +294,8 @@ public class CheckoutService implements CheckoutUseCase {
    * @param items the cart lines to reserve stock and discount for
    */
   private void reserveInventoryAndDiscounts(List<CartItemDto> items) {
-    for (CartItemDto item : items) {
+    // Rows are touched in productId order so two transactions sharing products cannot deadlock.
+    for (CartItemDto item : items.stream().sorted(Comparator.comparing(CartItemDto::productId)).toList()) {
       reserveStock(item);
       reserveDiscount(item);
     }

@@ -5,7 +5,7 @@ import com.floristeriarosy.application.order.dto.PendingCheckoutPayload;
 import com.floristeriarosy.application.order.port.in.ReleaseExpiredCheckoutsUseCase;
 import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
 import com.floristeriarosy.application.order.support.CheckoutReservationReleaser;
-import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
+import com.floristeriarosy.application.order.support.PendingCheckoutPayloadReader;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -15,7 +15,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
-import tools.jackson.databind.ObjectMapper;
 
 /**
  * Implements {@link ReleaseExpiredCheckoutsUseCase}. Not {@code @Transactional}: each row is
@@ -23,7 +22,7 @@ import tools.jackson.databind.ObjectMapper;
  * method bypasses its proxy and would silently run every row in one shared transaction. Per row it
  * claims the row under {@code FOR UPDATE SKIP LOCKED} (so a Redsys notification confirming it wins
  * and the cleanup simply skips it), releases the Fase-1 reservation and marks the row {@code
- * FAILED}.
+ * FAILED}. A row whose payload cannot be read is left {@code PENDING} and retried next run.
  */
 @Service
 public class ReleaseExpiredCheckoutsService implements ReleaseExpiredCheckoutsUseCase {
@@ -32,28 +31,24 @@ public class ReleaseExpiredCheckoutsService implements ReleaseExpiredCheckoutsUs
   private static final int BATCH_SIZE = 100;
 
   private final CheckoutIdempotencyPort idempotencyPort;
-  private final PiiCryptoPort piiCryptoPort;
-  private final ObjectMapper objectMapper;
+  private final PendingCheckoutPayloadReader payloadReader;
   private final CheckoutReservationReleaser reservationReleaser;
   private final TransactionTemplate transactionTemplate;
 
   /**
    * @param idempotencyPort lists and claims the expired {@code PENDING} rows and marks them {@code
    *     FAILED}
-   * @param piiCryptoPort decrypts the pending payload (ADR-005)
-   * @param objectMapper deserializes the pending payload
+   * @param payloadReader decrypts and deserializes the pending payload (ADR-005)
    * @param reservationReleaser gives back the reserved stock and discount units
    * @param transactionManager opens one transaction per row
    */
   public ReleaseExpiredCheckoutsService(
       CheckoutIdempotencyPort idempotencyPort,
-      PiiCryptoPort piiCryptoPort,
-      ObjectMapper objectMapper,
+      PendingCheckoutPayloadReader payloadReader,
       CheckoutReservationReleaser reservationReleaser,
       PlatformTransactionManager transactionManager) {
     this.idempotencyPort = idempotencyPort;
-    this.piiCryptoPort = piiCryptoPort;
-    this.objectMapper = objectMapper.rebuild().build();
+    this.payloadReader = payloadReader;
     this.reservationReleaser = reservationReleaser;
     this.transactionTemplate = new TransactionTemplate(transactionManager);
   }
@@ -104,7 +99,11 @@ public class ReleaseExpiredCheckoutsService implements ReleaseExpiredCheckoutsUs
           "releaseExpiredCheckouts idempotencyKey={} -> no longer claimable", Encode.forJava(key));
       return false;
     }
-    readPayload(lock.get(), key).ifPresent(reservationReleaser::release);
+    Optional<PendingCheckoutPayload> payload = readPayload(lock.get(), key);
+    if (payload.isEmpty()) {
+      return false;
+    }
+    reservationReleaser.release(payload.get());
     idempotencyPort.markFailed(key);
     return true;
   }
@@ -112,20 +111,19 @@ public class ReleaseExpiredCheckoutsService implements ReleaseExpiredCheckoutsUs
   /**
    * @param lock the claimed row
    * @param key its idempotency key, for the log only
-   * @return the decrypted payload, or empty when it cannot be read: there is then nothing safe to
-   *     release, and the row is still marked {@code FAILED} so it does not retry forever
+   * @return the decrypted payload, or empty when it cannot be read. The row is then left {@code
+   *     PENDING}: an unreadable payload is most likely a wrong or changed encryption key at deploy,
+   *     and marking it {@code FAILED} without releasing would leak the reservation for good. Fixing
+   *     the key lets the next run recover it, at the cost of one ERROR per run for each such row.
    */
   private Optional<PendingCheckoutPayload> readPayload(IdempotencyLock lock, String key) {
     try {
-      return Optional.of(
-          objectMapper.readValue(
-              piiCryptoPort.decrypt(lock.checkoutPayloadEncrypted()), PendingCheckoutPayload.class));
+      return Optional.of(payloadReader.read(lock.checkoutPayloadEncrypted()));
     } catch (RuntimeException e) {
       LOGGER.error(
-          "releaseExpiredCheckouts idempotencyKey={} -> payload unreadable, marking FAILED without"
-              + " releasing",
+          "releaseExpiredCheckouts idempotencyKey={} -> payload unreadable ({}), leaving it PENDING",
           Encode.forJava(key),
-          e);
+          e.getClass().getSimpleName());
       return Optional.empty();
     }
   }

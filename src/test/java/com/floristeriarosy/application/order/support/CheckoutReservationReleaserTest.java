@@ -3,6 +3,7 @@ package com.floristeriarosy.application.order.support;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 
 /** {@link CheckoutReservationReleaser} — reverses the Fase-1 reservation of a checkout (ADR-017). */
 class CheckoutReservationReleaserTest {
@@ -39,6 +41,18 @@ class CheckoutReservationReleaserTest {
     verify(stockUseCase).execute(discounted, StockMovementType.ADJUSTMENT, 3, null, "POST /checkout");
     verify(discountPort).release(DiscountId.of(discountId), 3);
     verify(discountPort, never()).release(any(), eq(2));
+  }
+
+  @Test
+  void releasesInProductIdOrderWhateverOrderThePayloadHasSoConcurrentReleasesCannotDeadlock() {
+    UUID low = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    UUID high = UUID.fromString("00000000-0000-0000-0000-000000000002");
+
+    releaser.release(payload(item(high, null, 1), item(low, null, 1)));
+
+    InOrder inOrder = inOrder(stockUseCase);
+    inOrder.verify(stockUseCase).execute(eq(low), any(), eq(1), any(), any());
+    inOrder.verify(stockUseCase).execute(eq(high), any(), eq(1), any(), any());
   }
 
   @Test

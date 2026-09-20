@@ -21,6 +21,7 @@ import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
 import com.floristeriarosy.application.order.port.out.OrderPaymentPort;
 import com.floristeriarosy.application.order.port.out.OrderWritePort;
 import com.floristeriarosy.application.order.support.CheckoutReservationReleaser;
+import com.floristeriarosy.application.order.support.PendingCheckoutPayloadReader;
 import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.domain.model.customer.valueobject.CustomerId;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
@@ -66,7 +67,7 @@ class ConfirmCheckoutServiceTest {
             registerNotificationUseCase,
             clearCartUseCase,
             piiCryptoPort,
-            objectMapper,
+            new PendingCheckoutPayloadReader(piiCryptoPort, objectMapper),
             reservationReleaser);
   }
 
@@ -123,19 +124,20 @@ class ConfirmCheckoutServiceTest {
   }
 
   @Test
-  void declinedReversesReservationAndMarksCompletedWith200() {
+  void declinedReversesReservationAndLeavesTheRowFailedSoARetryRestartsFromFase1() {
     IdempotencyLock lock =
         new IdempotencyLock("PENDING", new byte[0], UUID.randomUUID(), new byte[0]);
     when(idempotencyPort.findForUpdate("idem-3")).thenReturn(Optional.of(lock));
 
     service.execute(
         new ConfirmCheckoutCommand(
-            "idem-3", OrderNumber.of("WEB-20260914-000003"), false, null, "Ds_Response=0199"));
+            "idem-3", OrderNumber.of("WEB-20260914-000001"), false, null, "Ds_Response=0199"));
 
     verify(reservationReleaser).release(any(PendingCheckoutPayload.class));
     verify(orderPaymentPort, never()).confirmCharge(any(), any(), any(), any(), any());
     verify(orderWritePort, never()).save(any());
-    verify(idempotencyPort).markCompleted("idem-3", 200);
+    verify(idempotencyPort).markFailed("idem-3");
+    verify(idempotencyPort, never()).markCompleted(any(), anyInt());
   }
 
   @Test
@@ -156,6 +158,24 @@ class ConfirmCheckoutServiceTest {
   }
 
   @Test
+  void aNotificationOfAPreviousAttemptFoundUnderTheLockIsReportedAsExpiredAndTouchesNothing() {
+    IdempotencyLock lock =
+        new IdempotencyLock("PENDING", new byte[0], UUID.randomUUID(), new byte[0]);
+    when(idempotencyPort.findForUpdate("idem-8")).thenReturn(Optional.of(lock));
+
+    ConfirmCheckoutOutcome outcome =
+        service.execute(
+            new ConfirmCheckoutCommand(
+                "idem-8", OrderNumber.of("WEB-20260914-000099"), true, "redsys-auth-8", null));
+
+    assertThat(outcome).isEqualTo(ConfirmCheckoutOutcome.EXPIRED);
+    verify(orderWritePort, never()).save(any());
+    verify(reservationReleaser, never()).release(any());
+    verify(idempotencyPort, never()).markCompleted(any(), anyInt());
+    verify(idempotencyPort, never()).markFailed(any());
+  }
+
+  @Test
   void pendingApprovedIsResolvedAndACompletedRowIsIgnored() {
     when(idempotencyPort.findForUpdate("idem-6"))
         .thenReturn(Optional.of(new IdempotencyLock("PENDING", new byte[0], UUID.randomUUID(), new byte[0])));
@@ -166,7 +186,7 @@ class ConfirmCheckoutServiceTest {
     ConfirmCheckoutOutcome resolved =
         service.execute(
             new ConfirmCheckoutCommand(
-                "idem-6", OrderNumber.of("WEB-20260914-000006"), true, "redsys-auth-6", null));
+                "idem-6", OrderNumber.of("WEB-20260914-000001"), true, "redsys-auth-6", null));
     ConfirmCheckoutOutcome ignored =
         service.execute(
             new ConfirmCheckoutCommand(

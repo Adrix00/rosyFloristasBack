@@ -10,6 +10,8 @@ import com.floristeriarosy.domain.model.discount.valueobject.DiscountId;
 import com.floristeriarosy.domain.model.inventory.StockMovementType;
 import com.floristeriarosy.domain.model.order.Order;
 import com.floristeriarosy.domain.model.order.OrderItem;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,7 +64,10 @@ public class OrderReversalComponent {
   public void reverse(Order order, String customerNotificationType) {
     LOGGER.debug(
         "reverse orderId={} notificationType={}", order.id(), customerNotificationType);
-    for (OrderItem item : order.items()) {
+    // Rows are touched in productId order so two transactions sharing products cannot deadlock.
+    List<OrderItem> items =
+        order.items().stream().sorted(Comparator.comparing(item -> item.productId().value())).toList();
+    for (OrderItem item : items) {
       releaseStock(item);
       releaseDiscount(item);
     }
