@@ -108,6 +108,12 @@ race between the cleanup and a notification, both take a row lock on the `idempo
 resolves a row. The cleanup runs every 60 s after the previous run ends, at most 100 rows per run, one
 transaction per row.
 
+Forward constraint: "an approved notification with no idempotency row is refunded" is correct only while
+`POST /checkout` is the sole flow that receives Redsys notifications. Any future flow that also produces
+notifications (payment link, saved-card charge, Bizum, an admin-initiated charge) must mark its operations,
+for example with a `Ds_Merchant_MerchantData` prefix, and the handler must branch on that marker before this
+refund rule, or it would refund legitimate payments of that other flow.
+
 ## Notification endpoint: verify, then idempotent by construction
 
 `POST /api/v1/payments/redsys/notification` is unauthenticated (Redsys is not a logged-in user) but

@@ -182,7 +182,19 @@ Tarifa por tramo de distancia (`shipping_rates`,
 [`../database/README.md`](../database/README.md)). La distancia se calcula geocodificando la
 dirección de entrega (línea recta, ya documentado como cálculo en Java al geocodificar). Una
 dirección que no se puede geocodificar se rechaza en la validación del request, antes de la Fase 1:
-sin distancia no hay tarifa que aplicar.
+sin distancia no hay tarifa que aplicar. Un resultado de Google cuenta como dirección localizada solo
+si es lo bastante preciso (calle, portal o punto de interés; no un código postal, ciudad o país), porque
+la consulta termina siempre en ", Spain" y una dirección inventada caería si no en el centro del país. Un
+`partial_match` sí invalida el resultado: la dirección tecleada debe ser real, y Google lo activa cuando
+solo ha podido casar una parte (por ejemplo un portal que no existe en esa calle); el frontal ofrece
+entonces corregir la dirección u otras opciones. También se exige que el código postal del resultado
+coincida con el indicado. La clave
+de la API viaja en la URL de la petición (Google no ofrece cabecera alternativa para una clave simple), así
+que no debe activarse ningún registro de peticiones del cliente HTTP ni de proxies delante del backend
+para esa llamada. Una clave denegada, una cuota agotada, un fallo de red o un tiempo de espera agotado no juzgan la
+dirección: se responden con `DELIVERY_GEOCODING_UNAVAILABLE` (502), distinto de una dirección no real,
+para no decirle a un cliente que su dirección es falsa por una avería nuestra. Antes de reservar nada, como
+los otros dos errores de reparto.
 
 **Más de 10 km no se reparte a domicilio** — no hay tramo para ese caso, lo rechaza la aplicación con
 409 `DELIVERY_OUT_OF_RANGE`.
@@ -471,7 +483,8 @@ Enum `OrderErrorCode` en `domain/exception/order/`
 | `CHECKOUT_DISCOUNT_EXHAUSTED` | 409 | Fase 1: la promoción se agotó entre que se vio y se pagó |
 | `CHECKOUT_PAYMENT_DECLINED` | 402 | La notificación de Redsys rechaza el cobro (Paso 3b); la reserva ya se revirtió |
 | `DELIVERY_OUT_OF_RANGE` | 422 | Dirección a más de 10 km; no hay tramo de tarifa |
-| `DELIVERY_ADDRESS_NOT_GEOCODABLE` | 422 | La dirección no se puede localizar |
+| `DELIVERY_ADDRESS_NOT_GEOCODABLE` | 422 | La dirección no es real o no es lo bastante precisa (calle, portal), o su código postal no coincide con el localizado; el cliente puede corregirla |
+| `DELIVERY_GEOCODING_UNAVAILABLE` | 502 | El servicio de geocodificación falla (clave denegada, cuota, red, tiempo de espera); la dirección no está juzgada, y el frontal ofrece reintentar o recoger en tienda |
 | `ORDER_INVALID_TRANSITION` | 409 | Acción fuera del grafo de la regla 3.9 (p. ej. `ship` sobre un `PICKUP`) |
 | `ORDER_NOT_CANCELABLE` | 409 | Cliente intentando cancelar algo que no está `PENDING` |
 | `RESOURCE_MODIFIED` | 409 | Conflicto de bloqueo optimista (ADR-009) |
