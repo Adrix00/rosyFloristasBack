@@ -71,4 +71,25 @@ class RedsysSignatureTest {
 
     assertThat(signature).isNotBlank();
   }
+
+  @Test
+  void verifyAcceptsAUrlSafeBase64Signature() {
+    String params = Base64.getEncoder().encodeToString("{\"amount\":\"1000\"}".getBytes());
+    String standardSignature = RedsysSignature.sign(SANDBOX_KEY, "WEB-20260913-000001", params);
+    String urlSafeSignature = standardSignature.replace('+', '-').replace('/', '_');
+
+    boolean valid = RedsysSignature.verify(SANDBOX_KEY, "WEB-20260913-000001", params, urlSafeSignature);
+
+    assertThat(valid).isTrue();
+  }
+
+  @Test
+  void verifyAcceptsAUrlSafeBase64MerchantParameters() {
+    String params = Base64.getUrlEncoder().encodeToString("{\"amount\":\"1000\"}".getBytes());
+    String signature = RedsysSignature.sign(SANDBOX_KEY, "WEB-20260913-000001", params);
+
+    boolean valid = RedsysSignature.verify(SANDBOX_KEY, "WEB-20260913-000001", params, signature);
+
+    assertThat(valid).isTrue();
+  }
 }

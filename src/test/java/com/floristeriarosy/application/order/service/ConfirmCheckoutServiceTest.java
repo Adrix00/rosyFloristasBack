@@ -77,6 +77,7 @@ class ConfirmCheckoutServiceTest {
     return new PendingCheckoutPayload(
         "WEB",
         "NONE",
+        "WEB-20260914-000001",
         null,
         "session-1",
         "Ana",

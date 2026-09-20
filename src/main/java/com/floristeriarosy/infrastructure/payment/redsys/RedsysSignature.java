@@ -94,10 +94,15 @@ public final class RedsysSignature {
   /**
    * @param a the first value
    * @param b the second value
-   * @return whether {@code a} and {@code b} are equal, compared in constant time to avoid a timing
-   *     side-channel on signature verification
+   * @return whether {@code a} and {@code b} decode to the same bytes, compared in constant time to
+   *     avoid a timing side-channel on signature verification. Both standard and URL-safe Base64 are
+   *     accepted.
    */
   private static boolean constantTimeEquals(String a, String b) {
-    return MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
+    try {
+      return MessageDigest.isEqual(RedsysBase64.decode(a), RedsysBase64.decode(b));
+    } catch (IllegalArgumentException e) {
+      return false;
+    }
   }
 }

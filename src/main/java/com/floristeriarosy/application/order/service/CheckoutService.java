@@ -266,7 +266,7 @@ public class CheckoutService implements CheckoutUseCase {
 
     reserveInventoryAndDiscounts(cart.items());
 
-    PendingCheckoutPayload payload = buildPendingPayload(command, cart, geocoded, shippingCost);
+    PendingCheckoutPayload payload = buildPendingPayload(command, cart, geocoded, shippingCost, orderNumber);
     byte[] encryptedPayload = piiCryptoPort.encrypt(serialize(payload));
     Instant expiresAt = Instant.now().plus(RESERVATION_TTL);
     if (isRetry) {
@@ -434,10 +434,15 @@ public class CheckoutService implements CheckoutUseCase {
    * @param cart the priced cart
    * @param geocoded the geocoded delivery, or {@code null}
    * @param shippingCost the computed shipping cost
+   * @param orderNumber the business order number minted for this attempt
    * @return the payload to encrypt into {@code idempotency_keys}
    */
   private PendingCheckoutPayload buildPendingPayload(
-      CheckoutCommand command, CartDto cart, GeocodedAddress geocoded, BigDecimal shippingCost) {
+      CheckoutCommand command,
+      CartDto cart,
+      GeocodedAddress geocoded,
+      BigDecimal shippingCost,
+      OrderNumber orderNumber) {
     List<PendingCheckoutPayload.Item> items =
         cart.items().stream()
             .map(
@@ -475,6 +480,7 @@ public class CheckoutService implements CheckoutUseCase {
     return new PendingCheckoutPayload(
         OrderChannel.WEB.name(),
         command.fulfillment().name(),
+        orderNumber.value(),
         command.customerId(),
         command.sessionToken(),
         command.buyerFirstName(),

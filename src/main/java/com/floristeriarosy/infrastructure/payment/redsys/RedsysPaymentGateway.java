@@ -5,6 +5,7 @@ import com.floristeriarosy.application.payment.dto.GatewayRefundParameters;
 import com.floristeriarosy.application.payment.dto.GatewayRefundResult;
 import com.floristeriarosy.application.payment.dto.RedsysRedirect;
 import com.floristeriarosy.application.payment.port.out.PaymentGatewayPort;
+import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URI;
@@ -17,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -35,20 +37,47 @@ public class RedsysPaymentGateway implements PaymentGatewayPort {
   private static final String CURRENCY_EUR = "978";
   private static final String TRANSACTION_TYPE_AUTHORIZATION = "0";
   private static final String TRANSACTION_TYPE_REFUND = "3";
+  private static final String APPROVED_RESPONSE_PATTERN = "0\\d{3}";
+  private static final int MAX_APPROVED_RESPONSE = 99;
+  private static final Duration REFUND_TIMEOUT = Duration.ofSeconds(30);
 
   private final RedsysProperties properties;
   private final ObjectMapper objectMapper;
   private final HttpClient httpClient;
+  private final Duration refundTimeout;
 
   /**
    * @param properties Redsys merchant configuration
    * @param objectMapper builds {@code Ds_MerchantParameters}' JSON; rebuilt to avoid storing the
    *     caller's mutable reference directly (SpotBugs EI_EXPOSE_REP2)
    */
+  @Autowired
   public RedsysPaymentGateway(RedsysProperties properties, ObjectMapper objectMapper) {
+    this(properties, objectMapper, defaultHttpClient(), REFUND_TIMEOUT);
+  }
+
+  /**
+   * @param properties Redsys merchant configuration
+   * @param objectMapper builds {@code Ds_MerchantParameters}' JSON
+   * @param httpClient the HTTP client used for refund calls; exposed for tests
+   * @param refundTimeout how long a refund call may wait for Redsys's response
+   */
+  RedsysPaymentGateway(
+      RedsysProperties properties,
+      ObjectMapper objectMapper,
+      HttpClient httpClient,
+      Duration refundTimeout) {
     this.properties = properties;
     this.objectMapper = objectMapper.rebuild().build();
-    this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    this.httpClient = httpClient;
+    this.refundTimeout = refundTimeout;
+  }
+
+  /**
+   * @return a preconfigured {@link HttpClient} with a connection timeout
+   */
+  private static HttpClient defaultHttpClient() {
+    return HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
   }
 
   /**
@@ -58,9 +87,10 @@ public class RedsysPaymentGateway implements PaymentGatewayPort {
   @Override
   public RedsysRedirect charge(GatewayChargeParameters parameters) {
     LOGGER.debug("charge orderNumber={} amount={}", parameters.orderNumber(), parameters.amount());
+    String redsysOrderId = RedsysOrderId.from(parameters.orderNumber());
     Map<String, Object> params = new LinkedHashMap<>();
     params.put("Ds_Merchant_Amount", toCents(parameters.amount()));
-    params.put("Ds_Merchant_Order", parameters.orderNumber().value());
+    params.put("Ds_Merchant_Order", redsysOrderId);
     params.put("Ds_Merchant_MerchantCode", properties.merchantCode());
     params.put("Ds_Merchant_Currency", CURRENCY_EUR);
     params.put("Ds_Merchant_TransactionType", TRANSACTION_TYPE_AUTHORIZATION);
@@ -71,7 +101,7 @@ public class RedsysPaymentGateway implements PaymentGatewayPort {
     params.put("Ds_Merchant_MerchantData", parameters.merchantData());
     params.put("Ds_Merchant_Identifier", parameters.paymentMethodToken());
     String encodedParams = encodeParameters(params);
-    String signature = RedsysSignature.sign(properties.secretKey(), parameters.orderNumber().value(), encodedParams);
+    String signature = RedsysSignature.sign(properties.secretKey(), redsysOrderId, encodedParams);
     Map<String, String> formFields =
         Map.of(
             "Ds_SignatureVersion", SIGNATURE_VERSION,
@@ -88,24 +118,30 @@ public class RedsysPaymentGateway implements PaymentGatewayPort {
   @Override
   public GatewayRefundResult refund(GatewayRefundParameters parameters) {
     LOGGER.debug("refund orderNumber={} amount={}", parameters.orderNumber(), parameters.amount());
+    String redsysOrderId = RedsysOrderId.from(OrderNumber.of(parameters.orderNumber()));
     Map<String, Object> params = new LinkedHashMap<>();
     params.put("Ds_Merchant_Amount", toCents(parameters.amount()));
-    params.put("Ds_Merchant_Order", parameters.orderNumber());
+    params.put("Ds_Merchant_Order", redsysOrderId);
     params.put("Ds_Merchant_MerchantCode", properties.merchantCode());
     params.put("Ds_Merchant_Currency", CURRENCY_EUR);
     params.put("Ds_Merchant_TransactionType", TRANSACTION_TYPE_REFUND);
     params.put("Ds_Merchant_Terminal", properties.terminal());
     String encodedParams = encodeParameters(params);
-    String signature = RedsysSignature.sign(properties.secretKey(), parameters.orderNumber(), encodedParams);
+    String signature = RedsysSignature.sign(properties.secretKey(), redsysOrderId, encodedParams);
     String body = buildRestBody(encodedParams, signature);
     try {
       HttpRequest httpRequest =
           HttpRequest.newBuilder(URI.create(properties.restUrl()))
               .header("Content-Type", "application/json")
+              .timeout(refundTimeout)
               .POST(HttpRequest.BodyPublishers.ofString(body))
               .build();
       HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-      GatewayRefundResult result = parseRefundResponse(response.body());
+      if (response.statusCode() != 200) {
+        LOGGER.debug("refund orderNumber={} -> HTTP {}", parameters.orderNumber(), response.statusCode());
+        return new GatewayRefundResult(false, null, "Redsys returned HTTP " + response.statusCode());
+      }
+      GatewayRefundResult result = parseRefundResponse(response.body(), redsysOrderId);
       LOGGER.debug("refund orderNumber={} -> success={}", parameters.orderNumber(), result.success());
       return result;
     } catch (java.io.IOException | InterruptedException e) {
@@ -149,20 +185,34 @@ public class RedsysPaymentGateway implements PaymentGatewayPort {
 
   /**
    * @param responseBody the raw REST response body
+   * @param redsysOrderId the order id Redsys received, used to verify the response signature
    * @return the parsed refund outcome; a response Redsys does not consider a success (a {@code
-   *     Ds_Response} outside 0000-0099) is reported as {@code success=false}
+   *     Ds_Response} outside 0000-0099) or with an invalid signature is reported as
+   *     {@code success=false}
    */
-  private GatewayRefundResult parseRefundResponse(String responseBody) {
+  private GatewayRefundResult parseRefundResponse(String responseBody, String redsysOrderId) {
     try {
       @SuppressWarnings("unchecked")
       Map<String, String> response = objectMapper.readValue(responseBody, Map.class);
       String encodedParams = response.get("Ds_MerchantParameters");
+      if (encodedParams == null) {
+        String errorCode = response.get("errorCode");
+        LOGGER.debug("refund redsysOrderId={} -> rejection errorCode={}", redsysOrderId, errorCode);
+        return new GatewayRefundResult(false, null, "Redsys rejected the refund: " + errorCode);
+      }
+      String receivedSignature = response.get("Ds_Signature");
+      if (receivedSignature == null
+          || !RedsysSignature.verify(properties.secretKey(), redsysOrderId, encodedParams, receivedSignature)) {
+        return new GatewayRefundResult(false, null, "Invalid Redsys refund response signature");
+      }
       @SuppressWarnings("unchecked")
       Map<String, String> decodedParams =
-          objectMapper.readValue(Base64.getDecoder().decode(encodedParams), Map.class);
+          objectMapper.readValue(RedsysBase64.decode(encodedParams), Map.class);
       String responseCode = decodedParams.get("Ds_Response");
       boolean success =
-          responseCode != null && responseCode.matches("0\\d{3}") && Integer.parseInt(responseCode) <= 99;
+          responseCode != null
+              && responseCode.matches(APPROVED_RESPONSE_PATTERN)
+              && Integer.parseInt(responseCode) <= MAX_APPROVED_RESPONSE;
       return success
           ? new GatewayRefundResult(true, decodedParams.get("Ds_AuthorisationCode"), null)
           : new GatewayRefundResult(false, null, "Ds_Response=" + responseCode);

@@ -16,6 +16,9 @@ import java.util.UUID;
  *
  * @param channel the sales channel
  * @param fulfillment how the order reaches the customer
+ * @param orderNumber the business order number minted at Fase 1; {@code Ds_Order} in Redsys's
+ *     notification is only the 12-digit technical id, so the real number is recovered from this
+ *     payload
  * @param customerId the linked customer, or {@code null} for an unlinked guest checkout
  * @param sessionToken the guest cart's session token, or {@code null} with a session
  * @param buyerFirstName the buyer's first name
@@ -31,6 +34,7 @@ import java.util.UUID;
 public record PendingCheckoutPayload(
     String channel,
     String fulfillment,
+    String orderNumber,
     UUID customerId,
     String sessionToken,
     String buyerFirstName,
