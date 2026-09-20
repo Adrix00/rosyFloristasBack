@@ -87,7 +87,7 @@ class RedsysPaymentGatewayTest {
     String responseBody =
         refundResponseBody(
             Map.of(
-                "Ds_Response", "0000",
+                "Ds_Response", "0900",
                 "Ds_AuthorisationCode", "654321",
                 "Ds_Order", "000000000001",
                 "Ds_Amount", "4200",
@@ -189,6 +189,25 @@ class RedsysPaymentGatewayTest {
 
       assertThat(result.success()).isFalse();
       assertThat(result.failureReason()).contains("Redsys call failed");
+    }
+  }
+
+  @Test
+  void refundDoesNotTreatAnAuthorizationApprovalCodeAsARefund() throws IOException {
+    String responseBody =
+        refundResponseBody(
+            Map.of("Ds_Response", "0000", "Ds_Order", "000000000001", "Ds_Amount", "4200"),
+            "000000000001");
+
+    try (LocalRedsysServer server = new LocalRedsysServer(200, responseBody)) {
+      GatewayRefundResult result =
+          gatewayFor(server)
+              .refund(
+                  new GatewayRefundParameters(
+                      "WEB-20260913-000001", "redsys-auth-1", new BigDecimal("42.00")));
+
+      assertThat(result.success()).isFalse();
+      assertThat(result.failureReason()).contains("Ds_Response=0000");
     }
   }
 

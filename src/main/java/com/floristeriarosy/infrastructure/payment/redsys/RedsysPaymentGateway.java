@@ -207,7 +207,7 @@ public class RedsysPaymentGateway implements PaymentGatewayPort {
       Map<String, String> decodedParams =
           objectMapper.readValue(RedsysBase64.decode(encodedParams), Map.class);
       String responseCode = decodedParams.get("Ds_Response");
-      return RedsysResponseCode.isApproved(responseCode)
+      return RedsysResponseCode.isRefundApproved(responseCode)
           ? new GatewayRefundResult(true, decodedParams.get("Ds_AuthorisationCode"), null)
           : new GatewayRefundResult(false, null, "Ds_Response=" + responseCode);
     } catch (JacksonException e) {
