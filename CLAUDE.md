@@ -393,6 +393,16 @@ Never skip `mvn verify` before declaring a task complete.
 
 ---
 
+## Shell commands
+
+Sessions always start in the repository root. Never prefix a Bash command with `cd <repo path> &&`;
+use relative paths. The `cd` makes the paths unresolvable ahead of time and
+`permissions.blockReadsOutsideWorkingDirectories` then prompts on every command, even allowlisted
+ones. For reading or searching files, prefer `Read`, `Grep` and `Glob` over `cat`/`grep`/`sed` in
+Bash.
+
+---
+
 ## Commits
 
 Commit messages **never** include a `Co-Authored-By: Claude ...` trailer or a `Claude-Session:`
