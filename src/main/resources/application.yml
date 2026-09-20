@@ -80,5 +80,5 @@ app:
       api-key: ${GOOGLE_MAPS_API_KEY:}
       geocode-url: ${GOOGLE_MAPS_GEOCODE_URL:https://maps.googleapis.com/maps/api/geocode/json}
     store:
-      latitude: ${STORE_LATITUDE:40.4168}
-      longitude: ${STORE_LONGITUDE:-3.7038}
+      latitude: ${STORE_LATITUDE:40.393944}
+      longitude: ${STORE_LONGITUDE:-3.6980998}
