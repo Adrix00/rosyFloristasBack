@@ -147,6 +147,10 @@ class OrderLifecycleIntegrationTest {
     assertThat(after.historyRows()).isEqualTo(before.historyRows() + 1);
     assertThat(after.deliveryFingerprint()).isEqualTo(before.deliveryFingerprint());
     assertThat(after.items()).isEqualTo(before.items());
+    // xmin changes on any UPDATE or INSERT of a row: a delete+reinsert of the same ids, or a
+    // rewrite with identical values, would pass the content checks above but not these.
+    assertThat(after.deliveryXmin()).isEqualTo(before.deliveryXmin());
+    assertThat(after.itemsXmin()).isEqualTo(before.itemsXmin());
   }
 
   private Snapshot snapshot(UUID orderId) {
@@ -167,23 +171,32 @@ class OrderLifecycleIntegrationTest {
             "SELECT COUNT(*) FROM order_status_history WHERE order_id = ?", Integer.class, orderId),
         fingerprints.isEmpty() ? null : fingerprints.get(0),
         jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM order_items WHERE order_id = ?", Integer.class, orderId));
+            "SELECT COUNT(*) FROM order_items WHERE order_id = ?", Integer.class, orderId),
+        xmins("SELECT xmin::text FROM order_deliveries WHERE order_id = ?", orderId),
+        xmins("SELECT xmin::text FROM order_items WHERE order_id = ? ORDER BY id", orderId));
+  }
+
+  private List<String> xmins(String sql, UUID orderId) {
+    return jdbcTemplate.queryForList(sql, String.class, orderId);
   }
 
   private UUID seedOrder(String fulfillment, boolean withDelivery) {
     UUID orderId = UUID.randomUUID();
     jdbcTemplate.update(
         "INSERT INTO orders (id, order_number, channel, fulfillment, status, subtotal)"
-            + " VALUES (?, ?, 'WEB', ?, 'PENDING', 20.00)",
+            + " VALUES (?, ?, 'WEB', ?, 'PENDING', 40.00)",
         orderId,
         "WEB-20260920-" + String.format("%06d", ThreadLocalRandom.current().nextInt(1_000_000)),
         fulfillment);
-    jdbcTemplate.update(
-        "INSERT INTO order_items (id, order_id, product_id, product_name, unit_price, quantity)"
-            + " VALUES (?, ?, ?, 'Rosa', 20.00, 1)",
-        UUID.randomUUID(),
-        orderId,
-        productId);
+    for (String productName : List.of("Rosa", "Tulipán")) {
+      jdbcTemplate.update(
+          "INSERT INTO order_items (id, order_id, product_id, product_name, unit_price, quantity)"
+              + " VALUES (?, ?, ?, ?, 20.00, 1)",
+          UUID.randomUUID(),
+          orderId,
+          productId,
+          productName);
+    }
     if (withDelivery) {
       jdbcTemplate.update(
           "INSERT INTO order_deliveries (order_id, recipient_name_encrypted,"
@@ -207,7 +220,7 @@ class OrderLifecycleIntegrationTest {
   private void seedCapturedPayment(UUID orderId) {
     jdbcTemplate.update(
         "INSERT INTO payments (id, order_id, method, provider, provider_payment_intent_id, amount,"
-            + " status, captured_at) VALUES (?, ?, 'CARD_ONLINE', 'REDSYS', 'auth-1', 20.00,"
+            + " status, captured_at) VALUES (?, ?, 'CARD_ONLINE', 'REDSYS', 'auth-1', 40.00,"
             + " 'CAPTURED', now())",
         UUID.randomUUID(),
         orderId);
@@ -219,5 +232,11 @@ class OrderLifecycleIntegrationTest {
   }
 
   private record Snapshot(
-      String status, long version, int historyRows, String deliveryFingerprint, int items) {}
+      String status,
+      long version,
+      int historyRows,
+      String deliveryFingerprint,
+      int items,
+      List<String> deliveryXmin,
+      List<String> itemsXmin) {}
 }
