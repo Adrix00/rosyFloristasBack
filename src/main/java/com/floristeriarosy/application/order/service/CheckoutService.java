@@ -53,7 +53,8 @@ import org.owasp.encoder.Encode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -63,9 +64,12 @@ import tools.jackson.databind.ObjectMapper;
  * store the pending-checkout payload, and hand off to Redsys via {@link OrderPaymentPort}. Never
  * writes to {@code orders} — that is {@code ConfirmCheckoutService} (Phase 3b), driven by Redsys's
  * notification.
+ *
+ * <p>Not {@code @Transactional}: only the write section (idempotency lookup, reservation, pending
+ * row, redirect) runs in a {@link TransactionTemplate}, so a slow Google call never holds a
+ * database transaction open.
  */
 @Service
-@Transactional
 public class CheckoutService implements CheckoutUseCase {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(CheckoutService.class);
@@ -85,6 +89,7 @@ public class CheckoutService implements CheckoutUseCase {
   private final RegisterStockMovementUseCase registerStockMovementUseCase;
   private final DiscountReservationPort discountReservationPort;
   private final ProductReadPort productReadPort;
+  private final TransactionTemplate transactionTemplate;
 
   /**
    * @param validateCartUseCase rejects a cart with removed or now-insufficient lines (cart.md §3.4)
@@ -99,6 +104,7 @@ public class CheckoutService implements CheckoutUseCase {
    * @param registerStockMovementUseCase reserves stock for every managed line
    * @param discountReservationPort reserves promotional units for discounted lines
    * @param productReadPort reads the current stock for a failed reservation diagnosis
+   * @param transactionManager opens the transaction around the write section
    */
   public CheckoutService(
       ValidateCartUseCase validateCartUseCase,
@@ -112,7 +118,9 @@ public class CheckoutService implements CheckoutUseCase {
       ObjectMapper objectMapper,
       RegisterStockMovementUseCase registerStockMovementUseCase,
       DiscountReservationPort discountReservationPort,
-      ProductReadPort productReadPort) {
+      ProductReadPort productReadPort,
+      PlatformTransactionManager transactionManager) {
+    this.transactionTemplate = new TransactionTemplate(transactionManager);
     this.validateCartUseCase = validateCartUseCase;
     this.getCartUseCase = getCartUseCase;
     this.geocodingPort = geocodingPort;
@@ -156,11 +164,31 @@ public class CheckoutService implements CheckoutUseCase {
     BigDecimal shippingCost = rate != null ? computeShippingCost(cart.subtotal(), rate) : BigDecimal.ZERO;
 
     byte[] fingerprint = computeFingerprint(command, cart);
+    return transactionTemplate.execute(
+        status -> resumeOrReserve(command, cart, geocoded, shippingCost, fingerprint));
+  }
+
+  /**
+   * The write section, run in one transaction: everything before it (validation, cart read,
+   * geocoding, rating) is read-only and must not hold a database connection while Google answers.
+   *
+   * @param command the incoming command
+   * @param cart the priced cart
+   * @param geocoded the geocoded delivery, or {@code null}
+   * @param shippingCost the computed shipping cost
+   * @param fingerprint this attempt's fingerprint
+   * @return the signed Redsys redirect
+   */
+  private CheckoutRedirectDto resumeOrReserve(
+      CheckoutCommand command,
+      CartDto cart,
+      GeocodedAddress geocoded,
+      BigDecimal shippingCost,
+      byte[] fingerprint) {
     Optional<IdempotencyLock> existing = idempotencyPort.find(command.idempotencyKey());
     if (existing.isPresent()) {
       return resumeExisting(existing.get(), fingerprint, command, cart, geocoded, shippingCost);
     }
-
     return reserveAndRedirect(command, cart, geocoded, shippingCost, fingerprint, false);
   }
 

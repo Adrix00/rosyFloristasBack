@@ -57,6 +57,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 import tools.jackson.databind.ObjectMapper;
 
 /** {@link CheckoutService} — Fase 1 (order.md, §3.2, §3.4, §3.7). */
@@ -74,6 +75,7 @@ class CheckoutServiceTest {
   @Mock private RegisterStockMovementUseCase registerStockMovementUseCase;
   @Mock private DiscountReservationPort discountReservationPort;
   @Mock private ProductReadPort productReadPort;
+  @Mock private PlatformTransactionManager transactionManager;
 
   private CheckoutService service;
 
@@ -92,7 +94,8 @@ class CheckoutServiceTest {
             new ObjectMapper(),
             registerStockMovementUseCase,
             discountReservationPort,
-            productReadPort);
+            productReadPort,
+            transactionManager);
   }
 
   private CheckoutCommand pickupCommand(String idempotencyKey) {

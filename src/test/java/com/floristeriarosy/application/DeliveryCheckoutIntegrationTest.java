@@ -32,6 +32,11 @@ import java.time.LocalTime;
 import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,6 +67,8 @@ class DeliveryCheckoutIntegrationTest {
 
   private static final BigDecimal SHOP_LATITUDE = new BigDecimal("40.0");
   private static final double KM_PER_DEGREE_OF_LATITUDE = 111.19492664;
+  private static volatile CountDownLatch googleReached = new CountDownLatch(1);
+  private static volatile CountDownLatch googleMayAnswer = new CountDownLatch(1);
   private static final HttpServer GOOGLE = startFakeGoogle();
 
   @Container
@@ -198,6 +205,32 @@ class DeliveryCheckoutIntegrationTest {
     assertNothingReserved();
   }
 
+  @Test
+  void aSlowGeocoderDoesNotHoldADatabaseTransactionOpenWhileItAnswers() throws Exception {
+    String sessionToken = seedCart("35.00", 1);
+    googleReached = new CountDownLatch(1);
+    googleMayAnswer = new CountDownLatch(1);
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    try {
+      Future<CheckoutRedirectDto> checkout =
+          executor.submit(() -> checkoutUseCase.execute(deliveryCommand(sessionToken, "Calle Lenta")));
+      assertThat(googleReached.await(10, TimeUnit.SECONDS)).as("checkout reached Google").isTrue();
+
+      Integer idleInTransaction =
+          jdbcTemplate.queryForObject(
+              "SELECT COUNT(*) FROM pg_stat_activity WHERE datname = current_database()"
+                  + " AND pid <> pg_backend_pid() AND state = 'idle in transaction'",
+              Integer.class);
+
+      googleMayAnswer.countDown();
+      assertThat(checkout.get(10, TimeUnit.SECONDS)).isNotNull();
+      assertThat(idleInTransaction).as("sessions idle in a transaction while Google answers").isZero();
+    } finally {
+      googleMayAnswer.countDown();
+      executor.shutdownNow();
+    }
+  }
+
   private void assertNothingReserved() {
     assertThat(idempotencyPort.find(key)).isEmpty();
     assertThat(jdbcTemplate.queryForObject("SELECT stock FROM products WHERE id = ?", Integer.class, productId))
@@ -297,6 +330,9 @@ class DeliveryCheckoutIntegrationTest {
           "/geocode",
           exchange -> {
             String query = URLDecoder.decode(exchange.getRequestURI().getRawQuery(), StandardCharsets.UTF_8);
+            if (query.contains("Calle Lenta")) {
+              waitUntilTheTestLetsGoogleAnswer();
+            }
             String body = responseFor(query);
             byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, bytes.length);
@@ -310,7 +346,19 @@ class DeliveryCheckoutIntegrationTest {
     }
   }
 
+  private static void waitUntilTheTestLetsGoogleAnswer() {
+    googleReached.countDown();
+    try {
+      googleMayAnswer.await(20, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+  }
+
   private static String responseFor(String query) {
+    if (query.contains("Calle Lenta")) {
+      return found(3.0, "28001");
+    }
     if (query.contains("Calle Muy Cerca")) {
       return found(0.5, "28001");
     }
