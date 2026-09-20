@@ -84,9 +84,54 @@ class GoogleMapsGeocodingClientTest {
     assertThat(geocodeAgainst(200, body("ROOFTOP", true, "street_address", POSTAL_CODE), POSTAL_CODE)).isEmpty();
     assertThat(geocodeAgainst(200, body("GEOMETRIC_CENTER", false, "locality", POSTAL_CODE), POSTAL_CODE)).isEmpty();
     assertThat(geocodeAgainst(200, body("ROOFTOP", false, "street_address", null), POSTAL_CODE)).isEmpty();
+  }
+
+  @Test
+  void anOkAnswerThatCannotBeJudgedIsUnavailableNeverAFakeAddress() {
+    String noLocation =
+        "{\"status\":\"OK\",\"results\":[{\"types\":[\"street_address\"],\"address_components\":[],\"geometry\":{\"location_type\":\"ROOFTOP\"}}]}";
     String noLocationType =
-        "{\"status\":\"OK\",\"results\":[{\"types\":[\"street_address\"],\"geometry\":{\"location\":{\"lat\":40.5,\"lng\":-3.7}}}]}";
-    assertThat(geocodeAgainst(200, noLocationType, POSTAL_CODE)).isEmpty();
+        "{\"status\":\"OK\",\"results\":[{\"types\":[\"street_address\"],\"address_components\":[],\"geometry\":{\"location\":{\"lat\":40.5,\"lng\":-3.7}}}]}";
+    String blankLocationType =
+        "{\"status\":\"OK\",\"results\":[{\"types\":[\"street_address\"],\"address_components\":[],\"geometry\":{\"location_type\":\" \",\"location\":{\"lat\":40.5,\"lng\":-3.7}}}]}";
+    String noTypes =
+        "{\"status\":\"OK\",\"results\":[{\"address_components\":[],\"geometry\":{\"location_type\":\"ROOFTOP\",\"location\":{\"lat\":40.5,\"lng\":-3.7}}}]}";
+    String noComponents =
+        "{\"status\":\"OK\",\"results\":[{\"types\":[\"street_address\"],\"geometry\":{\"location_type\":\"ROOFTOP\",\"location\":{\"lat\":40.5,\"lng\":-3.7}}}]}";
+    String textualLatitude =
+        "{\"status\":\"OK\",\"results\":[{\"types\":[\"street_address\"],\"address_components\":[],\"geometry\":{\"location_type\":\"ROOFTOP\",\"location\":{\"lat\":\"40.5\",\"lng\":-3.7}}}]}";
+
+    for (String malformed :
+        List.of(
+            "{\"status\":\"OK\",\"results\":[]}",
+            "{\"status\":\"OK\"}",
+            noLocation,
+            noLocationType,
+            blankLocationType,
+            noTypes,
+            noComponents,
+            textualLatitude)) {
+      assertThatThrownBy(() -> geocodeAgainst(200, malformed, POSTAL_CODE))
+          .as(malformed)
+          .isInstanceOf(GeocodingUnavailableException.class);
+    }
+  }
+
+  @Test
+  void aRefusedMatchSaysInTheDebugLogWhichConditionsFailedWithoutAnyAddressData() throws IOException {
+    Logger clientLogger = (Logger) LoggerFactory.getLogger(GoogleMapsGeocodingClient.class);
+    Level previous = clientLogger.getLevel();
+    clientLogger.setLevel(Level.DEBUG);
+    try {
+      ListAppender<ILoggingEvent> appender = attachAppender();
+
+      assertThat(geocodeAgainst(200, fixture("wrong_postal_code"), "28001")).isEmpty();
+
+      assertThat(messages(appender, Level.DEBUG))
+          .anySatisfy(m -> assertThat(m).contains("failed:").contains("postalCode").doesNotContain("Chopera"));
+    } finally {
+      clientLogger.setLevel(previous);
+    }
   }
 
   @Test

@@ -12,6 +12,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -139,9 +141,12 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
         throw new GeocodingUnavailableException();
       }
       if (root.path("results").isEmpty()) {
-        return Optional.empty();
+        // Google documents OK as "at least one result": an empty OK is an anomaly, not a fake address.
+        LOGGER.warn("geocode -> status OK without results");
+        throw new GeocodingUnavailableException();
       }
       JsonNode first = root.path("results").get(0);
+      requireWellFormed(first);
       if (!isDeliverable(first, postalCode)) {
         return Optional.empty();
       }
@@ -174,16 +179,50 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
    */
   private boolean isDeliverable(JsonNode result, String postalCode) {
     String locationType = result.path("geometry").path("location_type").asText();
-    boolean partial = result.path("partial_match").asBoolean(false);
-    boolean deliverable =
-        ACCEPTED_LOCATION_TYPES.contains(locationType)
-            && !partial
-            && hasAnyType(result.path("types"), DELIVERABLE_TYPES)
-            && postalCodeOf(result).map(code -> code.equals(postalCode.trim())).orElse(false);
-    if (!deliverable) {
-      LOGGER.debug("geocode -> not a deliverable match locationType={} partialMatch={}", locationType, partial);
+    List<String> failed = new ArrayList<>();
+    if (!ACCEPTED_LOCATION_TYPES.contains(locationType)) {
+      failed.add("locationType=" + locationType);
     }
-    return deliverable;
+    if (result.path("partial_match").asBoolean(false)) {
+      failed.add("partialMatch");
+    }
+    if (!hasAnyType(result.path("types"), DELIVERABLE_TYPES)) {
+      failed.add("types");
+    }
+    if (!postalCodeOf(result).map(code -> code.equals(postalCode.trim())).orElse(false)) {
+      failed.add("postalCode");
+    }
+    if (!failed.isEmpty()) {
+      // Names only, so support can tell why a good-looking address was refused without any address
+      // data reaching the log.
+      LOGGER.debug("geocode -> not a deliverable match, failed: {}", failed);
+    }
+    return failed.isEmpty();
+  }
+
+  /**
+   * A body that cannot be judged is "could not check", never "the address is wrong": only a
+   * well-formed answer that says the address is wrong may produce an empty result. Without a numeric
+   * latitude and longitude the coordinates would silently become (0, 0), thousands of kilometres
+   * away, and a good address would be refused as out of range.
+   *
+   * @param result the first Google Maps result
+   * @throws GeocodingUnavailableException a field the decision depends on is missing or of the wrong
+   *     kind
+   */
+  private void requireWellFormed(JsonNode result) {
+    JsonNode geometry = result.path("geometry");
+    boolean wellFormed =
+        geometry.path("location_type").isTextual()
+            && !geometry.path("location_type").asText().isBlank()
+            && geometry.path("location").path("lat").isNumber()
+            && geometry.path("location").path("lng").isNumber()
+            && result.path("types").isArray()
+            && result.path("address_components").isArray();
+    if (!wellFormed) {
+      LOGGER.warn("geocode -> malformed result");
+      throw new GeocodingUnavailableException();
+    }
   }
 
   /**
