@@ -35,6 +35,8 @@
 		<postgresql.version>42.7.12</postgresql.version>
 		<jackson-bom.version>3.1.5</jackson-bom.version>
 		<log4j2.version>2.25.5</log4j2.version>
+		<!-- Surefire's own user property: real-network tests stay out of the default build. -->
+		<excludedGroups>sandbox</excludedGroups>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -234,5 +236,16 @@
 
 		</plugins>
 	</build>
+
+	<profiles>
+		<!-- Manual / scheduled only, never on PRs: mvn -Psandbox test. Advisory, not release-blocking. -->
+		<profile>
+			<id>sandbox</id>
+			<properties>
+				<excludedGroups />
+				<groups>sandbox</groups>
+			</properties>
+		</profile>
+	</profiles>
 
 </project>
