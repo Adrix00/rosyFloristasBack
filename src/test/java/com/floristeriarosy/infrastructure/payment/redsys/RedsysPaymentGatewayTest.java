@@ -193,6 +193,21 @@ class RedsysPaymentGatewayTest {
   }
 
   @Test
+  void refundByGatewayOrderIdRefundsAChargeThatHasNoOrderNumber() throws IOException {
+    String responseBody =
+        refundResponseBody(
+            Map.of("Ds_Response", "0900", "Ds_Order", "000000000777", "Ds_Amount", "4200"),
+            "000000000777");
+
+    try (LocalRedsysServer server = new LocalRedsysServer(200, responseBody)) {
+      GatewayRefundResult result =
+          gatewayFor(server).refundByGatewayOrderId("000000000777", new BigDecimal("42.00"));
+
+      assertThat(result.success()).isTrue();
+    }
+  }
+
+  @Test
   void refundDoesNotTreatAnAuthorizationApprovalCodeAsARefund() throws IOException {
     String responseBody =
         refundResponseBody(

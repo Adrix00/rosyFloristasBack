@@ -7,6 +7,7 @@ import com.floristeriarosy.application.customer.port.in.FindOrCreateGuestCustome
 import com.floristeriarosy.application.notification.command.RegisterNotificationCommand;
 import com.floristeriarosy.application.notification.port.in.RegisterNotificationUseCase;
 import com.floristeriarosy.application.order.command.ConfirmCheckoutCommand;
+import com.floristeriarosy.application.order.dto.ConfirmCheckoutOutcome;
 import com.floristeriarosy.application.order.dto.IdempotencyLock;
 import com.floristeriarosy.application.order.dto.PendingCheckoutPayload;
 import com.floristeriarosy.application.order.port.in.ConfirmCheckoutUseCase;
@@ -95,19 +96,29 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
 
   /**
    * @param command the decoded, signature-verified Redsys notification
+   * @return {@link ConfirmCheckoutOutcome#EXPIRED} when the abandoned-checkout cleanup already
+   *     resolved the row (decided under the row lock, so it cannot race the cleanup), {@link
+   *     ConfirmCheckoutOutcome#IGNORED} when it is unknown or already completed, {@link
+   *     ConfirmCheckoutOutcome#RESOLVED} otherwise
    */
   @Override
-  public void execute(ConfirmCheckoutCommand command) {
+  public ConfirmCheckoutOutcome execute(ConfirmCheckoutCommand command) {
     LOGGER.debug(
         "confirmCheckout idempotencyKey={} approved={}",
         Encode.forJava(command.idempotencyKey()),
         command.approved());
     Optional<IdempotencyLock> lock = idempotencyPort.findForUpdate(command.idempotencyKey());
+    if (lock.isPresent() && "FAILED".equals(lock.get().status())) {
+      LOGGER.debug(
+          "confirmCheckout idempotencyKey={} -> expired, reservation already released",
+          Encode.forJava(command.idempotencyKey()));
+      return ConfirmCheckoutOutcome.EXPIRED;
+    }
     if (lock.isEmpty() || !"PENDING".equals(lock.get().status())) {
       LOGGER.debug(
           "confirmCheckout idempotencyKey={} -> already resolved or unknown, ignoring (Redsys retry)",
           Encode.forJava(command.idempotencyKey()));
-      return;
+      return ConfirmCheckoutOutcome.IGNORED;
     }
     PendingCheckoutPayload payload = decryptPayload(lock.get().checkoutPayloadEncrypted());
     OrderId orderId = OrderId.of(lock.get().resourceId());
@@ -120,6 +131,7 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
     idempotencyPort.markCompleted(command.idempotencyKey(), command.approved() ? 202 : 200);
     LOGGER.debug(
         "confirmCheckout idempotencyKey={} -> resolved", Encode.forJava(command.idempotencyKey()));
+    return ConfirmCheckoutOutcome.RESOLVED;
   }
 
   /**

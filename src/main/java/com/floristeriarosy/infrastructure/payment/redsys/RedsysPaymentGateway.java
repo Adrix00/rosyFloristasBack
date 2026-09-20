@@ -116,9 +116,29 @@ public class RedsysPaymentGateway implements PaymentGatewayPort {
   @Override
   public GatewayRefundResult refund(GatewayRefundParameters parameters) {
     LOGGER.debug("refund orderNumber={} amount={}", parameters.orderNumber(), parameters.amount());
-    String redsysOrderId = RedsysOrderId.from(OrderNumber.of(parameters.orderNumber()));
+    return refundOrder(RedsysOrderId.from(OrderNumber.of(parameters.orderNumber())), parameters.amount());
+  }
+
+  /**
+   * @param gatewayOrderId the 12-digit {@code Ds_Merchant_Order} Redsys received with the charge
+   * @param amount the full amount charged
+   * @return whether Redsys confirmed the refund
+   */
+  @Override
+  public GatewayRefundResult refundByGatewayOrderId(String gatewayOrderId, BigDecimal amount) {
+    LOGGER.debug("refundByGatewayOrderId redsysOrderId={} amount={}", gatewayOrderId, amount);
+    return refundOrder(gatewayOrderId, amount);
+  }
+
+  /**
+   * @param redsysOrderId the 12-digit {@code Ds_Merchant_Order} the charge was made under
+   * @param amount the full amount to refund
+   * @return whether Redsys confirmed the refund; a rejection, non-200, malformed body, connection
+   *     failure or timeout is a failed result, never an exception
+   */
+  private GatewayRefundResult refundOrder(String redsysOrderId, BigDecimal amount) {
     Map<String, Object> params = new LinkedHashMap<>();
-    params.put("Ds_Merchant_Amount", toCents(parameters.amount()));
+    params.put("Ds_Merchant_Amount", toCents(amount));
     params.put("Ds_Merchant_Order", redsysOrderId);
     params.put("Ds_Merchant_MerchantCode", properties.merchantCode());
     params.put("Ds_Merchant_Currency", CURRENCY_EUR);
@@ -136,17 +156,17 @@ public class RedsysPaymentGateway implements PaymentGatewayPort {
               .build();
       HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
       if (response.statusCode() != 200) {
-        LOGGER.debug("refund orderNumber={} -> HTTP {}", parameters.orderNumber(), response.statusCode());
+        LOGGER.debug("refund redsysOrderId={} -> HTTP {}", redsysOrderId, response.statusCode());
         return new GatewayRefundResult(false, null, "Redsys returned HTTP " + response.statusCode());
       }
       GatewayRefundResult result = parseRefundResponse(response.body(), redsysOrderId);
-      LOGGER.debug("refund orderNumber={} -> success={}", parameters.orderNumber(), result.success());
+      LOGGER.debug("refund redsysOrderId={} -> success={}", redsysOrderId, result.success());
       return result;
     } catch (java.io.IOException | InterruptedException e) {
       if (e instanceof InterruptedException) {
         Thread.currentThread().interrupt();
       }
-      LOGGER.debug("refund orderNumber={} -> gateway call failed: {}", parameters.orderNumber(), e.getMessage());
+      LOGGER.debug("refund redsysOrderId={} -> gateway call failed: {}", redsysOrderId, e.getMessage());
       return new GatewayRefundResult(false, null, "Redsys call failed: " + e.getMessage());
     }
   }

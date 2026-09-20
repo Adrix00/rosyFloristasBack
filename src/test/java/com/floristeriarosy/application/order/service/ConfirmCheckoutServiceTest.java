@@ -14,6 +14,7 @@ import com.floristeriarosy.application.cart.port.in.ClearCartUseCase;
 import com.floristeriarosy.application.customer.port.in.FindOrCreateGuestCustomerUseCase;
 import com.floristeriarosy.application.notification.port.in.RegisterNotificationUseCase;
 import com.floristeriarosy.application.order.command.ConfirmCheckoutCommand;
+import com.floristeriarosy.application.order.dto.ConfirmCheckoutOutcome;
 import com.floristeriarosy.application.order.dto.IdempotencyLock;
 import com.floristeriarosy.application.order.dto.PendingCheckoutPayload;
 import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
@@ -135,6 +136,44 @@ class ConfirmCheckoutServiceTest {
     verify(orderPaymentPort, never()).confirmCharge(any(), any(), any(), any(), any());
     verify(orderWritePort, never()).save(any());
     verify(idempotencyPort).markCompleted("idem-3", 200);
+  }
+
+  @Test
+  void aFailedRowIsReportedAsExpiredAndTouchesNothing() {
+    IdempotencyLock lock =
+        new IdempotencyLock("FAILED", new byte[0], UUID.randomUUID(), null);
+    when(idempotencyPort.findForUpdate("idem-5")).thenReturn(Optional.of(lock));
+
+    ConfirmCheckoutOutcome outcome =
+        service.execute(
+            new ConfirmCheckoutCommand(
+                "idem-5", OrderNumber.of("WEB-20260914-000005"), true, "redsys-auth-5", null));
+
+    assertThat(outcome).isEqualTo(ConfirmCheckoutOutcome.EXPIRED);
+    verify(orderWritePort, never()).save(any());
+    verify(reservationReleaser, never()).release(any());
+    verify(idempotencyPort, never()).markCompleted(any(), anyInt());
+  }
+
+  @Test
+  void pendingApprovedIsResolvedAndACompletedRowIsIgnored() {
+    when(idempotencyPort.findForUpdate("idem-6"))
+        .thenReturn(Optional.of(new IdempotencyLock("PENDING", new byte[0], UUID.randomUUID(), new byte[0])));
+    when(idempotencyPort.findForUpdate("idem-7"))
+        .thenReturn(Optional.of(new IdempotencyLock("COMPLETED", new byte[0], UUID.randomUUID(), null)));
+    when(findOrCreateGuestCustomerUseCase.execute(any())).thenReturn(CustomerId.of(UUID.randomUUID()));
+
+    ConfirmCheckoutOutcome resolved =
+        service.execute(
+            new ConfirmCheckoutCommand(
+                "idem-6", OrderNumber.of("WEB-20260914-000006"), true, "redsys-auth-6", null));
+    ConfirmCheckoutOutcome ignored =
+        service.execute(
+            new ConfirmCheckoutCommand(
+                "idem-7", OrderNumber.of("WEB-20260914-000007"), true, "redsys-auth-7", null));
+
+    assertThat(resolved).isEqualTo(ConfirmCheckoutOutcome.RESOLVED);
+    assertThat(ignored).isEqualTo(ConfirmCheckoutOutcome.IGNORED);
   }
 
   @Test

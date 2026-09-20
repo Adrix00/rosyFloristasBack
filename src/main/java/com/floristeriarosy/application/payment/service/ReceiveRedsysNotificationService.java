@@ -1,17 +1,21 @@
 package com.floristeriarosy.application.payment.service;
 
 import com.floristeriarosy.application.order.command.ConfirmCheckoutCommand;
+import com.floristeriarosy.application.order.dto.ConfirmCheckoutOutcome;
 import com.floristeriarosy.application.order.dto.IdempotencyLock;
 import com.floristeriarosy.application.order.dto.PendingCheckoutPayload;
 import com.floristeriarosy.application.order.port.in.ConfirmCheckoutUseCase;
 import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
+import com.floristeriarosy.application.payment.dto.GatewayRefundResult;
 import com.floristeriarosy.application.payment.port.in.ReceiveRedsysNotificationUseCase;
+import com.floristeriarosy.application.payment.port.out.PaymentGatewayPort;
 import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
 import com.floristeriarosy.infrastructure.payment.redsys.RedsysBase64;
 import com.floristeriarosy.infrastructure.payment.redsys.RedsysProperties;
 import com.floristeriarosy.infrastructure.payment.redsys.RedsysResponseCode;
 import com.floristeriarosy.infrastructure.payment.redsys.RedsysSignature;
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 import org.owasp.encoder.Encode;
@@ -41,6 +45,7 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
   private final CheckoutIdempotencyPort idempotencyPort;
   private final PiiCryptoPort piiCryptoPort;
   private final ConfirmCheckoutUseCase confirmCheckoutUseCase;
+  private final PaymentGatewayPort gatewayPort;
 
   /**
    * @param properties holds the merchant signing key
@@ -48,18 +53,21 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
    * @param idempotencyPort reads the Fase-1 lock by {@code Ds_Merchant_MerchantData}
    * @param piiCryptoPort decrypts the pending payload so the business order number can be recovered
    * @param confirmCheckoutUseCase resolves the checkout, once verified
+   * @param gatewayPort refunds a charge approved after its checkout expired
    */
   public ReceiveRedsysNotificationService(
       RedsysProperties properties,
       ObjectMapper objectMapper,
       CheckoutIdempotencyPort idempotencyPort,
       PiiCryptoPort piiCryptoPort,
-      ConfirmCheckoutUseCase confirmCheckoutUseCase) {
+      ConfirmCheckoutUseCase confirmCheckoutUseCase,
+      PaymentGatewayPort gatewayPort) {
     this.properties = properties;
     this.objectMapper = objectMapper.rebuild().build();
     this.idempotencyPort = idempotencyPort;
     this.piiCryptoPort = piiCryptoPort;
     this.confirmCheckoutUseCase = confirmCheckoutUseCase;
+    this.gatewayPort = gatewayPort;
   }
 
   /**
@@ -86,39 +94,80 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
     String idempotencyKey = params.get("Ds_Merchant_MerchantData");
     LOGGER.debug(
         "receiveRedsysNotification idempotencyKey={}", Encode.forJava(idempotencyKey));
-    OrderNumber orderNumber = resolveOrderNumber(idempotencyKey);
-    if (orderNumber == null) {
+    String responseCode = params.get("Ds_Response");
+    boolean approved = RedsysResponseCode.isApproved(responseCode);
+    IdempotencyLock lock = idempotencyPort.find(idempotencyKey).orElse(null);
+    if (lock != null && "FAILED".equals(lock.status())) {
+      handleExpired(idempotencyKey, redsysOrderId, params, approved);
+      return;
+    }
+    if (lock == null || !"PENDING".equals(lock.status())) {
       LOGGER.debug(
           "receiveRedsysNotification idempotencyKey={} -> no pending lock, ignoring",
           Encode.forJava(idempotencyKey));
       return;
     }
 
-    String responseCode = params.get("Ds_Response");
-    boolean approved = RedsysResponseCode.isApproved(responseCode);
-    confirmCheckoutUseCase.execute(
-        new ConfirmCheckoutCommand(
-            idempotencyKey,
-            orderNumber,
-            approved,
-            approved ? params.get("Ds_AuthorisationCode") : null,
-            approved ? null : "Ds_Response=" + responseCode));
+    ConfirmCheckoutOutcome outcome =
+        confirmCheckoutUseCase.execute(
+            new ConfirmCheckoutCommand(
+                idempotencyKey,
+                orderNumberFrom(lock),
+                approved,
+                approved ? params.get("Ds_AuthorisationCode") : null,
+                approved ? null : "Ds_Response=" + responseCode));
+    if (outcome == ConfirmCheckoutOutcome.EXPIRED) {
+      handleExpired(idempotencyKey, redsysOrderId, params, approved);
+    }
     LOGGER.debug(
-        "receiveRedsysNotification idempotencyKey={} -> approved={}",
+        "receiveRedsysNotification idempotencyKey={} -> approved={} outcome={}",
         Encode.forJava(idempotencyKey),
-        approved);
+        approved,
+        outcome);
   }
 
   /**
+   * A notification for a checkout the cleanup already released. A declined one changes nothing. An
+   * approved one means Redsys charged the customer and no order exists: refund it automatically from
+   * the notification's own data (there is no {@code payments} row) and log at ERROR so an operator
+   * sees it. Never throws: Redsys must still get its 200 so it stops retrying, and if the refund
+   * fails too the ERROR log is the alert.
+   *
    * @param idempotencyKey Redsys's echoed {@code Ds_Merchant_MerchantData}
-   * @return the business order number stored in the Fase-1 payload, or {@code null} if there is no
-   *     pending lock for this key
+   * @param redsysOrderId the 12-digit {@code Ds_Order} the charge was made under
+   * @param params the verified notification fields
+   * @param approved whether the notification approved the charge
    */
-  private OrderNumber resolveOrderNumber(String idempotencyKey) {
-    IdempotencyLock lock = idempotencyPort.find(idempotencyKey).orElse(null);
-    if (lock == null || !"PENDING".equals(lock.status())) {
-      return null;
+  private void handleExpired(
+      String idempotencyKey, String redsysOrderId, Map<String, String> params, boolean approved) {
+    if (!approved) {
+      LOGGER.debug(
+          "receiveRedsysNotification idempotencyKey={} -> declined after expiry, ignoring",
+          Encode.forJava(idempotencyKey));
+      return;
     }
+    String refundOutcome;
+    try {
+      BigDecimal amount = BigDecimal.valueOf(Long.parseLong(params.get("Ds_Amount")), 2);
+      GatewayRefundResult result = gatewayPort.refundByGatewayOrderId(redsysOrderId, amount);
+      refundOutcome = result.success() ? "refunded" : "refund FAILED: " + result.failureReason();
+    } catch (RuntimeException e) {
+      LOGGER.error("receiveRedsysNotification late approval refund threw", e);
+      refundOutcome = "refund NOT attempted (unreadable Ds_Amount or gateway error)";
+    }
+    LOGGER.error(
+        "receiveRedsysNotification idempotencyKey={} redsysOrderId={} -> APPROVED after the checkout"
+            + " expired, the customer was charged with no order: {}",
+        Encode.forJava(idempotencyKey),
+        Encode.forJava(redsysOrderId),
+        refundOutcome);
+  }
+
+  /**
+   * @param lock the {@code PENDING} checkout row
+   * @return the business order number stored in its Fase-1 payload
+   */
+  private OrderNumber orderNumberFrom(IdempotencyLock lock) {
     try {
       PendingCheckoutPayload payload =
           objectMapper.readValue(
