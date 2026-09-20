@@ -348,8 +348,13 @@ Las tres operaciones de tramos comprueban las reglas de coherencia de la regla 3
 **resultante** y responden 422 `SHIPPING_RATES_INVALID` si no se cumplen, sin cambiar nada. Cada escritura
 queda en el registro de auditoría de administración
 ([ADR-010](../architecture/ADR/ADR-010-admin-audit-log.md)). Dos administradores editando a la vez se
-serializan bloqueando las filas de `shipping_rates` durante el cambio, sin columna `version` (son pocas filas
-y un solo cambio a la vez; [ADR-009](../architecture/ADR/ADR-009-optimistic-locking.md) no las incluye).
+serializan con un cierre exclusivo de toda la administración de tramos durante el cambio
+(`pg_advisory_xact_lock`, se libera al acabar la transacción), tomado **antes** de leer los tramos. Bloquear
+solo las filas existentes con `SELECT ... FOR UPDATE` no bastaría: no serializa contra el `INSERT` de una fila
+nueva de otra transacción (en `READ COMMITTED` la lectura bloqueada no ve filas insertadas mientras esperaba),
+y dos cambios coherentes por separado podrían dejar juntos un hueco que ninguna restricción detecta. Sin columna
+`version` ([ADR-009](../architecture/ADR/ADR-009-optimistic-locking.md) no las incluye). El cierre no afecta a
+las lecturas del checkout.
 
 Cada transición es un verbo propio, no un `PATCH /status` genérico: `ship` solo tiene sentido si
 `fulfillment = DELIVERY`, y un `PATCH` con un valor de estado arbitrario obligaría a repetir en el
@@ -480,7 +485,7 @@ invocarlos y desde qué estado son distintas (regla 3.9).
 |---|---|
 | `OrderReadPort` | `findById`, `findByOrderNumber`, `findByCustomer`, `findAllForAdmin` |
 | `OrderWritePort` | `save` |
-| `ShippingRatePort` | `findRateForDistance`, `findMaxDeliveryDistanceKm` (radio vigente); para el panel, `findAll`, `findAllForUpdate` (bloqueo de filas), `findById`, `save` |
+| `ShippingRatePort` | `findRateForDistance`, `findMaxDeliveryDistanceKm` (radio vigente); para el panel, `findAll`, `findAllForUpdate` (toma el cierre exclusivo de la regla de coherencia y lee después), `findById`, `save` |
 | `GeocodingPort` | `geocode(address)` — distancia en línea recta desde la tienda |
 | `OrderPaymentPort` | `charge`, `refund` — implementado por [`payment.md`](payment.md) |
 
