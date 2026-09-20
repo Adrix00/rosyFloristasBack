@@ -73,10 +73,10 @@ public class UpdateShippingRateService implements UpdateShippingRateUseCase {
     List<String> changedFields =
         band.replaceWith(
             command.minKm(), command.maxKm(), command.price(), command.freeFromAmount(), command.active());
-    new ShippingBands(bands).requireCoherent();
 
     ShippingBand result = band;
     if (!changedFields.isEmpty()) {
+      new ShippingBands(bands).requireCoherent();
       result = shippingRatePort.save(band);
       auditLogPort.record(
           command.adminUserId(), AuditAction.UPDATE, ENTITY_TYPE, result.id().value(), changedFields);

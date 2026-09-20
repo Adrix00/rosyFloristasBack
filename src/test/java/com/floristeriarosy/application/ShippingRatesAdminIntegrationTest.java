@@ -220,25 +220,11 @@ class ShippingRatesAdminIntegrationTest {
   }
 
   @Test
-  void twoAdministratorsEditingAtOnceAreSerializedSoTheFinalTariffStaysCoherent() throws Exception {
+  void aWriterThatShrinksTheLastBandWhileAnotherCreatesOneIsSerializedShrinkFirst() throws Exception {
     // A shrinks the last band to end at 8; B adds a band starting at 10. Each is coherent against the
     // seed tariff, but together they leave a gap between 8 and 10 that no database constraint
-    // catches: only the row lock lets the second one see the first one's result.
-    AtomicBoolean firstSave = new AtomicBoolean();
-    CountDownLatch aIsSaving = new CountDownLatch(1);
-    doAnswer(
-            call -> {
-              if (firstSave.compareAndSet(false, true)) {
-                aIsSaving.countDown();
-                awaitASessionWaitingOnALock();
-              }
-              return call.callRealMethod();
-            })
-        .when(shippingRateAdapter)
-        .save(any());
-
-    Future<?> a = executor.submit(() -> updateShippingRateUseCase.execute(update(FAR, 5, 8, "10.00", "90.00", true)));
-    assertThat(aIsSaving.await(10, TimeUnit.SECONDS)).as("A reached its save holding the locks").isTrue();
+    // catches: only the tariff lock lets the second one see the first one's result.
+    Future<?> a = startHoldingTheTariffLock(() -> updateShippingRateUseCase.execute(update(FAR, 5, 8, "10.00", "90.00", true)));
     Future<?> b = executor.submit(() -> createShippingRateUseCase.execute(create(10, 15)));
 
     a.get(15, TimeUnit.SECONDS);
@@ -247,6 +233,50 @@ class ShippingRatesAdminIntegrationTest {
         .hasMessageContaining("gap");
     assertThat(getShippingRatesUseCase.execute().deliveryRadiusKm()).isEqualByComparingTo("8");
     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM shipping_rates", Integer.class)).isEqualTo(3);
+  }
+
+  @Test
+  void aWriterThatShrinksTheLastBandWhileAnotherCreatesOneIsSerializedCreateFirst() throws Exception {
+    // The reverse order. B is already blocked waiting for the tariff when A inserts its band and
+    // commits: B must then read the tariff again and see A's new row. A row lock alone does not give
+    // that (a SELECT ... FOR UPDATE fixes its row set when the statement starts, so an INSERT made by
+    // the transaction it waited for is invisible to it), and B would shrink the last band to [5,8)
+    // against a set without [10,15) and leave the gap.
+    Future<?> a = startHoldingTheTariffLock(() -> createShippingRateUseCase.execute(create(10, 15)));
+    Future<?> b = executor.submit(() -> updateShippingRateUseCase.execute(update(FAR, 5, 8, "10.00", "90.00", true)));
+
+    a.get(15, TimeUnit.SECONDS);
+    assertThatThrownBy(() -> b.get(15, TimeUnit.SECONDS))
+        .hasCauseInstanceOf(ShippingRatesInvalidException.class)
+        .hasMessageContaining("gap");
+    assertThat(getShippingRatesUseCase.execute().deliveryRadiusKm()).isEqualByComparingTo("15");
+    assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM shipping_rates", Integer.class)).isEqualTo(4);
+    assertThat(jdbcTemplate.queryForObject("SELECT max_km FROM shipping_rates WHERE id = ?", BigDecimal.class, FAR))
+        .isEqualByComparingTo("10");
+  }
+
+  /**
+   * Starts {@code first} and holds it inside its save — with the tariff lock taken and nothing
+   * committed — until another session is seen waiting on a lock, so the caller can start the second
+   * writer and know it is blocked behind the first.
+   */
+  private Future<?> startHoldingTheTariffLock(Runnable first) throws InterruptedException {
+    AtomicBoolean firstSave = new AtomicBoolean();
+    CountDownLatch firstIsSaving = new CountDownLatch(1);
+    doAnswer(
+            call -> {
+              if (firstSave.compareAndSet(false, true)) {
+                firstIsSaving.countDown();
+                awaitASessionWaitingOnALock();
+              }
+              return call.callRealMethod();
+            })
+        .when(shippingRateAdapter)
+        .save(any());
+
+    Future<?> future = executor.submit(first);
+    assertThat(firstIsSaving.await(10, TimeUnit.SECONDS)).as("the first writer reached its save").isTrue();
+    return future;
   }
 
   private void awaitASessionWaitingOnALock() {

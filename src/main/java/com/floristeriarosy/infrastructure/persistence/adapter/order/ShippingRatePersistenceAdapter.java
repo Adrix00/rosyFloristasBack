@@ -24,6 +24,7 @@ import org.springframework.stereotype.Repository;
 public class ShippingRatePersistenceAdapter implements ShippingRatePort {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(ShippingRatePersistenceAdapter.class);
+  private static final String NO_OVERLAP_CONSTRAINT = "ex_shipping_rates_no_overlap";
 
   private final ShippingRateJdbcRepository jdbcRepository;
   private final ShippingRateJpaRepository jpaRepository;
@@ -75,13 +76,16 @@ public class ShippingRatePersistenceAdapter implements ShippingRatePort {
   }
 
   /**
-   * @return every band, ordered by where it starts, locked until the transaction ends
+   * Takes the tariff mutex first, then reads the bands in a new statement, so the list includes
+   * everything the previous writer committed (see {@link ShippingRateJdbcRepository#lockTariff()}).
+   *
+   * @return every band, ordered by where it starts, read under the tariff mutex
    */
   @Override
   public List<ShippingBand> findAllForUpdate() {
     LOGGER.debug("findAllForUpdate");
-    List<ShippingBand> result =
-        jpaRepository.findAllOrderedForUpdate().stream().map(mapper::toDomain).toList();
+    jdbcRepository.lockTariff();
+    List<ShippingBand> result = jpaRepository.findAllOrdered().stream().map(mapper::toDomain).toList();
     LOGGER.debug("findAllForUpdate -> count={}", result.size());
     return result;
   }
@@ -109,7 +113,19 @@ public class ShippingRatePersistenceAdapter implements ShippingRatePort {
       LOGGER.debug("save id={} -> saved", result.id());
       return result;
     } catch (DataIntegrityViolationException violation) {
-      throw new ShippingRatesInvalidException("The shipping bands overlap");
+      throw new ShippingRatesInvalidException(describe(violation));
     }
+  }
+
+  /**
+   * @param violation the database refusal
+   * @return "overlap" only when the violated constraint is the exclusion constraint on active bands;
+   *     any other constraint gets a neutral message rather than a misleading one
+   */
+  private String describe(DataIntegrityViolationException violation) {
+    String cause = String.valueOf(violation.getMostSpecificCause().getMessage());
+    return cause.contains(NO_OVERLAP_CONSTRAINT)
+        ? "The shipping bands overlap"
+        : "The shipping bands break a database constraint";
   }
 }

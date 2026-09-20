@@ -24,6 +24,15 @@ public class ShippingRateJdbcRepository {
 
   private static final String FIND_MAX_DELIVERY_DISTANCE = "SELECT MAX(max_km) FROM shipping_rates WHERE active";
 
+  /**
+   * The one PostgreSQL advisory-lock key of the shipping-rate administration: an arbitrary constant
+   * that only this class uses. Any other advisory lock added to the application must pick a
+   * different value.
+   */
+  private static final long TARIFF_LOCK_KEY = 7_301_001L;
+
+  private static final String LOCK_TARIFF = "SELECT pg_advisory_xact_lock(?)";
+
   private final JdbcTemplate jdbcTemplate;
   private final ShippingRateRowMapper rowMapper = new ShippingRateRowMapper();
 
@@ -44,6 +53,20 @@ public class ShippingRateJdbcRepository {
     List<ShippingRate> result = jdbcTemplate.query(FIND_FOR_DISTANCE, rowMapper, distanceKm, distanceKm);
     LOGGER.debug("findForDistance distanceKm={} -> count={}", distanceKm, result.size());
     return result;
+  }
+
+  /**
+   * Takes the tariff mutex for the rest of the caller's transaction, waiting if another
+   * administrator holds it. It must be the first thing a tariff write does, and the bands must be
+   * read in a statement issued after it returns: under READ COMMITTED a new statement sees
+   * everything the previous holder committed, including rows it inserted, which a row lock ({@code
+   * SELECT ... FOR UPDATE}, whose row set is fixed when the statement starts) never would. Plain
+   * reads, such as the checkout's distance lookup, are not affected.
+   */
+  public void lockTariff() {
+    LOGGER.debug("lockTariff");
+    jdbcTemplate.query(LOCK_TARIFF, resultSet -> null, TARIFF_LOCK_KEY);
+    LOGGER.debug("lockTariff -> held");
   }
 
   /**

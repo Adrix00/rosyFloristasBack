@@ -28,10 +28,12 @@ public interface ShippingRatePort {
   List<ShippingBand> findAll();
 
   /**
-   * Like {@link #findAll()}, but locks every row until the caller's transaction ends, so two
-   * administrators editing the tariff at once are serialized and the second sees the first's result.
+   * Like {@link #findAll()}, but first takes the tariff mutex (held until the caller's transaction
+   * ends) and reads the bands after it, so two administrators editing the tariff at once are
+   * serialized and the second sees everything the first committed — including a band the first
+   * inserted, which a row lock would not show it.
    *
-   * @return every band, active or not, ordered by where it starts, row-locked
+   * @return every band, active or not, ordered by where it starts, read under the tariff mutex
    */
   List<ShippingBand> findAllForUpdate();
 
