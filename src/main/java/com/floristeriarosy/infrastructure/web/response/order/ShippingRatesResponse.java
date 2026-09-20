@@ -10,4 +10,10 @@ import java.util.List;
  * @param deliveryRadiusKm the current delivery radius — the end of the furthest active band — or
  *     {@code null} if no band is active
  */
-public record ShippingRatesResponse(List<ShippingRateResponse> rates, BigDecimal deliveryRadiusKm) {}
+public record ShippingRatesResponse(List<ShippingRateResponse> rates, BigDecimal deliveryRadiusKm) {
+
+  /** Defensively copies {@code rates} (SpotBugs EI_EXPOSE_REP2). */
+  public ShippingRatesResponse {
+    rates = List.copyOf(rates);
+  }
+}
