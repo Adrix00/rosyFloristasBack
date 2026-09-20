@@ -482,7 +482,7 @@ Enum `OrderErrorCode` en `domain/exception/order/`
 | `CHECKOUT_INSUFFICIENT_STOCK` | 422 | Fase 1: una línea agotó su stock; con `availableQuantity` |
 | `CHECKOUT_DISCOUNT_EXHAUSTED` | 409 | Fase 1: la promoción se agotó entre que se vio y se pagó |
 | `CHECKOUT_PAYMENT_DECLINED` | 402 | La notificación de Redsys rechaza el cobro (Paso 3b); la reserva ya se revirtió |
-| `DELIVERY_OUT_OF_RANGE` | 422 | Dirección a más de 10 km; no hay tramo de tarifa |
+| `DELIVERY_OUT_OF_RANGE` | 422 | Dirección a más de 10 km; no hay tramo de tarifa. El cuerpo lleva `maxDistanceKm` (10) para que el frontal explique el límite y ofrezca la recogida; nunca la distancia, la dirección ni coordenadas |
 | `DELIVERY_ADDRESS_NOT_GEOCODABLE` | 422 | La dirección no es real o no es lo bastante precisa (calle, portal), o su código postal no coincide con el localizado; el cliente puede corregirla |
 | `DELIVERY_GEOCODING_UNAVAILABLE` | 502 | El servicio de geocodificación falla (clave denegada, cuota, red, tiempo de espera); la dirección no está juzgada, y el frontal ofrece reintentar o recoger en tienda |
 | `ORDER_INVALID_TRANSITION` | 409 | Acción fuera del grafo de la regla 3.9 (p. ej. `ship` sobre un `PICKUP`) |
