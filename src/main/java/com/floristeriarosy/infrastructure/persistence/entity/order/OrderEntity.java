@@ -381,15 +381,10 @@ public class OrderEntity {
   }
 
   /**
-   * Replaces the lines in place: Hibernate rejects swapping the collection instance of a managed
-   * entity when {@code orphanRemoval} is on.
-   *
    * @param items the sold lines, with each child's {@code order} back-reference already set
    */
   public void setItems(List<OrderItemEntity> items) {
-    List<OrderItemEntity> replacement = new ArrayList<>(items == null ? List.of() : items);
-    this.items.clear();
-    this.items.addAll(replacement);
+    this.items = new ArrayList<>(items == null ? List.of() : items);
   }
 
   /** @return the delivery/pickup slot, or {@code null} for {@code NONE} */

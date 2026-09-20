@@ -109,8 +109,9 @@ public class OrderPersistenceMapper {
   }
 
   /**
-   * Copies the mutable fields of {@code order} onto a managed entity, replacing the children so
-   * cascade/orphanRemoval stays consistent.
+   * Copies the mutable fields of {@code order} onto a managed entity. The lines and the delivery are
+   * immutable after placement ({@code Order.items} is a copy, {@code delivery} is final), so an
+   * existing order's children are never rebuilt or replaced here.
    *
    * @param existing the entity Hibernate already loaded
    * @param order the domain order carrying the new values
@@ -130,14 +131,6 @@ public class OrderPersistenceMapper {
     existing.setPlacedAt(order.placedAt());
     existing.setRetentionUntil(order.retentionUntil());
     existing.setPersonalDataPurgedAt(order.personalDataPurgedAt());
-
-    List<OrderItemEntity> newItems = new ArrayList<>();
-    for (OrderItem item : order.items()) {
-      newItems.add(toEntity(item, existing));
-    }
-    existing.setItems(newItems);
-
-    existing.setDelivery(order.delivery() != null ? toEntity(order.delivery(), existing) : null);
     return existing;
   }
 
