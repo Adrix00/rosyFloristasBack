@@ -74,7 +74,6 @@ public class CheckoutService implements CheckoutUseCase {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(CheckoutService.class);
   private static final String ENDPOINT = "POST /checkout";
-  private static final BigDecimal MAX_DELIVERY_DISTANCE_KM = new BigDecimal("10.0");
   private static final java.time.Duration RESERVATION_TTL = java.time.Duration.ofMinutes(10);
 
   private final ValidateCartUseCase validateCartUseCase;
@@ -404,19 +403,20 @@ public class CheckoutService implements CheckoutUseCase {
    * @throws DeliveryOutOfRangeException no band covers this distance
    */
   private ShippingRate rateDelivery(GeocodedAddress geocoded) {
-    if (geocoded.distanceKm().compareTo(MAX_DELIVERY_DISTANCE_KM) > 0) {
-      throw outOfRange();
-    }
     return shippingRatePort.findRateForDistance(geocoded.distanceKm()).orElseThrow(this::outOfRange);
   }
 
   /**
-   * @return the refusal for an address outside the delivery radius; the message never carries the
-   *     distance or the address, only the radius travels as a detail
+   * The delivery radius is the end of the furthest active shipping band, not a constant of its own,
+   * so it can never disagree with the bands (order.md §3.7).
+   *
+   * @return the refusal for an address no active band covers; the message never carries the
+   *     distance or the address, only the current radius travels as a detail
    */
   private DeliveryOutOfRangeException outOfRange() {
     return new DeliveryOutOfRangeException(
-        "The delivery address is outside the delivery area", MAX_DELIVERY_DISTANCE_KM);
+        "The delivery address is outside the delivery area",
+        shippingRatePort.findMaxDeliveryDistanceKm().orElse(BigDecimal.ZERO));
   }
 
   /**

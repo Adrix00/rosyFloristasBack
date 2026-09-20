@@ -206,8 +206,12 @@ class CheckoutServiceTest {
             Optional.of(
                 new GeocodedAddress(new BigDecimal("40.0"), new BigDecimal("-3.0"), new BigDecimal("15.0"))));
 
+    when(shippingRatePort.findRateForDistance(new BigDecimal("15.0"))).thenReturn(Optional.empty());
+    when(shippingRatePort.findMaxDeliveryDistanceKm()).thenReturn(Optional.of(new BigDecimal("12")));
+
     assertThatExceptionOfType(DeliveryOutOfRangeException.class)
-        .isThrownBy(() -> service.execute(deliveryCommand("idem-2")));
+        .isThrownBy(() -> service.execute(deliveryCommand("idem-2")))
+        .satisfies(e -> assertThat(e.errorDetails().get("maxDistanceKm")).isEqualTo(new BigDecimal("12")));
     verifyNoInteractions(
         orderNumberPort,
         idempotencyPort,
