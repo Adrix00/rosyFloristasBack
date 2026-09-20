@@ -246,12 +246,26 @@ class ReceiveRedsysNotificationServiceTest {
   }
 
   @Test
-  void noPendingLockIsIgnoredNotReprocessed() throws Exception {
+  void approvedForAMissingRowIsRefundedBecauseARealChargeMustLeaveATrace() throws Exception {
     String params = signedParams(REDSYS_ORDER_ID, "0000", IDEMPOTENCY_KEY, "auth-1");
-    when(idempotencyPort.find(IDEMPOTENCY_KEY)).thenReturn(java.util.Optional.empty());
+    when(idempotencyPort.find(IDEMPOTENCY_KEY)).thenReturn(Optional.empty());
+    when(gatewayPort.refundByGatewayOrderId(any(), any()))
+        .thenReturn(new GatewayRefundResult(true, null, null));
 
     service.execute(params, signature(params, REDSYS_ORDER_ID));
 
+    verify(gatewayPort).refundByGatewayOrderId(REDSYS_ORDER_ID, new BigDecimal("42.00"));
+    verify(confirmCheckoutUseCase, never()).execute(any());
+  }
+
+  @Test
+  void declinedForAMissingRowIsIgnored() throws Exception {
+    String params = signedParams(REDSYS_ORDER_ID, "0190", IDEMPOTENCY_KEY, null);
+    when(idempotencyPort.find(IDEMPOTENCY_KEY)).thenReturn(Optional.empty());
+
+    service.execute(params, signature(params, REDSYS_ORDER_ID));
+
+    verify(gatewayPort, never()).refundByGatewayOrderId(any(), any());
     verify(confirmCheckoutUseCase, never()).execute(any());
   }
 

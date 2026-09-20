@@ -97,11 +97,11 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
     String responseCode = params.get("Ds_Response");
     boolean approved = RedsysResponseCode.isApproved(responseCode);
     IdempotencyLock lock = idempotencyPort.find(idempotencyKey).orElse(null);
-    if (lock != null && "FAILED".equals(lock.status())) {
+    if (lock == null || "FAILED".equals(lock.status())) {
       handleExpired(idempotencyKey, redsysOrderId, params, approved);
       return;
     }
-    if (lock == null || !"PENDING".equals(lock.status())) {
+    if (!"PENDING".equals(lock.status())) {
       LOGGER.debug(
           "receiveRedsysNotification idempotencyKey={} -> no pending lock, ignoring",
           Encode.forJava(idempotencyKey));
@@ -138,7 +138,8 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
   /**
    * A notification for a checkout attempt that is no longer live: it expired (the cleanup released
    * it), it was superseded (the same idempotency key was re-armed and this {@code Ds_Order} belongs
-   * to the previous attempt) or it was previously declined (the row is {@code FAILED}). A declined
+   * to the previous attempt), it was previously declined (the row is {@code FAILED}) or there is no
+   * row at all (purged, or never ours to resolve). A declined
    * notification changes nothing: a duplicate must not release anything twice, nor the new
    * attempt's reservation. An approved one means Redsys charged the customer and no order exists
    * for that charge: refund it automatically from the notification's own data (there is no {@code
@@ -169,8 +170,8 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
     }
     LOGGER.error(
         "receiveRedsysNotification idempotencyKey={} redsysOrderId={} -> APPROVED for a checkout that"
-            + " expired, was superseded or was previously declined, the customer was charged with no"
-            + " order: {}",
+            + " expired, was superseded, was previously declined or has no row, the customer was"
+            + " charged with no order: {}",
         Encode.forJava(idempotencyKey),
         Encode.forJava(redsysOrderId),
         refundOutcome);

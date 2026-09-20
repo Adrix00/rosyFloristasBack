@@ -41,7 +41,8 @@ public class PendingCheckoutPayloadReader {
     try {
       return objectMapper.readValue(plaintext, PendingCheckoutPayload.class);
     } catch (JacksonException e) {
-      throw new IllegalStateException("Could not deserialize the pending checkout payload");
+      throw new IllegalStateException(
+          "Could not deserialize the pending checkout payload (" + e.getClass().getSimpleName() + ")");
     }
   }
 }

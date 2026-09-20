@@ -123,7 +123,7 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
       return ConfirmCheckoutOutcome.IGNORED;
     }
     PendingCheckoutPayload payload = payloadReader.read(lock.get().checkoutPayloadEncrypted());
-    if (!payload.orderNumber().equals(command.orderNumber().value())) {
+    if (!command.orderNumber().value().equals(payload.orderNumber())) {
       LOGGER.debug(
           "confirmCheckout idempotencyKey={} -> notification belongs to a previous attempt",
           Encode.forJava(command.idempotencyKey()));
