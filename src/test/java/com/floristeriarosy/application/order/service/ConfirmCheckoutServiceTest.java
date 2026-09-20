@@ -12,8 +12,6 @@ import static org.mockito.Mockito.when;
 import com.floristeriarosy.application.cart.command.ClearCartCommand;
 import com.floristeriarosy.application.cart.port.in.ClearCartUseCase;
 import com.floristeriarosy.application.customer.port.in.FindOrCreateGuestCustomerUseCase;
-import com.floristeriarosy.application.discount.port.out.DiscountReservationPort;
-import com.floristeriarosy.application.inventory.port.in.RegisterStockMovementUseCase;
 import com.floristeriarosy.application.notification.port.in.RegisterNotificationUseCase;
 import com.floristeriarosy.application.order.command.ConfirmCheckoutCommand;
 import com.floristeriarosy.application.order.dto.IdempotencyLock;
@@ -21,6 +19,7 @@ import com.floristeriarosy.application.order.dto.PendingCheckoutPayload;
 import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
 import com.floristeriarosy.application.order.port.out.OrderPaymentPort;
 import com.floristeriarosy.application.order.port.out.OrderWritePort;
+import com.floristeriarosy.application.order.support.CheckoutReservationReleaser;
 import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.domain.model.customer.valueobject.CustomerId;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
@@ -46,10 +45,8 @@ class ConfirmCheckoutServiceTest {
       mock(RegisterNotificationUseCase.class);
   private final ClearCartUseCase clearCartUseCase = mock(ClearCartUseCase.class);
   private final PiiCryptoPort piiCryptoPort = mock(PiiCryptoPort.class);
-  private final RegisterStockMovementUseCase registerStockMovementUseCase =
-      mock(RegisterStockMovementUseCase.class);
-  private final DiscountReservationPort discountReservationPort =
-      mock(DiscountReservationPort.class);
+  private final CheckoutReservationReleaser reservationReleaser =
+      mock(CheckoutReservationReleaser.class);
   private final ObjectMapper objectMapper = new ObjectMapper();
   private ConfirmCheckoutService service;
 
@@ -69,8 +66,7 @@ class ConfirmCheckoutServiceTest {
             clearCartUseCase,
             piiCryptoPort,
             objectMapper,
-            registerStockMovementUseCase,
-            discountReservationPort);
+            reservationReleaser);
   }
 
   private PendingCheckoutPayload payload() {
@@ -135,6 +131,7 @@ class ConfirmCheckoutServiceTest {
         new ConfirmCheckoutCommand(
             "idem-3", OrderNumber.of("WEB-20260914-000003"), false, null, "Ds_Response=0199"));
 
+    verify(reservationReleaser).release(any(PendingCheckoutPayload.class));
     verify(orderPaymentPort, never()).confirmCharge(any(), any(), any(), any(), any());
     verify(orderWritePort, never()).save(any());
     verify(idempotencyPort).markCompleted("idem-3", 200);

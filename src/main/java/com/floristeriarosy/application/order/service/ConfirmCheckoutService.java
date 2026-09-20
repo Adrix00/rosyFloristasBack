@@ -4,8 +4,6 @@ import com.floristeriarosy.application.cart.command.ClearCartCommand;
 import com.floristeriarosy.application.cart.port.in.ClearCartUseCase;
 import com.floristeriarosy.application.customer.command.FindOrCreateGuestCustomerCommand;
 import com.floristeriarosy.application.customer.port.in.FindOrCreateGuestCustomerUseCase;
-import com.floristeriarosy.application.discount.port.out.DiscountReservationPort;
-import com.floristeriarosy.application.inventory.port.in.RegisterStockMovementUseCase;
 import com.floristeriarosy.application.notification.command.RegisterNotificationCommand;
 import com.floristeriarosy.application.notification.port.in.RegisterNotificationUseCase;
 import com.floristeriarosy.application.order.command.ConfirmCheckoutCommand;
@@ -15,10 +13,9 @@ import com.floristeriarosy.application.order.port.in.ConfirmCheckoutUseCase;
 import com.floristeriarosy.application.order.port.out.CheckoutIdempotencyPort;
 import com.floristeriarosy.application.order.port.out.OrderPaymentPort;
 import com.floristeriarosy.application.order.port.out.OrderWritePort;
+import com.floristeriarosy.application.order.support.CheckoutReservationReleaser;
 import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
-import com.floristeriarosy.domain.exception.inventory.InventoryNotManagedException;
 import com.floristeriarosy.domain.model.discount.valueobject.DiscountId;
-import com.floristeriarosy.domain.model.inventory.StockMovementType;
 import com.floristeriarosy.domain.model.order.Order;
 import com.floristeriarosy.domain.model.order.OrderChannel;
 import com.floristeriarosy.domain.model.order.OrderDelivery;
@@ -53,7 +50,6 @@ import tools.jackson.databind.ObjectMapper;
 public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(ConfirmCheckoutService.class);
-  private static final String ENDPOINT = "POST /checkout";
 
   private final CheckoutIdempotencyPort idempotencyPort;
   private final OrderPaymentPort orderPaymentPort;
@@ -63,8 +59,7 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
   private final ClearCartUseCase clearCartUseCase;
   private final PiiCryptoPort piiCryptoPort;
   private final ObjectMapper objectMapper;
-  private final RegisterStockMovementUseCase registerStockMovementUseCase;
-  private final DiscountReservationPort discountReservationPort;
+  private final CheckoutReservationReleaser reservationReleaser;
 
   /**
    * @param idempotencyPort reads and resolves the Fase-1 lock
@@ -75,8 +70,7 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
    * @param clearCartUseCase empties the cart the order was built from
    * @param piiCryptoPort encrypts the buyer/delivery snapshot and decrypts the pending payload
    * @param objectMapper deserializes the pending payload
-   * @param registerStockMovementUseCase reverses Fase-1 stock reservations on decline
-   * @param discountReservationPort reverses Fase-1 discount reservations on decline
+   * @param reservationReleaser reverses the Fase-1 stock and discount reservations on decline
    */
   public ConfirmCheckoutService(
       CheckoutIdempotencyPort idempotencyPort,
@@ -87,8 +81,7 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
       ClearCartUseCase clearCartUseCase,
       PiiCryptoPort piiCryptoPort,
       ObjectMapper objectMapper,
-      RegisterStockMovementUseCase registerStockMovementUseCase,
-      DiscountReservationPort discountReservationPort) {
+      CheckoutReservationReleaser reservationReleaser) {
     this.idempotencyPort = idempotencyPort;
     this.orderPaymentPort = orderPaymentPort;
     this.orderWritePort = orderWritePort;
@@ -97,8 +90,7 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
     this.clearCartUseCase = clearCartUseCase;
     this.piiCryptoPort = piiCryptoPort;
     this.objectMapper = objectMapper.rebuild().build();
-    this.registerStockMovementUseCase = registerStockMovementUseCase;
-    this.discountReservationPort = discountReservationPort;
+    this.reservationReleaser = reservationReleaser;
   }
 
   /**
@@ -122,7 +114,8 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
     if (command.approved()) {
       confirm(orderId, command, payload);
     } else {
-      compensate(orderId, payload);
+      LOGGER.debug("confirmCheckout orderId={} -> declined, reversing Fase 1", orderId);
+      reservationReleaser.release(payload);
     }
     idempotencyPort.markCompleted(command.idempotencyKey(), command.approved() ? 202 : 200);
     LOGGER.debug(
@@ -169,50 +162,6 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
     registerNotificationUseCase.execute(
         new RegisterNotificationCommand("STAFF_NEW_ORDER", orderId.value(), null));
     LOGGER.debug("confirmCheckout orderId={} -> order materialized", orderId);
-  }
-
-  /**
-   * @param orderId the order that never happened
-   * @param payload the decrypted pending-checkout payload, to reverse the exact reservation made
-   */
-  private void compensate(OrderId orderId, PendingCheckoutPayload payload) {
-    LOGGER.debug("confirmCheckout orderId={} -> declined, reversing Fase 1", orderId);
-    for (PendingCheckoutPayload.Item item : payload.items()) {
-      releaseStock(item);
-      releaseDiscount(item);
-    }
-  }
-
-  /**
-   * @param item the pending-checkout line whose stock reservation must be released
-   */
-  private void releaseStock(PendingCheckoutPayload.Item item) {
-    try {
-      registerStockMovementUseCase.execute(
-          item.productId(), StockMovementType.ADJUSTMENT, item.quantity(), null, ENDPOINT);
-      LOGGER.debug(
-          "confirmCheckout releaseStock productId={} quantity={}",
-          item.productId(),
-          item.quantity());
-    } catch (InventoryNotManagedException e) {
-      LOGGER.debug(
-          "confirmCheckout releaseStock skipped productId={} (unmanaged)", item.productId());
-    }
-  }
-
-  /**
-   * @param item the pending-checkout line whose discount reservation must be released
-   */
-  private void releaseDiscount(PendingCheckoutPayload.Item item) {
-    if (item.discountId() == null) {
-      return;
-    }
-    discountReservationPort.release(DiscountId.of(item.discountId()), item.quantity());
-    LOGGER.debug(
-        "confirmCheckout releaseDiscount productId={} discountId={} quantity={}",
-        item.productId(),
-        item.discountId(),
-        item.quantity());
   }
 
   /**
