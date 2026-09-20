@@ -6,6 +6,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import tools.jackson.databind.ObjectMapper;
@@ -19,6 +20,7 @@ import com.floristeriarosy.application.order.port.in.PrepareOrderUseCase;
 import com.floristeriarosy.application.order.port.in.RejectOrderUseCase;
 import com.floristeriarosy.application.order.port.in.ShipOrderUseCase;
 import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
+import com.floristeriarosy.domain.exception.payment.PaymentGatewayException;
 import com.floristeriarosy.infrastructure.security.config.SecurityConfig;
 import com.floristeriarosy.infrastructure.web.request.order.CancelOrderRequest;
 import com.floristeriarosy.infrastructure.web.request.order.RejectOrderRequest;
@@ -184,6 +186,23 @@ class OrderControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new RejectOrderRequest("Out of stock"))))
         .andExpect(status().isOk());
+  }
+
+  @Test
+  void rejectWhenTheGatewayFailsReturns502WithPaymentGatewayErrorCode() throws Exception {
+    UUID orderId = UUID.randomUUID();
+    when(rejectOrderUseCase.execute(any()))
+        .thenThrow(new PaymentGatewayException("The payment gateway could not process the refund"));
+
+    mockMvc
+        .perform(
+            post("/api/v1/orders/{id}/reject", orderId)
+                .with(jwt().jwt(jwt -> jwt.subject(UUID.randomUUID().toString()).claim("subject_type", "ADMIN")))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new RejectOrderRequest("Out of stock"))))
+        .andExpect(status().isBadGateway())
+        .andExpect(jsonPath("$.code").value("PAYMENT_GATEWAY_ERROR"));
   }
 
   @Test

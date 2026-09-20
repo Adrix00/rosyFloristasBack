@@ -29,6 +29,11 @@ import tools.jackson.databind.ObjectMapper;
  * complete a payment, so these only assert that Redsys accepts what {@code charge()} produces as
  * well-formed, or rejects a tampered signature. Skipped when the sandbox is unreachable.
  *
+ * <p>These are the known-answer check for the signature implementation: a correctly signed charge
+ * accepted by Redsys and a tampered one rejected with {@code SIS0042} prove the 3DES/HMAC chain
+ * against Redsys itself, which self-consistency unit tests cannot. No fixed known-answer vector
+ * exists in the local documentation (Getnet LatAm), so none is invented.
+ *
  * <p>The REST authorization-then-refund round trip is not covered: the local Redsys documentation
  * describes no sandbox test card or authorization flow for it.
  */

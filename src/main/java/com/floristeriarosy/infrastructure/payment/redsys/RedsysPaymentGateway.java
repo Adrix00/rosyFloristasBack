@@ -37,8 +37,6 @@ public class RedsysPaymentGateway implements PaymentGatewayPort {
   private static final String CURRENCY_EUR = "978";
   private static final String TRANSACTION_TYPE_AUTHORIZATION = "0";
   private static final String TRANSACTION_TYPE_REFUND = "3";
-  private static final String APPROVED_RESPONSE_PATTERN = "0\\d{3}";
-  private static final int MAX_APPROVED_RESPONSE = 99;
   private static final Duration REFUND_TIMEOUT = Duration.ofSeconds(30);
 
   private final RedsysProperties properties;
@@ -209,11 +207,7 @@ public class RedsysPaymentGateway implements PaymentGatewayPort {
       Map<String, String> decodedParams =
           objectMapper.readValue(RedsysBase64.decode(encodedParams), Map.class);
       String responseCode = decodedParams.get("Ds_Response");
-      boolean success =
-          responseCode != null
-              && responseCode.matches(APPROVED_RESPONSE_PATTERN)
-              && Integer.parseInt(responseCode) <= MAX_APPROVED_RESPONSE;
-      return success
+      return RedsysResponseCode.isApproved(responseCode)
           ? new GatewayRefundResult(true, decodedParams.get("Ds_AuthorisationCode"), null)
           : new GatewayRefundResult(false, null, "Ds_Response=" + responseCode);
     } catch (JacksonException e) {

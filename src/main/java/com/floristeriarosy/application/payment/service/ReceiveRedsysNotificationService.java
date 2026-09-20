@@ -10,6 +10,7 @@ import com.floristeriarosy.application.shared.port.out.PiiCryptoPort;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
 import com.floristeriarosy.infrastructure.payment.redsys.RedsysBase64;
 import com.floristeriarosy.infrastructure.payment.redsys.RedsysProperties;
+import com.floristeriarosy.infrastructure.payment.redsys.RedsysResponseCode;
 import com.floristeriarosy.infrastructure.payment.redsys.RedsysSignature;
 import java.util.HashMap;
 import java.util.Map;
@@ -74,6 +75,9 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
             ? params.get("Ds_Merchant_Order")
             : params.get("Ds_Order");
     LOGGER.debug("receiveRedsysNotification redsysOrderId={}", redsysOrderId);
+    if (redsysOrderId == null) {
+      throw new IllegalArgumentException("Redsys notification carries no order id");
+    }
     if (!RedsysSignature.verify(
         properties.secretKey(), redsysOrderId, encodedMerchantParameters, receivedSignature)) {
       throw new IllegalArgumentException("Invalid Redsys signature for order " + redsysOrderId);
@@ -91,7 +95,7 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
     }
 
     String responseCode = params.get("Ds_Response");
-    boolean approved = isApproved(responseCode);
+    boolean approved = RedsysResponseCode.isApproved(responseCode);
     confirmCheckoutUseCase.execute(
         new ConfirmCheckoutCommand(
             idempotencyKey,
@@ -123,14 +127,6 @@ public class ReceiveRedsysNotificationService implements ReceiveRedsysNotificati
     } catch (JacksonException e) {
       throw new IllegalStateException("Could not deserialize the pending checkout payload", e);
     }
-  }
-
-  /**
-   * @param responseCode the Redsys response code
-   * @return whether Redsys considers the transaction approved (0000-0099)
-   */
-  private boolean isApproved(String responseCode) {
-    return responseCode != null && responseCode.matches("0\\d{3}") && Integer.parseInt(responseCode) <= 99;
   }
 
   /**

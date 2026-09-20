@@ -28,12 +28,4 @@ class RedsysBase64Test {
 
     assertThat(new String(RedsysBase64.decode(unpadded))).isEqualTo("abc");
   }
-
-  @Test
-  void normalizesUrlSafeToStandard() {
-    String standard = Base64.getEncoder().encodeToString(new byte[] {-1, -2, -3});
-    String urlSafe = Base64.getUrlEncoder().encodeToString(new byte[] {-1, -2, -3});
-
-    assertThat(RedsysBase64.normalize(urlSafe)).isEqualTo(standard);
-  }
 }

@@ -7,6 +7,7 @@ import com.floristeriarosy.application.payment.port.in.RefundOrderPaymentUseCase
 import com.floristeriarosy.application.payment.port.out.PaymentGatewayPort;
 import com.floristeriarosy.application.payment.port.out.PaymentReadPort;
 import com.floristeriarosy.application.payment.port.out.PaymentWritePort;
+import com.floristeriarosy.domain.exception.payment.PaymentGatewayException;
 import com.floristeriarosy.domain.exception.payment.PaymentNotFoundException;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
 import com.floristeriarosy.domain.model.payment.Payment;
@@ -53,6 +54,8 @@ public class RefundOrderPaymentService implements RefundOrderPaymentUseCase {
    * @param command which order's payment to refund
    * @return the refunded, saved payment
    * @throws PaymentNotFoundException the order has no payment associated
+   * @throws PaymentGatewayException Redsys refused or failed the refund; the caller's transaction
+   *     rolls back
    */
   @Override
   public Payment execute(RefundOrderPaymentCommand command) {
@@ -81,7 +84,11 @@ public class RefundOrderPaymentService implements RefundOrderPaymentUseCase {
             new GatewayRefundParameters(
                 orderNumber.value(), payment.providerPaymentIntentId(), payment.amount()));
     if (!result.success()) {
-      throw new IllegalStateException("Redsys refused the refund: " + result.failureReason());
+      LOGGER.warn(
+          "refundOrderPayment orderNumber={} -> gateway failure: {}",
+          orderNumber.value(),
+          result.failureReason());
+      throw new PaymentGatewayException("The payment gateway could not process the refund");
     }
     return result.providerReference();
   }

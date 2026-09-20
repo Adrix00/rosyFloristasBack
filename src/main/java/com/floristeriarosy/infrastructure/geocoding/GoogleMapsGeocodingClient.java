@@ -67,7 +67,7 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
       if (e instanceof InterruptedException) {
         Thread.currentThread().interrupt();
       }
-      LOGGER.debug("geocode postalCode={} -> call failed: {}", postalCode, e.getMessage());
+      LOGGER.warn("geocode postalCode={} -> call failed: {}", postalCode, e.getClass().getSimpleName());
       return Optional.empty();
     }
   }
@@ -80,7 +80,9 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
   private Optional<GeocodedAddress> parseResponse(String body) {
     try {
       JsonNode root = objectMapper.readTree(body);
-      if (!"OK".equals(root.path("status").asText()) || root.path("results").isEmpty()) {
+      String status = root.path("status").asText();
+      if (!"OK".equals(status) || root.path("results").isEmpty()) {
+        logNotFound(status);
         return Optional.empty();
       }
       JsonNode location = root.path("results").get(0).path("geometry").path("location");
@@ -91,8 +93,20 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
               properties.store().latitude(), properties.store().longitude(), latitude, longitude);
       return Optional.of(new GeocodedAddress(latitude, longitude, distanceKm));
     } catch (JacksonException e) {
-      LOGGER.debug("geocode -> could not parse Google Maps response: {}", e.getMessage());
+      LOGGER.warn("geocode -> could not parse Google Maps response: {}", e.getClass().getSimpleName());
       return Optional.empty();
+    }
+  }
+
+  /**
+   * @param status Google Maps's {@code status}; {@code ZERO_RESULTS} is an ordinary miss (DEBUG),
+   *     anything else (quota, denied key, unknown) is an operator signal (WARN)
+   */
+  private void logNotFound(String status) {
+    if ("ZERO_RESULTS".equals(status)) {
+      LOGGER.debug("geocode -> status={}", status);
+    } else {
+      LOGGER.warn("geocode -> status={}", status);
     }
   }
 }

@@ -50,6 +50,19 @@ class GoogleMapsGeocodingClientTest {
     assertThat(geocodeAgainst(200, "not json")).isEmpty();
   }
 
+  @Test
+  void geocodeReturnsEmptyWhenGoogleMapsIsUnreachable() {
+    GeocodingProperties properties =
+        new GeocodingProperties(
+            new GeocodingProperties.GoogleMaps("test-key", "http://localhost:1/no-one-listens"),
+            new GeocodingProperties.Store(new BigDecimal("40.0"), new BigDecimal("-3.0")));
+
+    assertThat(
+            new GoogleMapsGeocodingClient(properties, OBJECT_MAPPER)
+                .geocode("Calle Mayor", "1", "28013"))
+        .isEmpty();
+  }
+
   private Optional<GeocodedAddress> geocodeAgainst(int statusCode, String body) throws IOException {
     HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
     server.createContext(

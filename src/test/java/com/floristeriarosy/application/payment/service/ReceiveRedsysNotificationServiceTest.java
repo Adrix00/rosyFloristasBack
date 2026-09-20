@@ -97,6 +97,21 @@ class ReceiveRedsysNotificationServiceTest {
   }
 
   @Test
+  void notificationWithoutAnyOrderIdIsRejectedBeforeAnyStateAccess() {
+    String params =
+        Base64.getEncoder()
+            .encodeToString(
+                ("{\"Ds_Response\":\"0000\",\"Ds_Merchant_MerchantData\":\""
+                        + IDEMPOTENCY_KEY
+                        + "\"}")
+                    .getBytes(StandardCharsets.UTF_8));
+
+    assertThatIllegalArgumentException().isThrownBy(() -> service.execute(params, "any-signature"));
+    verify(confirmCheckoutUseCase, never()).execute(any());
+    verify(idempotencyPort, never()).find(any());
+  }
+
+  @Test
   void noPendingLockIsIgnoredNotReprocessed() throws Exception {
     String params = signedParams(REDSYS_ORDER_ID, "0000", IDEMPOTENCY_KEY, "auth-1");
     when(idempotencyPort.find(IDEMPOTENCY_KEY)).thenReturn(java.util.Optional.empty());

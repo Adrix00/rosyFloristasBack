@@ -2,6 +2,7 @@ package com.floristeriarosy.application.order.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -12,6 +13,7 @@ import com.floristeriarosy.application.order.support.OrderReversalComponent;
 import com.floristeriarosy.application.order.port.out.OrderWritePort;
 import com.floristeriarosy.domain.exception.order.OrderInvalidTransitionException;
 import com.floristeriarosy.domain.exception.order.OrderNotFoundException;
+import com.floristeriarosy.domain.exception.payment.PaymentGatewayException;
 import com.floristeriarosy.domain.model.order.Order;
 import com.floristeriarosy.domain.model.order.OrderChannel;
 import com.floristeriarosy.domain.model.order.OrderFulfillment;
@@ -56,6 +58,21 @@ class RejectOrderServiceTest {
 
     assertThat(result.status()).isEqualTo(OrderStatus.REJECTED.name());
     verify(reversalComponent).reverse(order, "ORDER_REJECTED");
+  }
+
+  @Test
+  void aGatewayFailureDuringReversalPropagatesSoTheTransactionRollsBack() {
+    UUID orderId = UUID.randomUUID();
+    Order order = order(orderId, OrderStatus.PENDING, UUID.randomUUID());
+    when(orderReadPort.findById(OrderId.of(orderId))).thenReturn(Optional.of(order));
+    when(orderWritePort.save(order)).thenReturn(order);
+    doThrow(new PaymentGatewayException("The payment gateway could not process the refund"))
+        .when(reversalComponent)
+        .reverse(order, "ORDER_REJECTED");
+
+    assertThatExceptionOfType(PaymentGatewayException.class)
+        .isThrownBy(
+            () -> service.execute(new RejectOrderCommand(orderId, UUID.randomUUID(), "Out of stock")));
   }
 
   @Test

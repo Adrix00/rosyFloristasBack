@@ -1,8 +1,11 @@
 package com.floristeriarosy.application.payment.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -11,6 +14,7 @@ import com.floristeriarosy.application.payment.dto.GatewayRefundResult;
 import com.floristeriarosy.application.payment.port.out.PaymentGatewayPort;
 import com.floristeriarosy.application.payment.port.out.PaymentReadPort;
 import com.floristeriarosy.application.payment.port.out.PaymentWritePort;
+import com.floristeriarosy.domain.exception.payment.PaymentGatewayException;
 import com.floristeriarosy.domain.exception.payment.PaymentNotFoundException;
 import com.floristeriarosy.domain.model.order.valueobject.OrderId;
 import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
@@ -46,6 +50,21 @@ class RefundOrderPaymentServiceTest {
 
     assertThat(result.refundedAmount()).isEqualByComparingTo("42.00");
     assertThat(result.providerReference()).isEqualTo("redsys-refund-1");
+  }
+
+  @Test
+  void aGatewayFailureRaisesPaymentGatewayExceptionAndSavesNothing() {
+    OrderId orderId = OrderId.newId();
+    Payment captured =
+        Payment.initiate(PaymentId.newId(), orderId, PaymentMethod.CARD_ONLINE, PaymentProvider.REDSYS, new BigDecimal("42.00"));
+    captured.capture("redsys-auth-1", Instant.now());
+    when(readPort.findByOrderId(orderId)).thenReturn(Optional.of(captured));
+    when(gatewayPort.refund(any())).thenReturn(new GatewayRefundResult(false, null, "SIS0000"));
+
+    assertThatExceptionOfType(PaymentGatewayException.class)
+        .isThrownBy(() -> service.execute(orderId, OrderNumber.of("WEB-20260913-000001")))
+        .withMessageNotContaining("SIS0000");
+    verify(writePort, never()).save(any());
   }
 
   @Test
