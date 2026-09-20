@@ -88,7 +88,7 @@ public class RefundOrderPaymentService implements RefundOrderPaymentUseCase {
           "refundOrderPayment orderNumber={} -> gateway failure: {}",
           orderNumber.value(),
           result.failureReason());
-      throw new PaymentGatewayException("The payment gateway could not process the refund");
+      throw new PaymentGatewayException();
     }
     return result.providerReference();
   }

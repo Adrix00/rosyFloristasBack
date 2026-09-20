@@ -9,11 +9,11 @@ import com.floristeriarosy.domain.exception.HasErrorCode;
  */
 public final class PaymentGatewayException extends BadGatewayException implements HasErrorCode {
 
-  /**
-   * @param message what the caller should see; the gateway's own reason stays in the server log
-   */
-  public PaymentGatewayException(String message) {
-    super(message);
+  private static final String MESSAGE = "The payment gateway could not process the request";
+
+  /** The message is fixed so the gateway's own text can never reach the API client. */
+  public PaymentGatewayException() {
+    super(MESSAGE);
   }
 
   /**

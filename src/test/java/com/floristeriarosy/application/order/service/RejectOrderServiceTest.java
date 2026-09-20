@@ -66,7 +66,7 @@ class RejectOrderServiceTest {
     Order order = order(orderId, OrderStatus.PENDING, UUID.randomUUID());
     when(orderReadPort.findById(OrderId.of(orderId))).thenReturn(Optional.of(order));
     when(orderWritePort.save(order)).thenReturn(order);
-    doThrow(new PaymentGatewayException("The payment gateway could not process the refund"))
+    doThrow(new PaymentGatewayException())
         .when(reversalComponent)
         .reverse(order, "ORDER_REJECTED");
 

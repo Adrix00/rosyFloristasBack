@@ -192,7 +192,7 @@ class OrderControllerTest {
   void rejectWhenTheGatewayFailsReturns502WithPaymentGatewayErrorCode() throws Exception {
     UUID orderId = UUID.randomUUID();
     when(rejectOrderUseCase.execute(any()))
-        .thenThrow(new PaymentGatewayException("The payment gateway could not process the refund"));
+        .thenThrow(new PaymentGatewayException());
 
     mockMvc
         .perform(

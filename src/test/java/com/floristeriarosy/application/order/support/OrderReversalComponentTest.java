@@ -3,7 +3,9 @@ package com.floristeriarosy.application.order.support;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -55,6 +58,17 @@ class OrderReversalComponentTest {
             discountReservationPort,
             orderPaymentPort,
             registerNotificationUseCase);
+  }
+
+  @Test
+  void reverseCallsTheExternalRefundLastAfterRegisteringBothNotifications() {
+    Order order = order(UUID.randomUUID(), List.of(line(UUID.randomUUID(), null, 1)));
+
+    component.reverse(order, "ORDER_REJECTED");
+
+    InOrder inOrder = inOrder(registerNotificationUseCase, orderPaymentPort);
+    inOrder.verify(registerNotificationUseCase, times(2)).execute(any());
+    inOrder.verify(orderPaymentPort).refund(order.id(), order.orderNumber());
   }
 
   @Test

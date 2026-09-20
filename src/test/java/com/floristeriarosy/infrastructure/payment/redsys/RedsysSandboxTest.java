@@ -56,6 +56,8 @@ class RedsysSandboxTest {
   private static final String ORDER_FORMAT_ERROR = "SIS0014";
   private static final String AUTHORIZATION_URL =
       "https://" + HOST + ":" + PORT + "/sis/rest/iniciaPeticionREST";
+  // Published test card (frictionless 3DS, 4548 8144 7972 7229, expiry 4912, CVV 123):
+  // https://pagosonline.redsys.es/desarrolladores-inicio/integrate-con-nosotros/tarjetas-y-entornos-de-prueba/
   private static final String FRICTIONLESS_TEST_CARD = "4548814479727229";
   private static final String TEST_CARD_EXPIRY = "4912";
   private static final String TEST_CARD_CVV = "123";

@@ -66,12 +66,13 @@ public class OrderReversalComponent {
       releaseStock(item);
       releaseDiscount(item);
     }
-    orderPaymentPort.refund(order.id(), order.orderNumber());
     UUID recipientCustomerId = customerNotificationType.startsWith("STAFF_") ? null : order.customerId();
     registerNotificationUseCase.execute(
         new RegisterNotificationCommand(customerNotificationType, order.id().value(), recipientCustomerId));
     registerNotificationUseCase.execute(
         new RegisterNotificationCommand("REFUND_ISSUED", order.id().value(), order.customerId()));
+    // The external refund goes last: after it, only the payment save can still fail the transaction.
+    orderPaymentPort.refund(order.id(), order.orderNumber());
     LOGGER.debug("reverse orderId={} -> reversed", order.id());
   }
 
