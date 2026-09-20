@@ -120,6 +120,25 @@ cart write commutes with itself: "add 2 units of product X" produces the same en
 the first or second attempt to apply it against the latest row, unlike an admin's arbitrary field
 edit, which is why every other `@Version` aggregate in this ADR answers 409 instead of retrying.
 
+**Each attempt runs in its own transaction (correction, 2026-09-20).** The first implementation ran the
+retry inside the same transaction as the attempt that lost the race, and it never worked: after an
+optimistic-lock failure the persistence context still held the stale `carts` row, so the second attempt
+re-read that stale copy from the first-level cache, its query auto-flushed the stale entity again, and it
+failed a second time (the caller got 409 on a single race). The retry must wrap the transaction boundary,
+not live inside it: `CartOptimisticRetry` runs every attempt through a `TransactionTemplate`, so the second
+attempt gets a fresh session and re-reads the row. When the retry also loses, the caller receives the
+domain `ResourceModifiedException` (409), never the raw persistence exception. The cart write services
+therefore carry no class-level `@Transactional`; the retry wrapper owns the boundary.
+
+The boundary is `PROPAGATION_REQUIRES_NEW`, not the default `REQUIRED`: a cart write can be called from
+inside another use case's transaction (`ConfirmCheckoutService` clears the cart while it materializes a paid
+order). Joining that outer transaction would bring back the stale session, and a lost cart-version race
+would mark the whole order confirmation rollback-only, so a cart clear could fail a payment that Redsys
+already approved. With `REQUIRES_NEW` the retry is correct in every context, and the cost is one extra
+connection while the outer transaction holds its own. If the outer transaction later rolls back, the cart
+stays cleared, which is harmless: the pending checkout payload lives in the `idempotency_keys` row and
+Redsys retries the notification.
+
 **`carts.touch()` (renews `expires_at` on every write, cart.md rule 3.7) bumps `version` too.** It is
 a real `UPDATE` to the row like any other, currently issued as a standalone JPQL statement
 (`CartJpaRepository.touch`) that bypasses the JPA-managed entity's own `@Version` check. Left alone,

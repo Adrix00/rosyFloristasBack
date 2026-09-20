@@ -40,7 +40,7 @@ notificación de Redsys resuelve el cobro en sí, no es ese tipo de evento.
 | `method` | `CARD_ONLINE`, `CASH`, `DATAPHONE`, `INTERFLORA` (`V10`) |
 | `provider` | `STRIPE` (o equivalente) para `CARD_ONLINE`; `MANUAL` para el resto |
 | `provider_payment_intent_id` | Id de la operación de cobro en la pasarela; solo `CARD_ONLINE` |
-| `provider_reference` | Id de la operación de reembolso en la pasarela; solo reembolsos de `CARD_ONLINE` |
+| `provider_reference` | Id de la operación de reembolso en la pasarela; solo reembolsos de `CARD_ONLINE`. Puede quedar `NULL` en un reembolso aprobado: el sandbox de Redsys no siempre devuelve `Ds_AuthorisationCode` en la devolución. El reembolso solo se registra si Redsys respondió `Ds_Response = 0900` (código de éxito de una devolución; el rango 0000-0099 es solo de autorizaciones), y la prueba posterior es `refunded_amount`/`refunded_at`: `Ds_Response` no se persiste |
 | `status` | `PENDING`, `AUTHORIZED`, `CAPTURED`, `CANCELED`, `FAILED` |
 | `refunded_amount` / `refunded_at` | Soportan reembolso parcial; `refunded_amount <= amount` |
 | `refund_reason` | `V10`; solo se rellena en el reembolso manual (regla 3.4) — el automático no lo necesita, la propia transición de `orders.status` ya lo explica |

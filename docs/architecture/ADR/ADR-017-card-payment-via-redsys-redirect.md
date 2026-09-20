@@ -65,7 +65,8 @@ is globally unique and never reset, so uniqueness is inherited. The same value f
 business order number travels back in the encrypted Fase-1 payload (`PendingCheckoutPayload.orderNumber`),
 never in `Ds_Order`. `Ds_Merchant_MerchantData` carries the `Idempotency-Key` value itself, so the
 notification handler finds its row directly, with no lookup table of its own; a notification with no
-`PENDING` row for that key is ignored. Notifications may arrive with URL-safe Base64 (`-_`) in
+`PENDING` row for that key is a no-op if it is a decline or the row is `COMPLETED`, and a late payment
+(refund plus ERROR log, see "Reservation expiry") if it is an approval. Notifications may arrive with URL-safe Base64 (`-_`) in
 `Ds_MerchantParameters`/`Ds_Signature`; both alphabets are accepted, signature verification stays
 constant-time and first. A `resource_id`
 reserved before the resource exists is new *usage* of that column, not a new column — the row moves
@@ -87,9 +88,25 @@ challenge (typically seconds) and short enough that an abandoned reservation doe
 hostage for long. This is a business tuning knob, not a security boundary; changing it later needs no
 schema change.
 
-A notification that arrives after the row already expired and was released is handled like any other
-late/duplicate notification (below): the row is already `FAILED` with no payload, so it answers with
-the already-settled outcome instead of reprocessing.
+A notification that arrives after the row already expired and was released depends on its outcome. A late
+**decline**, or any notification for a row already `COMPLETED`, is a plain no-op answered with `200 OK`
+(the row is already settled). A late **approval** is different: the reservation is gone, no order exists
+and the card was charged. The handler then refunds the charge at the gateway using the 12-digit
+`Ds_Order` and `Ds_Amount` of the verified notification (there is no `payments` row to refund through),
+logs at ERROR with the idempotency key and the 12-digit id (no personal data), never throws, and still
+answers `200 OK` so Redsys stops retrying. If that refund fails, the ERROR log is the alert. The same
+holds for an approval whose row no longer exists at all (purged), and for one whose `Ds_Order` belongs to a
+previous attempt of the same key. The same also holds for an approval that follows a **decline** of the same order (a customer retrying the card on
+the payment page after a denial): the decline already released the reservation and left the row `FAILED`,
+so a later approval for that `Ds_Order` is refunded rather than turned into an order. Known edge, accepted:
+refunding is the safe outcome (no order without reserved stock, no charge kept), at the cost of a customer
+seeing a charge that is reversed; whether Redsys allows that retry at all on the same order is not verified
+against the docs. Holding the reservation until expiry after a decline was rejected because it keeps stock
+locked and leaves the status endpoint saying `PENDING` for up to 10 minutes after a failed payment. To close the
+race between the cleanup and a notification, both take a row lock on the `idempotency_keys` row
+(`FOR UPDATE`; the cleanup uses `SKIP LOCKED` and lets the notification win), so exactly one of them
+resolves a row. The cleanup runs every 60 s after the previous run ends, at most 100 rows per run, one
+transaction per row.
 
 ## Notification endpoint: verify, then idempotent by construction
 

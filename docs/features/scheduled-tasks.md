@@ -83,6 +83,25 @@ checkout abandonado — la tarea libera la reserva de stock/descuento de la Fase
 `checkout_payload_encrypted`. Los diez minutos son deliberadamente cortos: más que un 3DS real
 (segundos), poco para no retener stock de más si el cliente abandona en la pasarela.
 
+Implementada: se ejecuta 60 s después de acabar la ejecución anterior, con un máximo de 100 filas por
+ejecución y una transacción por fila (una fila que falla no bloquea a las demás). Toma la fila con
+`FOR UPDATE SKIP LOCKED`, de modo que una notificación de Redsys que la esté resolviendo gana siempre.
+Una aprobación de Redsys que llega **después** de la limpieza (el cliente pagó pasados los 10 minutos) no
+tiene pedido al que asociarse: se reembolsa automáticamente en la pasarela con los datos de la propia
+notificación y se registra un error para el operador (ADR-017).
+
+Si el payload cifrado de una fila no se puede leer (por ejemplo por una clave o pepper de PII mal
+configurada), la limpieza **no** la marca `FAILED`: la deja `PENDING`, registra un error por ejecución que
+nombra solo la clase de la excepción, y la reintenta en la siguiente ejecución, de modo que corregir la
+configuración la recupera. Límite conocido: si hay 100 o más filas ilegibles entre las más antiguas,
+llenan el lote y las legibles esperan hasta que se arregle la causa.
+
+**Restricción para la futura purga de `idempotency_keys`:** las filas `FAILED` de `/checkout` son lo que
+permite reembolsar una aprobación tardía o posterior a un rechazo (ADR-017), así que la purga no puede
+borrarlas en `expires_at`: debe conservarlas más allá de la ventana más larga de reintentos de
+notificación de Redsys. Si una fila ya no existe, una aprobación con firma válida se trata igualmente
+como pago tardío (reembolso y error registrado).
+
 **El resto sigue sin diseñar.** Falta decidir frecuencia y ventana de gracia para `refresh_tokens`,
 `verification_tokens`, las filas de `idempotency_keys` de endpoints que no sean `/checkout`,
 `notifications` y `carts`
