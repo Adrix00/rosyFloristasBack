@@ -196,8 +196,23 @@ dirección: se responden con `DELIVERY_GEOCODING_UNAVAILABLE` (502), distinto de
 para no decirle a un cliente que su dirección es falsa por una avería nuestra. Antes de reservar nada, como
 los otros dos errores de reparto.
 
-**Más de 10 km no se reparte a domicilio** — no hay tramo para ese caso, lo rechaza la aplicación con
-409 `DELIVERY_OUT_OF_RANGE`.
+**El radio de reparto es el del tramo activo más lejano** (hoy 10 km con los tramos de arranque): una
+distancia que ningún tramo activo cubre se rechaza con 422 `DELIVERY_OUT_OF_RANGE`. No hay una constante
+de radio aparte de los tramos, para que no puedan desalinearse.
+
+**Los tramos los administra un `ADMIN` desde el panel** (endpoints de la sección 4). Reglas que la
+aplicación exige tras cada cambio, sobre el conjunto de tramos **activos**:
+
+- Debe haber al menos uno (sin tramos activos no se reparte a nadie; desactivar el reparto entero por
+  descuido no debe ser posible).
+- El primero empieza en 0 km y cada tramo empieza donde acaba el anterior: sin huecos ni solapes. Un hueco
+  daría un rechazo a una dirección más cercana que otra que sí se acepta.
+- `price >= 0`, `max_km > min_km`, `free_from_amount` nulo o positivo (ya forzado por la base de datos,
+  que además impide el solape de tramos activos con `ex_shipping_rates_no_overlap`).
+
+Cambiar un tramo no toca pedidos ya hechos: cada pedido guarda su `shipping_cost` (regla 3.5, ADR-007). No
+se borran tramos, se desactivan. La ubicación de la tienda (origen de las distancias) sigue en
+configuración, no en el panel: casi nunca cambia y un error ahí falsea todas las distancias.
 
 `free_from_amount` se compara contra el **subtotal**, antes de sumar el envío: es la cantidad
 comprada la que da derecho a envío gratis, no el total que ya lo incluye.
@@ -323,6 +338,16 @@ de recurso).
 | `POST` | `/orders/{id}/complete` | `ADMIN` | 200 — entregado o recogido |
 | `POST` | `/orders/{id}/cancel` (admin) | `ADMIN` | 200 — desde `PENDING` o `PREPARING` |
 | `POST` | `/orders/counter` | `ADMIN` | 201 — venta de mostrador, `STORE`/`INTERFLORA`; mecánica de pago en [`payment.md`](payment.md), regla 3.6 |
+| `GET` | `/shipping-rates` | `ADMIN` | 200 — todos los tramos, activos e inactivos, por `min_km`; incluye el radio de reparto vigente (el `max_km` del último tramo activo) |
+| `POST` | `/shipping-rates` | `ADMIN` | 201 — crea un tramo (`minKm`, `maxKm`, `price`, `freeFromAmount` opcional, `active`) |
+| `PUT` | `/shipping-rates/{id}` | `ADMIN` | 200 — sustituye los campos del tramo, incluido `active`; no hay borrado (regla 3.7) |
+
+Las tres operaciones de tramos comprueban las reglas de coherencia de la regla 3.7 sobre el conjunto
+**resultante** y responden 422 `SHIPPING_RATES_INVALID` si no se cumplen, sin cambiar nada. Cada escritura
+queda en el registro de auditoría de administración
+([ADR-010](../architecture/ADR/ADR-010-admin-audit-log.md)). Dos administradores editando a la vez se
+serializan bloqueando las filas de `shipping_rates` durante el cambio, sin columna `version` (son pocas filas
+y un solo cambio a la vez; [ADR-009](../architecture/ADR/ADR-009-optimistic-locking.md) no las incluye).
 
 Cada transición es un verbo propio, no un `PATCH /status` genérico: `ship` solo tiene sentido si
 `fulfillment = DELIVERY`, y un `PATCH` con un valor de estado arbitrario obligaría a repetir en el
@@ -421,6 +446,9 @@ vueltos a mostrar como si fueran nuevos.
 | `ConfirmCheckoutUseCase` | `ConfirmCheckoutService` | Sí — resuelve la notificación de Redsys, aprobada o rechazada (regla 3.2, [ADR-017](../architecture/ADR/ADR-017-card-payment-via-redsys-redirect.md)) |
 | `GetCheckoutStatusUseCase` | `GetCheckoutStatusService` | No — `GET /checkout/{idempotencyKey}/status` |
 | `CancelOrderUseCase` | `CancelOrderService` | Sí |
+| `GetShippingRatesUseCase` | `GetShippingRatesService` | No |
+| `CreateShippingRateUseCase` | `CreateShippingRateService` | Sí |
+| `UpdateShippingRateUseCase` | `UpdateShippingRateService` | Sí |
 | `RejectOrderUseCase` | `RejectOrderService` | Sí |
 | `PrepareOrderUseCase` | `PrepareOrderService` | Sí |
 | `ShipOrderUseCase` | `ShipOrderService` | Sí |
@@ -450,7 +478,7 @@ invocarlos y desde qué estado son distintas (regla 3.9).
 |---|---|
 | `OrderReadPort` | `findById`, `findByOrderNumber`, `findByCustomer`, `findAllForAdmin` |
 | `OrderWritePort` | `save` |
-| `ShippingRatePort` | `findRateForDistance` |
+| `ShippingRatePort` | `findRateForDistance`, `findMaxDeliveryDistanceKm` (radio vigente); para el panel, `findAll`, `findAllForUpdate` (bloqueo de filas), `findById`, `save` |
 | `GeocodingPort` | `geocode(address)` — distancia en línea recta desde la tienda |
 | `OrderPaymentPort` | `charge`, `refund` — implementado por [`payment.md`](payment.md) |
 
@@ -488,6 +516,8 @@ Enum `OrderErrorCode` en `domain/exception/order/`
 | `ORDER_INVALID_TRANSITION` | 409 | Acción fuera del grafo de la regla 3.9 (p. ej. `ship` sobre un `PICKUP`) |
 | `ORDER_NOT_CANCELABLE` | 409 | Cliente intentando cancelar algo que no está `PENDING` |
 | `RESOURCE_MODIFIED` | 409 | Conflicto de bloqueo optimista (ADR-009) |
+| `SHIPPING_RATE_NOT_FOUND` | 404 | `PUT /shipping-rates/{id}` sobre un tramo que no existe |
+| `SHIPPING_RATES_INVALID` | 422 | El conjunto de tramos activos resultante incumple la regla 3.7 (sin tramos activos, no empieza en 0, hueco o solape); el mensaje dice cuál |
 | `ORDER_VALIDATION_FAILED` | 422 | Bean Validation; con `errors[]` |
 
 `CHECKOUT_PAYMENT_DECLINED` usa 402 (`Payment Required`), no 409 ni 422: es el único caso del backend
