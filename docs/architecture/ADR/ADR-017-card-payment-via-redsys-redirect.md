@@ -56,8 +56,18 @@ indefinite copy.
 
 The order's id and `order_number` (from `order_number_seq`, `order.md` §3.1) are minted at Fase 1
 time and stored as `idempotency_keys.resource_id` immediately. `Ds_Merchant_Order` sent to Redsys is
-that same order number; `Ds_Merchant_MerchantData` carries the `Idempotency-Key` value itself, so the
-notification handler finds its row directly, with no lookup table of its own. A `resource_id`
+**not** the business order number: Redsys accepts at most 12 positions (longer returns `SIS0014`,
+unless the terminal enables extended numbers) with a numeric prefix, and `WEB-20260826-000001` is
+neither. It is the number's sequence part zero-padded to 12 digits (`000000000001`), derived by
+`RedsysOrderId.from(OrderNumber)` in `infrastructure/payment/redsys`, with no new column: the sequence
+is globally unique and never reset, so uniqueness is inherited. The same value feeds the per-order
+3DES key diversification (`RedsysSignature`) for charge, refund and notification verification. The
+business order number travels back in the encrypted Fase-1 payload (`PendingCheckoutPayload.orderNumber`),
+never in `Ds_Order`. `Ds_Merchant_MerchantData` carries the `Idempotency-Key` value itself, so the
+notification handler finds its row directly, with no lookup table of its own; a notification with no
+`PENDING` row for that key is ignored. Notifications may arrive with URL-safe Base64 (`-_`) in
+`Ds_MerchantParameters`/`Ds_Signature`; both alphabets are accepted, signature verification stays
+constant-time and first. A `resource_id`
 reserved before the resource exists is new *usage* of that column, not a new column — the row moves
 from "reserved" (`PENDING`, no `orders` row yet) to "fulfilled" (`COMPLETED`, `orders.id =
 resource_id` now exists) exactly like every other idempotent operation in this codebase, just with a
