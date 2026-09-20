@@ -14,7 +14,16 @@ public record GeocodingProperties(GoogleMaps googleMaps, Store store) {
    * @param apiKey the Google Maps Geocoding API key — required, no safe default exists
    * @param geocodeUrl the Google Maps Geocoding API endpoint
    */
-  public record GoogleMaps(String apiKey, String geocodeUrl) {}
+  public record GoogleMaps(String apiKey, String geocodeUrl) {
+
+    /**
+     * @return a description that never includes the API key
+     */
+    @Override
+    public String toString() {
+      return "GoogleMaps[geocodeUrl=" + geocodeUrl + ", apiKey=***]";
+    }
+  }
 
   /**
    * @param latitude the store's latitude

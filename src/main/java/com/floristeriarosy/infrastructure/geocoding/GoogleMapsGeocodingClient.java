@@ -12,6 +12,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -24,6 +25,10 @@ import tools.jackson.databind.ObjectMapper;
 public class GoogleMapsGeocodingClient implements GeocodingPort {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(GoogleMapsGeocodingClient.class);
+
+  private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
+  private static final Set<String> ACCEPTED_LOCATION_TYPES =
+      Set.of("ROOFTOP", "RANGE_INTERPOLATED", "GEOMETRIC_CENTER");
 
   private final GeocodingProperties properties;
   private final ObjectMapper objectMapper;
@@ -58,12 +63,15 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
             + "&key="
             + properties.googleMaps().apiKey();
     try {
-      HttpRequest request = HttpRequest.newBuilder(URI.create(url)).GET().build();
+      HttpRequest request =
+          HttpRequest.newBuilder(URI.create(url)).timeout(REQUEST_TIMEOUT).GET().build();
       HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
       Optional<GeocodedAddress> result = parseResponse(response.body());
       LOGGER.debug("geocode postalCode={} -> found={}", postalCode, result.isPresent());
       return result;
-    } catch (IOException | InterruptedException e) {
+    } catch (IOException | InterruptedException | IllegalArgumentException e) {
+      // Only the class name is logged: the request URI carries the API key, and the messages of
+      // URI.create and of the HTTP client's exceptions can quote it.
       if (e instanceof InterruptedException) {
         Thread.currentThread().interrupt();
       }
@@ -85,7 +93,11 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
         logNotFound(status);
         return Optional.empty();
       }
-      JsonNode location = root.path("results").get(0).path("geometry").path("location");
+      JsonNode first = root.path("results").get(0);
+      if (!isPreciseEnough(first)) {
+        return Optional.empty();
+      }
+      JsonNode location = first.path("geometry").path("location");
       BigDecimal latitude = BigDecimal.valueOf(location.path("lat").asDouble());
       BigDecimal longitude = BigDecimal.valueOf(location.path("lng").asDouble());
       BigDecimal distanceKm =
@@ -96,6 +108,28 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
       LOGGER.warn("geocode -> could not parse Google Maps response: {}", e.getClass().getSimpleName());
       return Optional.empty();
     }
+  }
+
+  /**
+   * Google answers {@code OK} even when it could not place the address and falls back to a coarser
+   * area — the query always ends in "Spain", so a nonsense address came back as the centre of the
+   * country, 8.88 km from the shop and inside the delivery range. Such a result is a miss, not a
+   * location: {@code partial_match} or a {@code location_type} other than a building, an
+   * interpolated street number or a geometric centre ({@code APPROXIMATE}: a postal code, a town, a
+   * country) cannot be delivered to.
+   *
+   * @param result the first Google Maps result
+   * @return whether it pins down a deliverable address
+   */
+  private boolean isPreciseEnough(JsonNode result) {
+    String locationType = result.path("geometry").path("location_type").asText();
+    boolean precise = ACCEPTED_LOCATION_TYPES.contains(locationType);
+    boolean partial = result.path("partial_match").asBoolean(false);
+    if (!precise || partial) {
+      LOGGER.debug("geocode -> imprecise result locationType={} partialMatch={}", locationType, partial);
+      return false;
+    }
+    return true;
   }
 
   /**
