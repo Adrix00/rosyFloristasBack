@@ -37,6 +37,7 @@ import com.floristeriarosy.infrastructure.web.mapper.cart.CartWebMapper;
 import jakarta.servlet.http.Cookie;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -75,6 +76,8 @@ class CartControllerTest {
             new BigDecimal("10.00"),
             new BigDecimal("10.00"),
             false,
+            Map.of(),
+            null,
             2,
             new BigDecimal("20.00"),
             5);

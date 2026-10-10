@@ -25,7 +25,7 @@ Rosy Floristas es una tienda de floristería online.
 - El cliente registrado guarda historial de compras, tarjetas, direcciones y teléfono.
 - Carrito de compras.
 - Entregas programadas según la franja horaria que elige el cliente.
-- Panel de administración: gestión de pedidos (aceptar, denegar, cambiar estado),
+- Panel de administración: gestión de pedidos (denegar si no se puede cumplir, cambiar estado),
   catálogo (categorías e imágenes), usuarios y administradores, métricas de venta, y
   registro manual de ventas realizadas en la tienda física.
 

@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 
 import com.floristeriarosy.application.cart.dto.CartCatalogEntryDto;
 import com.floristeriarosy.application.cart.dto.CartDto;
+import com.floristeriarosy.application.cart.dto.CartItemDto;
 import com.floristeriarosy.application.cart.port.out.CartPricingPort;
 import com.floristeriarosy.application.cart.port.out.CartReadPort;
 import com.floristeriarosy.application.cart.query.GetCartQuery;
@@ -76,8 +77,45 @@ class GetCartServiceTest {
     assertThat(second.subtotal()).isEqualByComparingTo("15.00");
   }
 
+  @Test
+  void cartItemCarriesProductAttributesAndActiveDiscountId() {
+    ProductId productId = ProductId.newId();
+    UUID discountId = UUID.randomUUID();
+    Cart cart =
+        Cart.reconstitute(
+            CartId.newId(),
+            null,
+            UUID.randomUUID().toString(),
+            Instant.now().plusSeconds(3600),
+            Map.of(productId, 2),
+            null,
+            null);
+    when(cartReadPort.findByCustomer(any())).thenReturn(Optional.of(cart));
+    when(cartPricingPort.catalogEntriesFor(any()))
+        .thenReturn(
+            List.of(
+                new CartCatalogEntryDto(
+                    productId.value(),
+                    "Ramo",
+                    "ramo",
+                    null,
+                    new BigDecimal("10.00"),
+                    new BigDecimal("7.50"),
+                    true,
+                    Map.of("color", "red"),
+                    discountId,
+                    ProductStatus.ACTIVE,
+                    10)));
+
+    CartDto result = service.execute(new GetCartQuery(UUID.randomUUID(), null));
+
+    CartItemDto item = result.items().get(0);
+    assertThat(item.productAttributes()).containsEntry("color", "red");
+    assertThat(item.discountId()).isEqualTo(discountId);
+  }
+
   private CartCatalogEntryDto entry(ProductId productId, BigDecimal price) {
     return new CartCatalogEntryDto(
-        productId.value(), "Ramo", "ramo", null, price, price, false, ProductStatus.ACTIVE, null);
+        productId.value(), "Ramo", "ramo", null, price, price, false, Map.of(), null, ProductStatus.ACTIVE, null);
   }
 }

@@ -12,6 +12,7 @@ import com.floristeriarosy.application.cart.port.out.CartItemWritePort;
 import com.floristeriarosy.application.cart.port.out.CartPricingPort;
 import com.floristeriarosy.application.cart.port.out.CartReadPort;
 import com.floristeriarosy.application.cart.port.out.CartWritePort;
+import com.floristeriarosy.application.cart.support.CartOptimisticRetry;
 import com.floristeriarosy.domain.exception.cart.CartItemNotFoundException;
 import com.floristeriarosy.domain.model.cart.Cart;
 import com.floristeriarosy.domain.model.cart.valueobject.CartId;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /** {@link RemoveCartItemService}: cart.md §4, §7, and the {@code CART_ITEM_NOT_FOUND} case borde. */
@@ -33,6 +35,7 @@ class RemoveCartItemServiceTest {
 
   @Mock private CartReadPort cartReadPort;
   @Mock private CartWritePort cartWritePort;
+  @Mock private PlatformTransactionManager transactionManager;
   @Mock private CartItemWritePort cartItemWritePort;
   @Mock private CartPricingPort cartPricingPort;
 
@@ -40,7 +43,13 @@ class RemoveCartItemServiceTest {
 
   @BeforeEach
   void setUp() {
-    service = new RemoveCartItemService(cartReadPort, cartWritePort, cartItemWritePort, cartPricingPort);
+    service =
+        new RemoveCartItemService(
+            cartReadPort,
+            cartWritePort,
+            cartItemWritePort,
+            cartPricingPort,
+            new CartOptimisticRetry(transactionManager));
   }
 
   private Cart cartWith(ProductId productId, int quantity) {

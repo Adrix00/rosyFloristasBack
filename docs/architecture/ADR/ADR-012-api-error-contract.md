@@ -87,6 +87,7 @@ One `@RestControllerAdvice` translates:
 | Idempotency: same key, different body (ADR-011) | 422 | `IDEMPOTENCY_KEY_REUSED` |
 | Refresh token reuse detected (ADR-008) | 401 | `SESSION_REVOKED` |
 | Expired token | 401 | `TOKEN_EXPIRED` |
+| Domain exception "external service failed" (`BadGatewayException`) | 502 | The exception's code (`PAYMENT_GATEWAY_ERROR`, `DELIVERY_GEOCODING_UNAVAILABLE`) |
 | Unhandled exception | 500 | `INTERNAL_ERROR` |
 
 Nothing internal leaks: no stack trace, no SQL, no constraint name. A violated

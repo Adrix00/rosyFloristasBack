@@ -1,0 +1,115 @@
+{
+   "results" : 
+   [
+      {
+         "address_components" : 
+         [
+            {
+               "long_name" : "Paseo de la Chopera",
+               "short_name" : "P.º de la Chopera",
+               "types" : 
+               [
+                  "route"
+               ]
+            },
+            {
+               "long_name" : "Arganzuela",
+               "short_name" : "Arganzuela",
+               "types" : 
+               [
+                  "political",
+                  "sublocality",
+                  "sublocality_level_1"
+               ]
+            },
+            {
+               "long_name" : "Madrid",
+               "short_name" : "Madrid",
+               "types" : 
+               [
+                  "locality",
+                  "political"
+               ]
+            },
+            {
+               "long_name" : "Madrid",
+               "short_name" : "M",
+               "types" : 
+               [
+                  "administrative_area_level_2",
+                  "political"
+               ]
+            },
+            {
+               "long_name" : "Comunidad de Madrid",
+               "short_name" : "MD",
+               "types" : 
+               [
+                  "administrative_area_level_1",
+                  "political"
+               ]
+            },
+            {
+               "long_name" : "Spain",
+               "short_name" : "ES",
+               "types" : 
+               [
+                  "country",
+                  "political"
+               ]
+            },
+            {
+               "long_name" : "28045",
+               "short_name" : "28045",
+               "types" : 
+               [
+                  "postal_code"
+               ]
+            }
+         ],
+         "formatted_address" : "P.º de la Chopera, Arganzuela, 28045 Madrid, Spain",
+         "geometry" : 
+         {
+            "bounds" : 
+            {
+               "northeast" : 
+               {
+                  "lat" : 40.39683190000002,
+                  "lng" : -3.6952836
+               },
+               "southwest" : 
+               {
+                  "lat" : 40.39126639999996,
+                  "lng" : -3.7034631
+               }
+            },
+            "location" : 
+            {
+               "lat" : 40.3940613,
+               "lng" : -3.6991857
+            },
+            "location_type" : "GEOMETRIC_CENTER",
+            "viewport" : 
+            {
+               "northeast" : 
+               {
+                  "lat" : 40.39683190000002,
+                  "lng" : -3.6952836
+               },
+               "southwest" : 
+               {
+                  "lat" : 40.39126639999996,
+                  "lng" : -3.7034631
+               }
+            }
+         },
+         "partial_match" : true,
+         "place_id" : "EjNQLsK6IGRlIGxhIENob3BlcmEsIEFyZ2FuenVlbGEsIDI4MDQ1IE1hZHJpZCwgU3BhaW4iLiosChQKEgkrwI2-NSZCDREZqbUQ_fqxdBIUChIJ0yHT4zgmQg0RMLCLM_dAAxw",
+         "types" : 
+         [
+            "route"
+         ]
+      }
+   ],
+   "status" : "OK"
+}

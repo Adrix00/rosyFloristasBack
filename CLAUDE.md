@@ -76,6 +76,53 @@ Never skip steps.
 
 ---
 
+## Agent roles and skill policy
+
+Work on this project happens across three coordinating Claude Code sessions — **ARCHITECT**
+(design, specs, ADRs, implementation plans), **IMPLEMENTER** (executes plans: writes code and
+tests), **REVIEWER** (reviews IMPLEMENTER's diffs against the plan and the docs). Whichever role a
+session is playing, these skills are mandatory, not optional judgment calls.
+
+**Ponytail is on by default, always, for every task in every role** — ideation, implementation, and
+tests alike. Never skip it unless the user explicitly says "stop ponytail" / "normal mode" for that
+session. Specifically:
+
+- **ARCHITECT, during brainstorming/scoping**: `ponytail` (YAGNI questions, scope discipline) runs
+  alongside `superpowers:brainstorming` and `superpowers:writing-plans` — ponytail keeps the
+  resulting plan from growing unrequested abstractions or speculative phases.
+- **IMPLEMENTER, writing production code**: `ponytail` (full) for every file touched, plus
+  `hexagonal-architecture` whenever the task adds or changes a port, adapter, or use case boundary,
+  plus `superpowers:test-driven-development` for the red-green-refactor cycle a plan's steps already
+  prescribe.
+- **IMPLEMENTER, writing tests**: `ponytail` plus `java-junit` for JUnit 5 conventions
+  (parameterized tests, assertion style, naming) — a test still gets ponytail's "does this scenario
+  need its own test" discipline, not just its own skill.
+- **REVIEWER**: `ponytail-review` (over-engineering: reinvented stdlib, unneeded dependencies,
+  speculative abstractions, dead flexibility) alongside the existing correctness/ADR-compliance
+  review — over-engineering is a defect class of its own, not a subset of correctness review.
+- Any other applicable skill (`code-review`, `simplify`, `security-review`, etc.) is used whenever
+  its own trigger applies, same as always — ponytail runs *alongside* those, it never replaces a
+  skill the task actually needs.
+
+None of this changes the 11-step development workflow above or the coding-style rules below —
+ponytail governs *how lean* the code at each step is, not which steps happen or in what order.
+
+### Phase gate: review before a phase is done
+
+- IMPLEMENTER keeps making normal incremental commits while executing a phase's plan (the usual
+  red-green-refactor safety net, one commit per task as the plan specifies) — this rule does not
+  forbid committing.
+- A phase is done once REVIEWER has done its own manual pass (correctness/ADR compliance plus
+  `ponytail-review` for over-engineering) against the plan and the docs, and `mvn verify` is green.
+  `/ultrareview` is not required to close a phase — it is a separate, user-triggered, billed check
+  the user may run whenever they choose, on any branch or PR, independent of this per-phase rhythm.
+  If the user does run it, REVIEWER acts on its findings same as any other review feedback.
+- Merging a phase's branch/commits into `main` still requires the user's explicit go-ahead, same as
+  every other merge — this rule only adds a checkpoint before that, it does not change who approves
+  a merge.
+
+---
+
 ## Coding Style
 
 - Java 21
@@ -343,6 +390,16 @@ Individual checks:
 - `mvn spotbugs:check` — static analysis only (requires prior compile)
 
 Never skip `mvn verify` before declaring a task complete.
+
+---
+
+## Shell commands
+
+Sessions always start in the repository root. Never prefix a Bash command with `cd <repo path> &&`;
+use relative paths. The `cd` makes the paths unresolvable ahead of time and
+`permissions.blockReadsOutsideWorkingDirectories` then prompts on every command, even allowlisted
+ones. For reading or searching files, prefer `Read`, `Grep` and `Glob` over `cat`/`grep`/`sed` in
+Bash.
 
 ---
 

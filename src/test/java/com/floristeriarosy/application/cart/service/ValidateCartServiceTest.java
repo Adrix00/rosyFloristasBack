@@ -49,7 +49,7 @@ class ValidateCartServiceTest {
 
   private CartCatalogEntryDto entry(ProductId productId, ProductStatus status, Integer stock) {
     return new CartCatalogEntryDto(
-        productId.value(), "Ramo", "ramo", null, BigDecimal.TEN, BigDecimal.TEN, false, status, stock);
+        productId.value(), "Ramo", "ramo", null, BigDecimal.TEN, BigDecimal.TEN, false, Map.of(), null, status, stock);
   }
 
   @Test

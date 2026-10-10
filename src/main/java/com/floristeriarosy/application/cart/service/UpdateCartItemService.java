@@ -18,11 +18,12 @@ import com.floristeriarosy.domain.model.product.valueobject.ProductId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-/** Implements {@link UpdateCartItemUseCase}: fixes a line's quantity to an exact value. */
+/**
+ * Implements {@link UpdateCartItemUseCase}: fixes a line's quantity to an exact value. Not {@code
+ * @Transactional}: {@link CartOptimisticRetry} runs each attempt in its own transaction.
+ */
 @Service
-@Transactional
 public class UpdateCartItemService implements UpdateCartItemUseCase {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(UpdateCartItemService.class);
@@ -32,6 +33,7 @@ public class UpdateCartItemService implements UpdateCartItemUseCase {
   private final CartItemWritePort cartItemWritePort;
   private final CartPricingPort cartPricingPort;
   private final CartProductAvailabilityPort availabilityPort;
+  private final CartOptimisticRetry optimisticRetry;
 
   /**
    * @param cartReadPort resolves the caller's existing cart
@@ -39,13 +41,16 @@ public class UpdateCartItemService implements UpdateCartItemUseCase {
    * @param cartItemWritePort persists the touched line
    * @param cartPricingPort prices the resulting cart for the response
    * @param availabilityPort checks the product's real stock
+   * @param optimisticRetry runs each attempt in its own transaction, retrying once on a lost race
    */
   public UpdateCartItemService(
       CartReadPort cartReadPort,
       CartWritePort cartWritePort,
       CartItemWritePort cartItemWritePort,
       CartPricingPort cartPricingPort,
-      CartProductAvailabilityPort availabilityPort) {
+      CartProductAvailabilityPort availabilityPort,
+      CartOptimisticRetry optimisticRetry) {
+    this.optimisticRetry = optimisticRetry;
     this.cartReadPort = cartReadPort;
     this.cartWritePort = cartWritePort;
     this.cartItemWritePort = cartItemWritePort;
@@ -70,7 +75,7 @@ public class UpdateCartItemService implements UpdateCartItemUseCase {
     ProductId productId = ProductId.of(command.productId());
     requireEnoughStock(productId, command.quantity());
 
-    return CartOptimisticRetry.withRetry(() -> doExecute(command, productId));
+    return optimisticRetry.withRetry(() -> doExecute(command, productId));
   }
 
   /**

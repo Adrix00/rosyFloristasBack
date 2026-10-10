@@ -19,9 +19,13 @@ Reglas transversales en [`00-security-validation-integrity.md`](00-security-vali
 - Expone la gestión de tarjetas guardadas del cliente (`customer_payment_methods`).
 - Expone el reembolso manual del administrador, independiente del automático que dispara `order`.
 
-Cobro y reembolso son siempre **síncronos**: la respuesta de la pasarela es definitiva en el momento
-de la llamada. No hay endpoint de webhook para eventos posteriores (disputas, contracargos) — decisión
-explícita, sección 11.
+Cobro y reembolso son síncronos **salvo para `CARD_ONLINE`**, que se resuelve por redirección (TPV
+Virtual Redsys, [ADR-017](../architecture/ADR/ADR-017-card-payment-via-redsys-redirect.md)): la
+respuesta no llega en la misma petición, sino después, mediante una notificación asíncrona que este
+módulo expone como `POST /api/v1/payments/redsys/notification`. `CASH`, `DATAPHONE` e `INTERFLORA`
+siguen siendo síncronos como siempre — no llaman a ninguna pasarela. Sigue sin haber webhook para
+eventos *posteriores* al cobro (disputas, contracargos) — decisión explícita, sección 11; la
+notificación de Redsys resuelve el cobro en sí, no es ese tipo de evento.
 
 ---
 
@@ -36,7 +40,7 @@ explícita, sección 11.
 | `method` | `CARD_ONLINE`, `CASH`, `DATAPHONE`, `INTERFLORA` (`V10`) |
 | `provider` | `STRIPE` (o equivalente) para `CARD_ONLINE`; `MANUAL` para el resto |
 | `provider_payment_intent_id` | Id de la operación de cobro en la pasarela; solo `CARD_ONLINE` |
-| `provider_reference` | Id de la operación de reembolso en la pasarela; solo reembolsos de `CARD_ONLINE` |
+| `provider_reference` | Id de la operación de reembolso en la pasarela; solo reembolsos de `CARD_ONLINE`. Puede quedar `NULL` en un reembolso aprobado: el sandbox de Redsys no siempre devuelve `Ds_AuthorisationCode` en la devolución. El reembolso solo se registra si Redsys respondió `Ds_Response = 0900` (código de éxito de una devolución; el rango 0000-0099 es solo de autorizaciones), y la prueba posterior es `refunded_amount`/`refunded_at`: `Ds_Response` no se persiste |
 | `status` | `PENDING`, `AUTHORIZED`, `CAPTURED`, `CANCELED`, `FAILED` |
 | `refunded_amount` / `refunded_at` | Soportan reembolso parcial; `refunded_amount <= amount` |
 | `refund_reason` | `V10`; solo se rellena en el reembolso manual (regla 3.4) — el automático no lo necesita, la propia transición de `orders.status` ya lo explica |
@@ -63,23 +67,28 @@ transacción que crea el pedido, sin ventana de espera externa:
 
 Una sola implementación que ramifica por `method`:
 
-- **`CARD_ONLINE`**: llama a la pasarela con `paymentMethodToken` (tarjeta nueva) o
-  `paymentMethodId` + `provider_customer_id` (tarjeta guardada, regla 3.5). Si la pasarela rechaza el
-  cobro, se propaga como fallo — `order.md` lo traduce a `CHECKOUT_PAYMENT_DECLINED` (402) y ejecuta su
-  Fase 3b.
+- **`CARD_ONLINE`**: no cobra en la propia llamada — genera y firma los parámetros de redirección a
+  Redsys (`Ds_MerchantParameters`/`Ds_Signature`) usando `paymentMethodToken` (tarjeta nueva, se
+  introduce en el formulario de Redsys) o la referencia guardada del cliente (tarjeta guardada, regla
+  3.5, "Pago por Referencia" de Redsys). El resultado real llega después, por la notificación
+  asíncrona de Redsys ([ADR-017](../architecture/ADR/ADR-017-card-payment-via-redsys-redirect.md)): si
+  aprueba, `order.md` ejecuta su Fase 3a; si rechaza, `CHECKOUT_PAYMENT_DECLINED` (402) internamente y
+  su Fase 3b.
 - **`CASH`, `DATAPHONE`, `INTERFLORA`**: no llama a nada externo. Inserta directamente la fila en
   `payments` con `status = CAPTURED`, `provider = MANUAL`. No puede fallar por causas de pasarela; solo
   por lo que ya cubre la transacción de base de datos.
 
-Este es el método que usa tanto el checkout de `WEB` (Fase 2, `order.md` regla 3.2) como
-`POST /orders/counter` (regla 3.6) — mismo puerto, mismo método, la única diferencia es qué rama de
-`method` se ejecuta.
+Este es el método que usa tanto el checkout de `WEB` (Paso 2 para `CARD_ONLINE`, `order.md` regla 3.2)
+como `POST /orders/counter` (regla 3.6) — mismo puerto, mismo método, la única diferencia es qué rama
+de `method` se ejecuta.
 
 ### 3.3 `OrderPaymentPort.refund(order, ...)` — automático
 
 Disparado por `order.md` cuando un pedido pasa a `REJECTED` (desde `PENDING`) o `CANCELLED` (desde
-`PENDING` o `ACCEPTED`, regla 3.9 de `order.md`). En ambos casos el pedido no llegó a prepararse ni
-entregarse, así que **siempre es reembolso total**: `refunded_amount = amount`, sin decisión que tomar.
+`PENDING` o `PREPARING`, regla 3.9 de `order.md`). En todos los casos es **reembolso total**:
+`refunded_amount = amount`, sin decisión que tomar — incluso cuando la floristería ya invirtió trabajo
+o material preparando el pedido (`CANCELLED` desde `PREPARING`): este módulo no cobra ese coste, es
+una pérdida operativa que la floristería asume, fuera del alcance de este documento.
 `refund_reason` queda `NULL` — la transición de estado del pedido ya es el motivo.
 
 Para `CARD_ONLINE`, llama a la pasarela y guarda su `provider_reference`. Para `CASH`/`DATAPHONE`/
@@ -110,8 +119,9 @@ carrito — este `POST` ya lleva en el cuerpo todo lo necesario para identificar
 
 ### 3.5 Tarjetas guardadas
 
-Añadir una tarjeta es un flujo de dos pasos frente a la pasarela (SetupIntent o equivalente): el
-frontend obtiene un `setupToken` directamente de la pasarela (el backend nunca ve el número de tarjeta,
+Añadir una tarjeta es un flujo de dos pasos frente a la pasarela — para Redsys, el "Pago por
+Referencia" (OneClick) de `GetNet.md`: el frontend obtiene un `setupToken` directamente de la pasarela
+(el backend nunca ve el número de tarjeta,
 [ADR-005](../architecture/ADR/ADR-005-pii-protection-and-payment-tokenization.md)) y se lo pasa al
 backend, que lo cambia por un `payment_method_token` persistente y los metadatos de la tarjeta
 (`card_brand`, `last_four`, `exp_month`, `exp_year`). Si es la primera tarjeta del cliente, se crea
@@ -130,7 +140,7 @@ alternativa a `paymentMethodToken` (tarjeta nueva) — ver regla 3.8 y el cambio
 `POST /orders/counter`, `ADMIN`. Mismo patrón que el checkout con `CASH`/`DATAPHONE` de `order.md`
 (Fases 1+3a fundidas, regla 3.2 de `order.md`): reserva de stock + `orders`/`order_items`/
 `order_deliveries` (si aplica) + `payments` `CAPTURED` + `order_status_history`, todo en una sola
-transacción, sin Fase 2 externa porque ningún método de este endpoint llama a una pasarela.
+transacción, sin Paso 2 externo porque ningún método de este endpoint llama a una pasarela.
 
 `channel` determina qué métodos son válidos: `STORE` acepta `CASH`/`DATAPHONE`; `INTERFLORA` acepta
 únicamente `INTERFLORA` (regla 3.7).
@@ -189,6 +199,19 @@ Prefijo `/api/v1`.
 invoca `OrderPaymentPort.charge()` como cualquier otro checkout — no se redeclara aquí. Su exigencia de
 `Idempotency-Key` sí se redeclara, en [`order.md`](order.md), sección 4.
 
+### Notificación de la pasarela (Redsys, sin autenticación de usuario)
+
+| Método | Ruta | Devuelve |
+|---|---|---|
+| `POST` | `/api/v1/payments/redsys/notification` | 200, cuerpo en texto plano `OK` (Redsys lo exige así) |
+
+No lo llama ningún cliente del backend ni requiere sesión — lo llama Redsys directamente, verificado
+por firma (`Ds_Signature`), no por autenticación de usuario. El controlador vive en este módulo
+(verifica la firma y traduce el resultado), pero quien de verdad materializa o revierte el pedido es
+`ConfirmCheckoutUseCase` de [`order.md`](order.md) — este módulo solo hace de frontera con Redsys,
+igual que en el resto del documento. Detalle completo del protocolo y de la idempotencia en
+[ADR-017](../architecture/ADR/ADR-017-card-payment-via-redsys-redirect.md).
+
 ---
 
 ## 5. Request DTOs
@@ -238,10 +261,13 @@ datos que el cliente necesite ver.
 | `RefundOrderPaymentUseCase` | `RefundOrderPaymentService` | Sí — implementa `OrderPaymentPort.refund`, invocado por `order.md` |
 | `ManualRefundUseCase` | `ManualRefundService` | Sí — endpoint propio, regla 3.4 |
 | `GetOrderPaymentUseCase` | `GetOrderPaymentService` | No |
+| `ReceiveRedsysNotificationUseCase` | `ReceiveRedsysNotificationService` | Sí — verifica la firma y llama a `ConfirmCheckoutUseCase` de `order.md` ([ADR-017](../architecture/ADR/ADR-017-card-payment-via-redsys-redirect.md)) |
 
 `ChargeOrderPaymentService` y `RefundOrderPaymentService` no tienen controlador propio: se exponen
 solo como implementación del puerto que `order.md` consume, igual que `RegisterStockMovementUseCase`
-en `inventory.md` no tiene endpoint público.
+en `inventory.md` no tiene endpoint público. `ReceiveRedsysNotificationService` sí tiene su propio
+controlador — es la única superficie pública de este documento que no exige sesión ni rol, verificada
+por firma en su lugar.
 
 ---
 
@@ -303,10 +329,12 @@ Enum `PaymentErrorCode` en `domain/exception/payment/`
 
 - **Reserva y liberación de stock, y de unidades de descuento** durante el checkout —
   [`order.md`](order.md), [`inventory.md`](inventory.md), [`product-discounts.md`](product-discounts.md).
-- **Webhooks de eventos asíncronos de la pasarela** (disputas, contracargos). Decisión explícita: el
-  diseño actual asume cobro y reembolso síncronos en toda su superficie; un evento que la pasarela
-  reporte por su cuenta, sin que el backend haya iniciado la llamada, no tiene ningún caso de uso
-  definido todavía. Se documenta como descartado por ahora, no como pendiente sin cerrar.
+- **Webhooks de eventos asíncronos de la pasarela posteriores al cobro** (disputas, contracargos).
+  Decisión explícita: la notificación de Redsys que resuelve el propio cobro
+  ([ADR-017](../architecture/ADR/ADR-017-card-payment-via-redsys-redirect.md)) no es esto — es parte
+  del flujo de cobro en sí, no un evento posterior. Un evento que la pasarela reporte por su cuenta
+  *después* de que el pago ya quedó `CAPTURED` (una disputa, un contracargo) sigue sin tener ningún
+  caso de uso definido. Se documenta como descartado por ahora, no como pendiente sin cerrar.
 - **Liquidación contable real con la red Interflora** (regla 3.7) — proceso externo al backend.
 - **Frecuencia de purga de `idempotency_keys`** — `00-security-validation-integrity.md`, sección 12.
 - **Correo de confirmación del reembolso** — [`notification.md`](notification.md), tipo

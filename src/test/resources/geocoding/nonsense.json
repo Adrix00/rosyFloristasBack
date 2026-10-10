@@ -1,0 +1,63 @@
+{
+   "results" : 
+   [
+      {
+         "address_components" : 
+         [
+            {
+               "long_name" : "Spain",
+               "short_name" : "ES",
+               "types" : 
+               [
+                  "country",
+                  "political"
+               ]
+            }
+         ],
+         "formatted_address" : "Spain",
+         "geometry" : 
+         {
+            "bounds" : 
+            {
+               "northeast" : 
+               {
+                  "lat" : 43.8504,
+                  "lng" : 4.6362
+               },
+               "southwest" : 
+               {
+                  "lat" : 27.4985,
+                  "lng" : -18.2648001
+               }
+            },
+            "location" : 
+            {
+               "lat" : 40.46366700000001,
+               "lng" : -3.74922
+            },
+            "location_type" : "APPROXIMATE",
+            "viewport" : 
+            {
+               "northeast" : 
+               {
+                  "lat" : 45.0316821,
+                  "lng" : 6.401144299999999
+               },
+               "southwest" : 
+               {
+                  "lat" : 26.5538366,
+                  "lng" : -20.3438182
+               }
+            }
+         },
+         "partial_match" : true,
+         "place_id" : "ChIJi7xhMnjjQgwR7KNoB5Qs7KY",
+         "types" : 
+         [
+            "country",
+            "political"
+         ]
+      }
+   ],
+   "status" : "OK"
+}

@@ -1,0 +1,75 @@
+package com.floristeriarosy.application.order.service;
+
+import com.floristeriarosy.application.order.command.ShipOrderCommand;
+import com.floristeriarosy.application.order.dto.OrderDto;
+import com.floristeriarosy.application.order.mapper.OrderDtoMapper;
+import com.floristeriarosy.application.order.port.in.ShipOrderUseCase;
+import com.floristeriarosy.application.order.port.out.OrderReadPort;
+import com.floristeriarosy.application.order.port.out.OrderWritePort;
+import com.floristeriarosy.domain.exception.order.OrderInvalidTransitionException;
+import com.floristeriarosy.domain.exception.order.OrderNotFoundException;
+import com.floristeriarosy.domain.model.order.Order;
+import com.floristeriarosy.domain.model.order.OrderFulfillment;
+import com.floristeriarosy.domain.model.order.OrderStatus;
+import com.floristeriarosy.domain.model.order.valueobject.OrderId;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/** Implements {@link ShipOrderUseCase}: {@code PREPARING} → {@code OUT_FOR_DELIVERY} (order.md §3.9). */
+@Service
+@Transactional
+public class ShipOrderService implements ShipOrderUseCase {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(ShipOrderService.class);
+
+  private final OrderReadPort orderReadPort;
+  private final OrderWritePort orderWritePort;
+
+  /**
+   * @param orderReadPort loads orders by id
+   * @param orderWritePort persists orders and records status history
+   */
+  public ShipOrderService(OrderReadPort orderReadPort, OrderWritePort orderWritePort) {
+    this.orderReadPort = orderReadPort;
+    this.orderWritePort = orderWritePort;
+  }
+
+  /**
+   * @param command the order to send out and the admin who is sending it
+   * @return the updated order
+   * @throws OrderNotFoundException the order does not exist
+   * @throws OrderInvalidTransitionException the order is not {@code PREPARING} or is not a
+   *     {@code DELIVERY} order
+   */
+  @Override
+  @PreAuthorize("hasRole('ADMIN')")
+  public OrderDto execute(ShipOrderCommand command) {
+    LOGGER.debug("shipOrder orderId={} adminUserId={}", command.orderId(), command.adminUserId());
+    Order order = loadOrder(command.orderId());
+    if (order.status() != OrderStatus.PREPARING || order.fulfillment() != OrderFulfillment.DELIVERY) {
+      throw new OrderInvalidTransitionException(
+          "Order " + command.orderId() + " is not PREPARING DELIVERY");
+    }
+    order.ship();
+    Order saved = orderWritePort.save(order);
+    orderWritePort.recordStatusChange(saved.id(), OrderStatus.OUT_FOR_DELIVERY, command.adminUserId(), null);
+    OrderDto result = OrderDtoMapper.toDto(saved);
+    LOGGER.debug("shipOrder orderId={} -> out_for_delivery", command.orderId());
+    return result;
+  }
+
+  /**
+   * @param orderId the order id to load
+   * @return the loaded order
+   * @throws OrderNotFoundException the order does not exist
+   */
+  private Order loadOrder(UUID orderId) {
+    return orderReadPort
+        .findById(OrderId.of(orderId))
+        .orElseThrow(() -> new OrderNotFoundException("Order " + orderId + " not found"));
+  }
+}

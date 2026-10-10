@@ -2,19 +2,29 @@ package com.floristeriarosy.application.cart.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.floristeriarosy.domain.exception.ResourceModifiedException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 
 /** {@link CartOptimisticRetry}: ADR-009 amendment (2026-09-06). */
 class CartOptimisticRetryTest {
+
+  private final PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
+  private final CartOptimisticRetry retry = new CartOptimisticRetry(transactionManager);
 
   @Test
   void returnsTheResultWhenTheFirstAttemptSucceeds() {
     AtomicInteger attempts = new AtomicInteger();
     String result =
-        CartOptimisticRetry.withRetry(
+        retry.withRetry(
             () -> {
               attempts.incrementAndGet();
               return "ok";
@@ -28,7 +38,7 @@ class CartOptimisticRetryTest {
   void retriesExactlyOnceAfterLosingTheVersionRaceThenSucceeds() {
     AtomicInteger attempts = new AtomicInteger();
     String result =
-        CartOptimisticRetry.withRetry(
+        retry.withRetry(
             () -> {
               if (attempts.incrementAndGet() == 1) {
                 throw new ResourceModifiedException("lost the race");
@@ -41,12 +51,36 @@ class CartOptimisticRetryTest {
   }
 
   @Test
+  void runsEachAttemptInItsOwnNewTransaction() {
+    AtomicInteger attempts = new AtomicInteger();
+
+    retry.withRetry(
+        () -> {
+          if (attempts.incrementAndGet() == 1) {
+            throw new ResourceModifiedException("lost the race");
+          }
+          return "ok-on-retry";
+        });
+
+    ArgumentCaptor<TransactionDefinition> definitions =
+        ArgumentCaptor.forClass(TransactionDefinition.class);
+    verify(transactionManager, times(2)).getTransaction(definitions.capture());
+    assertThat(definitions.getAllValues())
+        .allSatisfy(
+            definition ->
+                assertThat(definition.getPropagationBehavior())
+                    .isEqualTo(TransactionDefinition.PROPAGATION_REQUIRES_NEW));
+    verify(transactionManager).rollback(any());
+    verify(transactionManager).commit(any());
+  }
+
+  @Test
   void propagatesTheConflictWhenTheRetryLosesTheRaceTooInsteadOfLoopingForever() {
     AtomicInteger attempts = new AtomicInteger();
 
     assertThatThrownBy(
             () ->
-                CartOptimisticRetry.withRetry(
+                retry.withRetry(
                     () -> {
                       attempts.incrementAndGet();
                       throw new ResourceModifiedException("still losing");
@@ -59,7 +93,7 @@ class CartOptimisticRetryTest {
   void aRunnableOverloadRetriesTheSameWayAsTheSupplierOne() {
     AtomicInteger attempts = new AtomicInteger();
 
-    CartOptimisticRetry.withRetry(
+    retry.withRetry(
         (Runnable)
             () -> {
               if (attempts.incrementAndGet() == 1) {
@@ -74,7 +108,7 @@ class CartOptimisticRetryTest {
   void doesNotCatchAnUnrelatedException() {
     assertThatThrownBy(
             () ->
-                CartOptimisticRetry.withRetry(
+                retry.withRetry(
                     () -> {
                       throw new IllegalStateException("not a version conflict");
                     }))

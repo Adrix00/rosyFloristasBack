@@ -32,9 +32,13 @@ import org.springframework.transaction.annotation.Transactional;
  * (inventory.md, section 1, section 3.1). Every write is a conditional {@code UPDATE} on {@code
  * products.stock} followed by an {@code INSERT} into {@code stock_movements}, both in the same
  * transaction, never a {@code SELECT} before the write itself.
+ *
+ * <p>{@link InventoryNotManagedException} does not roll back: it is raised by the conditional
+ * {@code UPDATE} before anything is written, and callers that join their own transaction (the
+ * order reversal) catch it and carry on — a rollback mark would poison that outer transaction.
  */
 @Service
-@Transactional
+@Transactional(noRollbackFor = InventoryNotManagedException.class)
 public class RegisterStockMovementService implements RegisterStockMovementUseCase {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(RegisterStockMovementService.class);

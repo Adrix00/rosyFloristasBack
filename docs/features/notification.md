@@ -69,8 +69,8 @@ consultar el pedido después.
 no lleva motivo: un cliente que cancela su pedido no tiene que justificarse
 ([`order.md`](order.md), `CancelOrderRequest`).
 
-**Qué no se notifica, a propósito.** Aceptar, preparar y salir a reparto no generan correo: son tres
-avisos más por pedido para decir que todo va según lo previsto. Las alertas de inventario tampoco
+**Qué no se notifica, a propósito.** Preparar y salir a reparto no generan correo: son dos avisos más
+por pedido para decir que todo va según lo previsto. Las alertas de inventario tampoco
 ([`inventory.md`](inventory.md), decisión ya cerrada); se consultan en el panel. Y ningún cambio de
 `admin_users` genera correo — el `OWNER` comunica las contraseñas provisionales en persona
 ([`admin.md`](admin.md), regla 3.2).

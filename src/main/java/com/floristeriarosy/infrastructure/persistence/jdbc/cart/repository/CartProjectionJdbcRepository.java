@@ -7,7 +7,10 @@ import com.floristeriarosy.infrastructure.persistence.support.product.ProductVis
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -17,6 +20,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.type.MapType;
 
 /**
  * JDBC reads backing cart (ADR-002): the batch product-pricing/display projection for {@code GET
@@ -36,12 +42,21 @@ public class CartProjectionJdbcRepository {
   private static final String AVAILABLE_STOCK_SQL = "SELECT stock FROM products WHERE id = ?";
 
   private final JdbcTemplate jdbcTemplate;
+  private final ObjectMapper objectMapper;
+  private final MapType attributesType;
 
   /**
    * @param jdbcTemplate runs the SQL against the configured datasource
+   * @param objectMapper parses the JSONB {@code products.attributes} column; rebuilt so this
+   *     repository does not hold the caller's mutable reference (SpotBugs EI_EXPOSE_REP2)
    */
-  public CartProjectionJdbcRepository(JdbcTemplate jdbcTemplate) {
+  public CartProjectionJdbcRepository(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
     this.jdbcTemplate = jdbcTemplate;
+    this.objectMapper = objectMapper.rebuild().build();
+    this.attributesType =
+        this.objectMapper
+            .getTypeFactory()
+            .constructMapType(LinkedHashMap.class, String.class, Object.class);
   }
 
   /**
@@ -81,9 +96,22 @@ public class CartProjectionJdbcRepository {
       return List.of();
     }
     String sql =
-        "SELECT p.id, p.name, p.slug, p.price, p.status, p.stock, ("
+        """
+        SELECT p.id, p.name, p.slug, p.price, p.status, p.stock, p.attributes,
+          (
+        """
             + ProductActiveSalePriceSql.CORRELATED_SUBQUERY
-            + ") AS active_sale_price FROM products p WHERE p.id IN ("
+            + """
+          ) AS active_sale_price,
+          (
+            SELECT id FROM product_discounts
+            WHERE product_id = p.id
+              AND tstzrange(starts_at, ends_at, '[)') @> now()
+              AND (quantity_limit IS NULL OR quantity_sold < quantity_limit)
+            LIMIT 1
+          ) AS discount_id
+        FROM products p
+        WHERE p.id IN ("""
             + placeholders(productIds.size())
             + ")";
     List<CartCatalogEntryDto> result =
@@ -111,8 +139,30 @@ public class CartProjectionJdbcRepository {
         price,
         effectivePrice,
         activeSalePrice != null,
+        readAttributes(rs.getString("attributes")),
+        (UUID) rs.getObject("discount_id"),
         ProductStatus.valueOf(rs.getString("status")),
         stock);
+  }
+
+  /**
+   * @param json the raw {@code products.attributes} JSONB value, or {@code null}
+   * @return the parsed attribute map, or an empty unmodifiable map if {@code json} is blank or
+   *     cannot be parsed
+   */
+  private Map<String, Object> readAttributes(String json) {
+    if (json == null || json.isBlank()) {
+      return Collections.unmodifiableMap(new LinkedHashMap<String, Object>());
+    }
+    try {
+      @SuppressWarnings("unchecked")
+      Map<String, Object> parsed =
+          (Map<String, Object>) objectMapper.readValue(json, attributesType);
+      return Collections.unmodifiableMap(new LinkedHashMap<>(parsed));
+    } catch (JacksonException e) {
+      LOGGER.debug("readAttributes -> could not parse json: {}", e.getMessage());
+      return Collections.unmodifiableMap(new LinkedHashMap<String, Object>());
+    }
   }
 
   /**

@@ -25,4 +25,39 @@
   <Match>
     <Bug pattern="THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION" />
   </Match>
+
+  <!--
+    JPA bidirectional associations must expose the managed parent/child entity reference so
+    Hibernate can own the FK and cascade persists. Defensively copying these entities would break
+    object identity, cascade semantics and orphanRemoval; the getters/setters are not DTOs leaking
+    value objects. Collections and maps still copy/unmodifiable in the entities themselves.
+  -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2" />
+    <Or>
+      <And>
+        <Class name="com.floristeriarosy.infrastructure.persistence.entity.order.OrderEntity" />
+        <Or>
+          <Method name="getDelivery" />
+          <Method name="setDelivery" />
+        </Or>
+      </And>
+      <And>
+        <Class name="com.floristeriarosy.infrastructure.persistence.entity.order.OrderItemEntity" />
+        <Or>
+          <Method name="getOrder" />
+          <Method name="setOrder" />
+          <Method name="&lt;init&gt;" />
+        </Or>
+      </And>
+      <And>
+        <Class name="com.floristeriarosy.infrastructure.persistence.entity.order.OrderDeliveryEntity" />
+        <Or>
+          <Method name="getOrder" />
+          <Method name="setOrder" />
+          <Method name="&lt;init&gt;" />
+        </Or>
+      </And>
+    </Or>
+  </Match>
 </FindBugsFilter>

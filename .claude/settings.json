@@ -1,4 +1,22 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(mvn *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(graphify *)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {

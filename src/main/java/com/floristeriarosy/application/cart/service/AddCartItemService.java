@@ -21,14 +21,13 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Implements {@link AddCartItemUseCase}: adds a product, creating the cart lazily if this is its
- * first item (cart.md, rule 3.1).
+ * first item (cart.md, rule 3.1). Not {@code @Transactional}: {@link CartOptimisticRetry} runs each
+ * attempt in its own transaction.
  */
 @Service
-@Transactional
 public class AddCartItemService implements AddCartItemUseCase {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(AddCartItemService.class);
@@ -38,6 +37,7 @@ public class AddCartItemService implements AddCartItemUseCase {
   private final CartItemWritePort cartItemWritePort;
   private final CartPricingPort cartPricingPort;
   private final CartProductAvailabilityPort availabilityPort;
+  private final CartOptimisticRetry optimisticRetry;
 
   /**
    * @param cartReadPort resolves the caller's existing cart, if any
@@ -45,13 +45,16 @@ public class AddCartItemService implements AddCartItemUseCase {
    * @param cartItemWritePort persists the touched line
    * @param cartPricingPort prices the resulting cart for the response
    * @param availabilityPort checks the product's visibility and real stock
+   * @param optimisticRetry runs each attempt in its own transaction, retrying once on a lost race
    */
   public AddCartItemService(
       CartReadPort cartReadPort,
       CartWritePort cartWritePort,
       CartItemWritePort cartItemWritePort,
       CartPricingPort cartPricingPort,
-      CartProductAvailabilityPort availabilityPort) {
+      CartProductAvailabilityPort availabilityPort,
+      CartOptimisticRetry optimisticRetry) {
+    this.optimisticRetry = optimisticRetry;
     this.cartReadPort = cartReadPort;
     this.cartWritePort = cartWritePort;
     this.cartItemWritePort = cartItemWritePort;
@@ -83,7 +86,7 @@ public class AddCartItemService implements AddCartItemUseCase {
       throw new CartProductNotFoundException("Product " + productId + " is not visible");
     }
 
-    return CartOptimisticRetry.withRetry(() -> doExecute(command, productId));
+    return optimisticRetry.withRetry(() -> doExecute(command, productId));
   }
 
   /**

@@ -73,6 +73,9 @@ graphify-out/
 /docs/api/
 /docs/.obsidian/
 
+### GetNet gateway docs (contains test card data, kept local-only) ###
+/docs/pasarelaGetNet/
+
 ### Cuaderno de trabajo local ###
 /.claude/daily-log.md
 /.claude/dev-plan.md

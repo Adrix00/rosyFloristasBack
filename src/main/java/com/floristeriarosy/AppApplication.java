@@ -1,5 +1,7 @@
 package com.floristeriarosy;
 
+import com.floristeriarosy.infrastructure.geocoding.GeocodingProperties;
+import com.floristeriarosy.infrastructure.payment.redsys.RedsysProperties;
 import com.floristeriarosy.infrastructure.security.config.RateLimitProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -8,11 +10,12 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * {@code @EnableScheduling} activates {@code infrastructure.scheduler.InventoryAlertScheduler}
- * (ADR-013). {@code @EnableConfigurationProperties} binds {@code app.rate-limit.*} (ADR-016).
+ * (ADR-013). {@code @EnableConfigurationProperties} binds {@code app.rate-limit.*} (ADR-016),
+ * {@code app.payment.redsys.*} (ADR-017) and {@code app.geocoding.*} (order.md, rule 3.7).
  */
 @SpringBootApplication
 @EnableScheduling
-@EnableConfigurationProperties(RateLimitProperties.class)
+@EnableConfigurationProperties({RateLimitProperties.class, RedsysProperties.class, GeocodingProperties.class})
 public class AppApplication {
 
   public static void main(String[] args) {

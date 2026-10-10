@@ -14,16 +14,15 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Implements {@link MergeCartUseCase} (cart.md, rule 3.2): folds a guest cart into the customer's
  * own cart at login, or simply reassigns it when the customer had none. Not invoked from any
  * controller in this branch (auth.md's customer login does not exist yet, feature/customer) — a
- * capability exposed for when it does.
+ * capability exposed for when it does. Not {@code @Transactional}: {@link CartOptimisticRetry}
+ * runs each attempt in its own transaction.
  */
 @Service
-@Transactional
 public class MergeCartService implements MergeCartUseCase {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(MergeCartService.class);
@@ -31,14 +30,20 @@ public class MergeCartService implements MergeCartUseCase {
   private final CartReadPort cartReadPort;
   private final CartWritePort cartWritePort;
   private final CartItemWritePort cartItemWritePort;
+  private final CartOptimisticRetry optimisticRetry;
 
   /**
    * @param cartReadPort resolves the guest and the customer's own cart
    * @param cartWritePort reassigns or renews the surviving cart, and deletes the discarded guest one
    * @param cartItemWritePort persists the merged lines
+   * @param optimisticRetry runs each attempt in its own transaction, retrying once on a lost race
    */
   public MergeCartService(
-      CartReadPort cartReadPort, CartWritePort cartWritePort, CartItemWritePort cartItemWritePort) {
+      CartReadPort cartReadPort,
+      CartWritePort cartWritePort,
+      CartItemWritePort cartItemWritePort,
+      CartOptimisticRetry optimisticRetry) {
+    this.optimisticRetry = optimisticRetry;
     this.cartReadPort = cartReadPort;
     this.cartWritePort = cartWritePort;
     this.cartItemWritePort = cartItemWritePort;
@@ -50,7 +55,7 @@ public class MergeCartService implements MergeCartUseCase {
   @Override
   public void execute(MergeCartCommand command) {
     LOGGER.debug("mergeCart customerId={}", command.customerId());
-    CartOptimisticRetry.withRetry(() -> doExecute(command));
+    optimisticRetry.withRetry(() -> doExecute(command));
   }
 
   /**

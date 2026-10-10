@@ -86,7 +86,8 @@ public class SecurityConfig {
     // documented pattern for a stateless CSRF cookie (see CsrfCookieFilter below).
     http.csrf(
             csrf ->
-                csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                csrf.ignoringRequestMatchers("/api/v1/payments/redsys/notification")
+                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                     .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
         .addFilterBefore(rateLimitFilter, CsrfFilter.class)
         .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)

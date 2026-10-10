@@ -1,5 +1,6 @@
 package com.floristeriarosy.infrastructure.web.advice;
 
+import com.floristeriarosy.domain.exception.BadGatewayException;
 import com.floristeriarosy.domain.exception.ConflictException;
 import com.floristeriarosy.domain.exception.ForbiddenException;
 import com.floristeriarosy.domain.exception.HasErrorCode;
@@ -259,6 +260,19 @@ public class GlobalExceptionHandler {
       UnprocessableException exception, HttpServletRequest request) {
     LOGGER.debug("422 on {}: {}", Encode.forJava(request.getRequestURI()), exception.getMessage());
     return problemDetail(HttpStatus.UNPROCESSABLE_CONTENT, exception, request);
+  }
+
+  /**
+   * Maps any {@link BadGatewayException} to 502.
+   *
+   * @param exception the domain exception that was thrown
+   * @param request the failed request, for {@code instance}
+   * @return the RFC 7807 body
+   */
+  @ExceptionHandler(BadGatewayException.class)
+  public ProblemDetail handleBadGateway(BadGatewayException exception, HttpServletRequest request) {
+    LOGGER.debug("502 on {}: {}", Encode.forJava(request.getRequestURI()), exception.getMessage());
+    return problemDetail(HttpStatus.BAD_GATEWAY, exception, request);
   }
 
   /**
