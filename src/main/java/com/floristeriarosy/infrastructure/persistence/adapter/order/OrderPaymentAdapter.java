@@ -75,7 +75,6 @@ public class OrderPaymentAdapter implements OrderPaymentPort {
 
   /**
    * @param orderId the order being confirmed
-   * @param orderNumber the business identifier
    * @param method how the customer paid
    * @param amount the confirmed amount
    * @param providerPaymentIntentId Redsys's authorization reference from the notification
@@ -83,11 +82,7 @@ public class OrderPaymentAdapter implements OrderPaymentPort {
    */
   @Override
   public Payment confirmCharge(
-      OrderId orderId,
-      OrderNumber orderNumber,
-      PaymentMethod method,
-      BigDecimal amount,
-      String providerPaymentIntentId) {
-    return confirmUseCase.execute(orderId, orderNumber, method, amount, providerPaymentIntentId);
+      OrderId orderId, PaymentMethod method, BigDecimal amount, String providerPaymentIntentId) {
+    return confirmUseCase.execute(orderId, method, amount, providerPaymentIntentId);
   }
 }

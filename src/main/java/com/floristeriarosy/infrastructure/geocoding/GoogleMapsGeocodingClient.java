@@ -131,7 +131,7 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
   private Optional<GeocodedAddress> parseResponse(String body, String postalCode) {
     try {
       JsonNode root = objectMapper.readTree(body);
-      String status = root.path("status").asText();
+      String status = root.path("status").asString();
       if ("ZERO_RESULTS".equals(status)) {
         LOGGER.debug("geocode -> status={}", status);
         return Optional.empty();
@@ -178,7 +178,7 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
    *     postal code is the one typed
    */
   private boolean isDeliverable(JsonNode result, String postalCode) {
-    String locationType = result.path("geometry").path("location_type").asText();
+    String locationType = result.path("geometry").path("location_type").asString();
     List<String> failed = new ArrayList<>();
     if (!ACCEPTED_LOCATION_TYPES.contains(locationType)) {
       failed.add("locationType=" + locationType);
@@ -213,8 +213,8 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
   private void requireWellFormed(JsonNode result) {
     JsonNode geometry = result.path("geometry");
     boolean wellFormed =
-        geometry.path("location_type").isTextual()
-            && !geometry.path("location_type").asText().isBlank()
+        geometry.path("location_type").isString()
+            && !geometry.path("location_type").asString().isBlank()
             && geometry.path("location").path("lat").isNumber()
             && geometry.path("location").path("lng").isNumber()
             && result.path("types").isArray()
@@ -232,7 +232,7 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
    */
   private boolean hasAnyType(JsonNode types, Set<String> wanted) {
     for (JsonNode type : types) {
-      if (wanted.contains(type.asText())) {
+      if (wanted.contains(type.asString())) {
         return true;
       }
     }
@@ -246,7 +246,7 @@ public class GoogleMapsGeocodingClient implements GeocodingPort {
   private Optional<String> postalCodeOf(JsonNode result) {
     for (JsonNode component : result.path("address_components")) {
       if (hasAnyType(component.path("types"), Set.of("postal_code"))) {
-        return Optional.of(component.path("long_name").asText());
+        return Optional.of(component.path("long_name").asString());
       }
     }
     return Optional.empty();

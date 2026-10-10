@@ -3,7 +3,6 @@ package com.floristeriarosy.application.payment.service;
 import com.floristeriarosy.application.payment.port.in.ConfirmOrderPaymentUseCase;
 import com.floristeriarosy.application.payment.port.out.PaymentWritePort;
 import com.floristeriarosy.domain.model.order.valueobject.OrderId;
-import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
 import com.floristeriarosy.domain.model.payment.Payment;
 import com.floristeriarosy.domain.model.payment.PaymentMethod;
 import com.floristeriarosy.domain.model.payment.PaymentProvider;
@@ -35,20 +34,13 @@ public class ConfirmOrderPaymentService implements ConfirmOrderPaymentUseCase {
 
   /**
    * @param orderId the order being confirmed
-   * @param orderNumber the business identifier, unused here but part of the contract (ADR-017's
-   *     signature diversification already happened before this is called)
    * @param method how the customer paid
    * @param amount the confirmed amount
    * @param providerPaymentIntentId the gateway's authorization reference
    * @return the saved, captured payment
    */
   @Override
-  public Payment execute(
-      OrderId orderId,
-      OrderNumber orderNumber,
-      PaymentMethod method,
-      BigDecimal amount,
-      String providerPaymentIntentId) {
+  public Payment execute(OrderId orderId, PaymentMethod method, BigDecimal amount, String providerPaymentIntentId) {
     LOGGER.debug("confirmOrderPayment orderId={} providerPaymentIntentId={}", orderId, providerPaymentIntentId);
     Payment payment = Payment.initiate(PaymentId.newId(), orderId, method, PaymentProvider.REDSYS, amount);
     payment.capture(providerPaymentIntentId, Instant.now());

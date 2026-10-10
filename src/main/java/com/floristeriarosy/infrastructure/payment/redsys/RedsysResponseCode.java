@@ -8,7 +8,7 @@ package com.floristeriarosy.infrastructure.payment.redsys;
 public final class RedsysResponseCode {
 
   private static final String FOUR_DIGITS_WITH_LEADING_ZERO = "0\\d{3}";
-  private static final int MAX_APPROVED = 99;
+  private static final String MAX_APPROVED = "0099";
   private static final String REFUND_APPROVED = "0900";
 
   private RedsysResponseCode() {}
@@ -28,6 +28,6 @@ public final class RedsysResponseCode {
   public static boolean isApproved(String responseCode) {
     return responseCode != null
         && responseCode.matches(FOUR_DIGITS_WITH_LEADING_ZERO)
-        && Integer.parseInt(responseCode) <= MAX_APPROVED;
+        && responseCode.compareTo(MAX_APPROVED) <= 0;
   }
 }

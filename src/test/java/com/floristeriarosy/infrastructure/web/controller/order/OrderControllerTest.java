@@ -216,7 +216,7 @@ class OrderControllerTest {
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new RejectOrderRequest("  "))))
-        .andExpect(status().isUnprocessableEntity());
+        .andExpect(status().is(422));
   }
 
   @Test

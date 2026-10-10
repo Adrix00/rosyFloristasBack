@@ -172,11 +172,7 @@ public class ConfirmCheckoutService implements ConfirmCheckoutUseCase {
             payload.shippingCost());
     orderWritePort.save(order);
     orderPaymentPort.confirmCharge(
-        orderId,
-        command.orderNumber(),
-        PaymentMethod.CARD_ONLINE,
-        order.total(),
-        command.providerPaymentIntentId());
+        orderId, PaymentMethod.CARD_ONLINE, order.total(), command.providerPaymentIntentId());
     clearCartUseCase.execute(new ClearCartCommand(payload.customerId(), payload.sessionToken()));
     registerNotificationUseCase.execute(
         new RegisterNotificationCommand("ORDER_CONFIRMED", orderId.value(), customerId));

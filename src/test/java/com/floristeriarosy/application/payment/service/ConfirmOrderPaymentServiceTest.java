@@ -7,7 +7,6 @@ import static org.mockito.Mockito.when;
 
 import com.floristeriarosy.application.payment.port.out.PaymentWritePort;
 import com.floristeriarosy.domain.model.order.valueobject.OrderId;
-import com.floristeriarosy.domain.model.order.valueobject.OrderNumber;
 import com.floristeriarosy.domain.model.payment.Payment;
 import com.floristeriarosy.domain.model.payment.PaymentMethod;
 import com.floristeriarosy.domain.model.payment.PaymentStatus;
@@ -25,9 +24,7 @@ class ConfirmOrderPaymentServiceTest {
     when(writePort.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
     Payment result =
-        service.execute(
-            OrderId.newId(), OrderNumber.of("WEB-20260914-000001"),
-            PaymentMethod.CARD_ONLINE, new BigDecimal("42.00"), "redsys-auth-1");
+        service.execute(OrderId.newId(), PaymentMethod.CARD_ONLINE, new BigDecimal("42.00"), "redsys-auth-1");
 
     assertThat(result.status()).isEqualTo(PaymentStatus.CAPTURED);
     assertThat(result.providerPaymentIntentId()).isEqualTo("redsys-auth-1");

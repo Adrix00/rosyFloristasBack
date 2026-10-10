@@ -134,7 +134,7 @@ class ConfirmCheckoutServiceTest {
             "idem-3", OrderNumber.of("WEB-20260914-000001"), false, null, "Ds_Response=0199"));
 
     verify(reservationReleaser).release(any(PendingCheckoutPayload.class));
-    verify(orderPaymentPort, never()).confirmCharge(any(), any(), any(), any(), any());
+    verify(orderPaymentPort, never()).confirmCharge(any(), any(), any(), any());
     verify(orderWritePort, never()).save(any());
     verify(idempotencyPort).markFailed("idem-3");
     verify(idempotencyPort, never()).markCompleted(any(), anyInt());

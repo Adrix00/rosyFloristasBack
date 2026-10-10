@@ -452,7 +452,7 @@ public final class Order {
    * @return the sold lines, unmodifiable
    */
   public List<OrderItem> items() {
-    return items;
+    return List.copyOf(items);
   }
 
   /**
